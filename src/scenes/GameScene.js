@@ -446,16 +446,13 @@ class GameScene extends Phaser.Scene {
             const mob = getMobByLevel(quest.mobLevel);
             if (!mob) return;
 
-            // Считаем мобов на поле прямо сейчас!
+            // Считаем мобов на поле прямо сейчас (если объединил — статус готовности сбрасывается)
             const rawCount = this.mergeField.mobs.filter(m => m.mobLevel === quest.mobLevel).length;
-            if (rawCount >= quest.targetCount) {
-                // Если игрок дошел до нужного значения, статус выполнения сохраняется даже после слияния
-                quest.isCompleted = true;
-            }
+            const isReady = rawCount >= quest.targetCount;
+            quest.isCompleted = isReady;
 
-            const isReady = !!quest.isCompleted;
-            // Не считаем больше мобов, чем нужно (оставляем ровно targetCount)
-            const displayCount = isReady ? quest.targetCount : Math.min(rawCount, quest.targetCount);
+            // Не считаем больше мобов, чем нужно (максимум targetCount)
+            const displayCount = Math.min(rawCount, quest.targetCount);
 
             const cx = startX;
             const cy = startY + idx * spacing;
@@ -1047,15 +1044,22 @@ class GameScene extends Phaser.Scene {
         }
 
         const tierConfigs = [
-            { minutes: 10, count: 5, labelTime: '10 мин', labelCount: '5 мобов' },
-            { minutes: 30, count: 10, labelTime: '30 мин', labelCount: '10 мобов' },
-            { minutes: 120, count: 20, labelTime: '2 часа', labelCount: '20 мобов' },
+            { minutes: 10,  count: 3,  labelTime: '10 мин',  labelCount: '3 моба (x3)' },
+            { minutes: 30,  count: 6,  labelTime: '30 мин',  labelCount: '6 мобов (x6)' },
+            { minutes: 120, count: 12, labelTime: '2 часа',   labelCount: '12 мобов (x12)' },
+            { minutes: 240, count: 18, labelTime: '4 часа',   labelCount: '18 мобов (x18)' },
+            { minutes: 480, count: 25, labelTime: '8 часов',  labelCount: '25 мобов (x25)' },
         ];
 
         this.state.incubatorSlots.forEach((slot, idx) => {
             const x = startX + idx * 195;
             const isUnlocked = this.economy.level >= slot.unlockLevel;
-            const tConfig = tierConfigs[idx] || tierConfigs[0];
+
+            if (slot.selectedTierIndex === undefined) {
+                slot.selectedTierIndex = Math.min(idx, tierConfigs.length - 1);
+            }
+            const currentTierIdx = slot.selectedTierIndex % tierConfigs.length;
+            const currentTier = tierConfigs[currentTierIdx];
 
             // Авто-синхронизация моба до уровня магазина!
             if (slot.active) {
@@ -1099,13 +1103,14 @@ class GameScene extends Phaser.Scene {
                     });
 
                     const mobInfo = getMobByLevel(slot.mobLevel) || shopMob;
-                    const mobCount = slot.mobCount || tConfig.count;
+                    const mobCount = slot.mobCount || currentTier.count;
+                    const durLabel = slot.durationMinutes >= 60 ? `${slot.durationMinutes / 60} ч` : `${slot.durationMinutes} мин`;
 
                     const batchInfo = this.add.text(x, y - 2, `${mobInfo.emoji} ${mobInfo.name}\n(Lv.${mobInfo.level})`, {
                         fontSize: '12px', fontFamily: 'monospace', color: '#2d3436', align: 'center', fontStyle: 'bold'
                     }).setOrigin(0.5);
 
-                    const countInfo = this.add.text(x, y + 26, `Пачка: ${mobCount} шт.`, {
+                    const countInfo = this.add.text(x, y + 26, `Пачка: ${mobCount} шт. (${durLabel})`, {
                         fontSize: '11px', fontFamily: 'monospace', color: '#e67e22', fontStyle: 'bold'
                     }).setOrigin(0.5);
 
@@ -1136,11 +1141,13 @@ class GameScene extends Phaser.Scene {
                         this._incubatorSlotsContainer.add([cBg, cTxt, cHit]);
                     } else {
                         const leftSec = Math.ceil((slot.endTime - now) / 1000);
-                        const lm = Math.floor(leftSec / 60);
-                        const ls = leftSec % 60;
                         const pad = (n) => String(n).padStart(2, '0');
+                        const lh = Math.floor(leftSec / 3600);
+                        const lm = Math.floor((leftSec % 3600) / 60);
+                        const ls = leftSec % 60;
+                        const timeStr = lh > 0 ? `${lh}:${pad(lm)}:${pad(ls)}` : `${pad(lm)}:${pad(ls)}`;
 
-                        const timerTxt = this.add.text(x, y + 46, `⏱ ${pad(lm)}:${pad(ls)}`, {
+                        const timerTxt = this.add.text(x, y + 46, `⏱ ${timeStr}`, {
                             fontSize: '15px', fontFamily: 'monospace', color: '#d35400', fontStyle: 'bold'
                         }).setOrigin(0.5);
 
@@ -1156,30 +1163,66 @@ class GameScene extends Phaser.Scene {
                         this._incubatorSlotsContainer.add([timerTxt, adBg, adTxt, adHit]);
                     }
                 } else {
-                    // СЛОТ СВОБОДЕН — ГОТОВ К ЗАПУСКУ С МОБОМ ИЗ МАГАЗИНА
-                    const mobEmoji = this.add.text(x, y - 48, shopMob.emoji, { fontSize: '42px' }).setOrigin(0.5);
+                    // СЛОТ СВОБОДЕН — ВЫБОР ДЛИТЕЛЬНОСТИ И ПАЧКИ МОБОВ
+                    const mobEmoji = this.add.text(x, y - 52, shopMob.emoji, { fontSize: '38px' }).setOrigin(0.5);
 
-                    const mobName = this.add.text(x, y - 6, `${shopMob.name}\nLv.${shopMob.level}`, {
-                        fontSize: '12px', fontFamily: 'monospace', color: '#2d3436', align: 'center', fontStyle: 'bold'
+                    const mobName = this.add.text(x, y - 18, `${shopMob.name} (Lv.${shopMob.level})`, {
+                        fontSize: '11px', fontFamily: 'monospace', color: '#2d3436', align: 'center', fontStyle: 'bold'
                     }).setOrigin(0.5);
 
-                    const timeInfo = this.add.text(x, y + 26, `⏱ ${tConfig.labelTime} (${tConfig.labelCount})`, {
+                    const selTitle = this.add.text(x, y + 3, 'Время инкубации:', {
+                        fontSize: '10px', fontFamily: 'monospace', color: '#7f8c8d', fontStyle: 'bold'
+                    }).setOrigin(0.5);
+
+                    // Плашка переключателя времени и количества
+                    const selBox = this.add.graphics();
+                    drawRoundRect(selBox, x - 72, y + 15, 144, 38, 8, 0xede7f6, 0.95, 0xd1c4e9, 1.5);
+
+                    const leftArrow = this.add.text(x - 56, y + 34, '◀', {
+                        fontSize: '18px', color: '#8e44ad', fontStyle: 'bold'
+                    }).setOrigin(0.5).setInteractive({ cursor: 'pointer' });
+
+                    leftArrow.on('pointerdown', () => {
+                        slot.selectedTierIndex = (currentTierIdx - 1 + tierConfigs.length) % tierConfigs.length;
+                        if (typeof SoundManager !== 'undefined') SoundManager.playClick();
+                        this._renderIncubatorSlots();
+                    });
+
+                    const rightArrow = this.add.text(x + 56, y + 34, '▶', {
+                        fontSize: '18px', color: '#8e44ad', fontStyle: 'bold'
+                    }).setOrigin(0.5).setInteractive({ cursor: 'pointer' });
+
+                    rightArrow.on('pointerdown', () => {
+                        slot.selectedTierIndex = (currentTierIdx + 1) % tierConfigs.length;
+                        if (typeof SoundManager !== 'undefined') SoundManager.playClick();
+                        this._renderIncubatorSlots();
+                    });
+
+                    const timeInfo = this.add.text(x, y + 26, `⏱ ${currentTier.labelTime}`, {
+                        fontSize: '12px', fontFamily: 'monospace', color: '#2c3e50', fontStyle: 'bold'
+                    }).setOrigin(0.5);
+
+                    const countInfo = this.add.text(x, y + 42, `${currentTier.labelCount}`, {
                         fontSize: '11px', fontFamily: 'monospace', color: '#27ae60', fontStyle: 'bold'
                     }).setOrigin(0.5);
 
                     const [startBg, startTxt, startHit] = this._makeButton(x, y + 84, 155, 36, '🥚 В ИНКУБАТОР', '#8e44ad', () => {
                         slot.active = true;
-                        slot.endTime = Date.now() + tConfig.minutes * 60 * 1000;
-                        slot.durationMinutes = tConfig.minutes;
-                        slot.mobCount = tConfig.count;
+                        slot.endTime = Date.now() + currentTier.minutes * 60 * 1000;
+                        slot.durationMinutes = currentTier.minutes;
+                        slot.mobCount = currentTier.count;
                         slot.mobLevel = shopMobLevel;
                         if (typeof SoundManager !== 'undefined') SoundManager.playPop();
                         this._renderIncubatorSlots();
                         this._save();
-                        spawnFloatingText(this, CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, `🥚 ${tConfig.count}x ${shopMob.name} готовятся!`, '#8e44ad');
+                        spawnFloatingText(this, CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, `🥚 ${currentTier.count}x ${shopMob.name} (${currentTier.labelTime}) готовятся!`, '#8e44ad');
                     }, '12px');
 
-                    this._incubatorSlotsContainer.add([mobEmoji, mobName, timeInfo, startBg, startTxt, startHit]);
+                    this._incubatorSlotsContainer.add([
+                        mobEmoji, mobName, selTitle, selBox,
+                        leftArrow, rightArrow, timeInfo, countInfo,
+                        startBg, startTxt, startHit
+                    ]);
                 }
             }
         });
