@@ -106,30 +106,31 @@ class MergeField {
         drawRoundRect(bg, -mobSize / 2, -mobSize / 2, mobSize, mobSize, mobSize / 2, mob.rarityColor, 0.55, 0xffffff, 2.5);
         container.add(bg);
 
-        // 3. Эмодзи / спрайт моба
-        const mobImg = scene.add.text(0, -6, mob.emoji, {
-            fontSize: `${mobSize * 0.48}px`,
+        // 3. Эмодзи / спрайт моба (крупный и сочный)
+        const mobImg = scene.add.text(0, -8, mob.emoji, {
+            fontSize: `${Math.round(mobSize * 0.52)}px`,
         }).setOrigin(0.5);
         container.add(mobImg);
 
-        // 4. Имя моба снизу
-        const nameText = scene.add.text(0, mobSize / 2 - 14, mob.name, {
-            fontSize: '9px',
+        // 4. Имя моба снизу (крупное и читаемое)
+        const nameText = scene.add.text(0, mobSize / 2 - 16, mob.name, {
+            fontSize: '11px',
             fontFamily: 'monospace',
             color: '#ffffff',
             stroke: '#000000',
-            strokeThickness: 2,
-            wordWrap: { width: mobSize + 10 }
+            strokeThickness: 3,
+            fontStyle: 'bold',
+            wordWrap: { width: mobSize + 14 }
         }).setOrigin(0.5, 0);
         container.add(nameText);
 
-        // 5. Бейдж уровня слева сверху
+        // 5. Бейдж уровня слева сверху (увеличенный)
         const lvlBadge = scene.add.graphics();
-        drawRoundRect(lvlBadge, -mobSize / 2 + 2, -mobSize / 2 + 2, 22, 16, 5, 0x000000, 0.75);
+        drawRoundRect(lvlBadge, -mobSize / 2 + 2, -mobSize / 2 + 2, 28, 20, 6, 0x000000, 0.85);
         container.add(lvlBadge);
 
-        const lvlText = scene.add.text(-mobSize / 2 + 13, -mobSize / 2 + 3, `${mobItem.mobLevel}`, {
-            fontSize: '9px',
+        const lvlText = scene.add.text(-mobSize / 2 + 16, -mobSize / 2 + 4, `${mobItem.mobLevel}`, {
+            fontSize: '11px',
             fontFamily: 'monospace',
             color: '#ffd700',
             fontStyle: 'bold',

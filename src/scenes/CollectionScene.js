@@ -52,31 +52,31 @@ class CollectionScene extends Phaser.Scene {
 
             if (isUnlocked) {
                 // Эмодзи
-                this.add.text(x + cardW / 2, y + 28, mob.emoji, { fontSize: '26px' }).setOrigin(0.5);
+                this.add.text(x + cardW / 2, y + 26, mob.emoji, { fontSize: '32px' }).setOrigin(0.5);
                 // Имя
-                this.add.text(x + cardW / 2, y + 55, mob.name, {
-                    fontSize: '8px', fontFamily: 'monospace', color: '#fff',
-                    stroke: '#000', strokeThickness: 1, wordWrap: { width: cardW - 6 }
+                this.add.text(x + cardW / 2, y + 54, mob.name, {
+                    fontSize: '10px', fontFamily: 'monospace', color: '#fff',
+                    stroke: '#000', strokeThickness: 2, fontStyle: 'bold', wordWrap: { width: cardW - 6 }
                 }).setOrigin(0.5, 0);
                 // АТК
-                this.add.text(x + cardW / 2, y + 72, `⚔ ${formatNumber(mob.atk)}`, {
-                    fontSize: '8px', fontFamily: 'monospace', color: '#ff8888'
+                this.add.text(x + cardW / 2, y + 74, `⚔ ${formatNumber(mob.atk)}`, {
+                    fontSize: '10px', fontFamily: 'monospace', color: '#ff8888', fontStyle: 'bold'
                 }).setOrigin(0.5, 0);
                 // Уровень
                 this.add.text(x + 6, y + 5, `Lv${mob.level}`, {
-                    fontSize: '8px', fontFamily: 'monospace', color: '#ffd700'
+                    fontSize: '10px', fontFamily: 'monospace', color: '#ffd700', fontStyle: 'bold'
                 });
             } else {
                 // Заблокирован — показываем ?
-                this.add.text(x + cardW / 2, y + cardH / 2 - 10, '🔒', { fontSize: '28px' }).setOrigin(0.5);
-                this.add.text(x + cardW / 2, y + cardH / 2 + 18, `Lv${mob.level}`, {
-                    fontSize: '9px', fontFamily: 'monospace', color: '#555',
+                this.add.text(x + cardW / 2, y + cardH / 2 - 10, '🔒', { fontSize: '32px' }).setOrigin(0.5);
+                this.add.text(x + cardW / 2, y + cardH / 2 + 20, `Lv${mob.level}`, {
+                    fontSize: '11px', fontFamily: 'monospace', color: '#777', fontStyle: 'bold'
                 }).setOrigin(0.5);
             }
         });
 
         // Кнопка закрыть
-        const [bbg, btxt, bhit] = this._makeBtn(W - 60, 28, 'X Закрыть', () => {
+        const [bbg, btxt, bhit] = this._makeBtn(W - 75, 28, 'X Закрыть', () => {
             this.scene.stop();
         });
 
@@ -85,11 +85,11 @@ class CollectionScene extends Phaser.Scene {
 
     _makeBtn(cx, cy, label, cb) {
         const bg = this.add.graphics();
-        drawRoundRect(bg, cx - 60, cy - 16, 120, 32, 6, 0x636e72, 1);
+        drawRoundRect(bg, cx - 65, cy - 18, 130, 36, 8, 0x636e72, 1);
         const txt = this.add.text(cx, cy, label, {
-            fontSize: '11px', fontFamily: 'monospace', color: '#fff',
+            fontSize: '13px', fontFamily: 'monospace', color: '#fff', fontStyle: 'bold',
         }).setOrigin(0.5).setDepth(1);
-        const hit = this.add.rectangle(cx, cy, 120, 32, 0, 0).setInteractive({ cursor: 'pointer' });
+        const hit = this.add.rectangle(cx, cy, 130, 36, 0, 0).setInteractive({ cursor: 'pointer' });
         hit.on('pointerdown', cb);
         return [bg, txt, hit];
     }

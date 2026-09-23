@@ -155,24 +155,24 @@ class GameScene extends Phaser.Scene {
         const W = CONFIG.WIDTH;
 
         // 1. Кнопка уровня с прогресс-баром опыта (слева)
-        this._buildLevelWidget(14, 12, 142, 42);
+        this._buildLevelWidget(12, 10, 150, 44);
 
         // 2. Кнопка "🎁 Подарки" (открывает меню наград за время в игре)
-        const [fBg, fTxt, fHit] = this._makeButton(228, 33, 126, 42, '🎁 Подарки', '#27ae60', () => {
+        const [fBg, fTxt, fHit] = this._makeButton(236, 32, 132, 44, '🎁 Подарки', '#27ae60', () => {
             this._openPlaytimeModal();
-        });
+        }, '14px');
         this._giftBtnText = fTxt;
 
         // 3. Комбо-шкала множителя (центр: x1 x2 x3 x4 x5)
-        this._buildComboBar(306, 18, 240, 30);
+        this._buildComboBar(316, 16, 246, 32);
 
         // 4. Баланс изумрудов (справа)
         const coinBg = this.add.graphics();
-        drawRoundRect(coinBg, W - 180, 12, 164, 42, 10, 0xffffff, 0.95, 0xdddddd, 2);
+        drawRoundRect(coinBg, W - 190, 10, 175, 44, 10, 0xffffff, 0.95, 0xdddddd, 2);
 
-        this.add.text(W - 165, 33, '💎', { fontSize: '20px' }).setOrigin(0.5);
-        this._coinsText = this.add.text(W - 25, 33, `${formatNumber(this.economy.coins)}`, {
-            fontSize: '18px',
+        this.add.text(W - 173, 32, '💎', { fontSize: '22px' }).setOrigin(0.5);
+        this._coinsText = this.add.text(W - 22, 32, `${formatNumber(this.economy.coins)}`, {
+            fontSize: '19px',
             fontFamily: 'monospace',
             color: '#2e7d32',
             fontStyle: 'bold',
@@ -188,8 +188,8 @@ class GameScene extends Phaser.Scene {
         this.levelWidgetBg = this.add.graphics();
         this.levelWidgetFill = this.add.graphics();
 
-        this.levelWidgetTitle = this.add.text(x + w / 2, y + 13, '', {
-            fontSize: '12px',
+        this.levelWidgetTitle = this.add.text(x + w / 2, y + 14, '', {
+            fontSize: '13px',
             fontFamily: 'monospace',
             color: '#ffffff',
             stroke: '#000000',
@@ -197,8 +197,8 @@ class GameScene extends Phaser.Scene {
             fontStyle: 'bold',
         }).setOrigin(0.5);
 
-        this.levelWidgetSub = this.add.text(x + w / 2, y + 28, '', {
-            fontSize: '9px',
+        this.levelWidgetSub = this.add.text(x + w / 2, y + 30, '', {
+            fontSize: '11px',
             fontFamily: 'monospace',
             color: '#ffd700',
             stroke: '#000000',
@@ -330,21 +330,21 @@ class GameScene extends Phaser.Scene {
         this._leftCardGroup.forEach(item => item.destroy && item.destroy());
         this._leftCardGroup = [];
 
-        const x = 55;
-        const y = 112;
-        const w = 96;
-        const h = 108;
+        const x = 62;
+        const y = 126;
+        const w = 106;
+        const h = 122;
 
         const maxUnlocked = Math.max(...this.mergeField.collection, 1);
         const topMob = getMobByLevel(maxUnlocked);
 
         const bg = this.add.graphics();
-        drawRoundRect(bg, x - w / 2, y - h / 2, w, h, 12, 0xffffff, 0.94, 0xffd700, 2.5);
+        drawRoundRect(bg, x - w / 2, y - h / 2, w, h, 14, 0xffffff, 0.94, 0xffd700, 2.5);
         this._leftCardGroup.push(bg);
 
         // Поясняющий заголовок
-        const title = this.add.text(x, y - h / 2 + 11, 'ТОП МОБ', {
-            fontSize: '10px',
+        const title = this.add.text(x, y - h / 2 + 13, 'ТОП МОБ', {
+            fontSize: '11px',
             fontFamily: 'monospace',
             color: '#b7791f',
             fontStyle: 'bold',
@@ -352,14 +352,14 @@ class GameScene extends Phaser.Scene {
 
         if (topMob) {
             // Эмодзи сильнейшего открытого моба
-            const emoji = this.add.text(x, y - 4, topMob.emoji, { fontSize: '38px' }).setOrigin(0.5);
+            const emoji = this.add.text(x, y - 5, topMob.emoji, { fontSize: '48px' }).setOrigin(0.5);
 
             // Бейдж количества мобов на полянке
             const countBadge = this.add.graphics();
-            drawRoundRect(countBadge, x - 42, y + 26, 84, 20, 6, 0x27ae60, 1);
+            drawRoundRect(countBadge, x - 47, y + 28, 94, 25, 7, 0x27ae60, 1);
 
-            const countText = this.add.text(x, y + 36, `На поле: ${this.mergeField.mobs.length}`, {
-                fontSize: '9px',
+            const countText = this.add.text(x, y + 40, `На поле: ${this.mergeField.mobs.length}`, {
+                fontSize: '11px',
                 fontFamily: 'monospace',
                 color: '#ffffff',
                 fontStyle: 'bold',
@@ -390,26 +390,26 @@ class GameScene extends Phaser.Scene {
         const buyMob   = getMobByLevel(buyLevel);
         const cost     = getMobCost(buyLevel);
 
-        const cardX = W - 75;
+        const cardX = W - 78;
         const cardY = 135;
-        const cardSize = 110;
+        const cardSize = 122;
 
         const bg1 = this.add.graphics();
-        drawRoundRect(bg1, cardX - cardSize / 2, cardY - cardSize / 2, cardSize, cardSize, 16, 0xffffff, 0.92, 0x4aa3df, 3);
+        drawRoundRect(bg1, cardX - cardSize / 2, cardY - cardSize / 2, cardSize, cardSize, 18, 0xffffff, 0.94, 0x4aa3df, 3);
         this._shopUiGroup.push(bg1);
 
         if (buyMob) {
             const mobImg = this.add.text(cardX, cardY - 14, buyMob.emoji, {
-                fontSize: '46px',
+                fontSize: '52px',
             }).setOrigin(0.5);
 
             const priceBg = this.add.graphics();
-            drawRoundRect(priceBg, cardX - cardSize / 2 + 6, cardY + cardSize / 2 - 28, cardSize - 12, 22, 6, 0xffd700, 1);
+            drawRoundRect(priceBg, cardX - cardSize / 2 + 6, cardY + cardSize / 2 - 32, cardSize - 12, 26, 8, 0xffd700, 1);
 
-            const priceText = this.add.text(cardX, cardY + cardSize / 2 - 17, `💎 ${formatNumber(cost)}`, {
-                fontSize: '11px',
+            const priceText = this.add.text(cardX, cardY + cardSize / 2 - 19, `💎 ${formatNumber(cost)}`, {
+                fontSize: '13px',
                 fontFamily: 'monospace',
-                color: '#333333',
+                color: '#222222',
                 fontStyle: 'bold',
             }).setOrigin(0.5);
 
@@ -425,21 +425,21 @@ class GameScene extends Phaser.Scene {
         const adMobLevel = Math.max(1, maxUnlocked - CONFIG.AD_LEVEL_OFFSET);
         const adMob      = getMobByLevel(adMobLevel);
 
-        const cardY2 = 265;
+        const cardY2 = 275;
         const bg2 = this.add.graphics();
-        drawRoundRect(bg2, cardX - cardSize / 2, cardY2 - cardSize / 2, cardSize, cardSize, 16, 0xffffff, 0.92, 0x4aa3df, 3);
+        drawRoundRect(bg2, cardX - cardSize / 2, cardY2 - cardSize / 2, cardSize, cardSize, 18, 0xffffff, 0.94, 0x4aa3df, 3);
         this._shopUiGroup.push(bg2);
 
         if (adMob) {
             const mobImg2 = this.add.text(cardX, cardY2 - 14, adMob.emoji, {
-                fontSize: '46px',
+                fontSize: '52px',
             }).setOrigin(0.5);
 
             const adBg = this.add.graphics();
-            drawRoundRect(adBg, cardX - cardSize / 2 + 6, cardY2 + cardSize / 2 - 28, cardSize - 12, 22, 6, 0x8e44ad, 1);
+            drawRoundRect(adBg, cardX - cardSize / 2 + 6, cardY2 + cardSize / 2 - 32, cardSize - 12, 26, 8, 0x8e44ad, 1);
 
-            const adText = this.add.text(cardX, cardY2 + cardSize / 2 - 17, '📺 Реклама', {
-                fontSize: '10px',
+            const adText = this.add.text(cardX, cardY2 + cardSize / 2 - 19, '📺 Реклама', {
+                fontSize: '13px',
                 fontFamily: 'monospace',
                 color: '#ffffff',
                 fontStyle: 'bold',
@@ -485,26 +485,26 @@ class GameScene extends Phaser.Scene {
         const H = CONFIG.HEIGHT;
 
         const g = this.add.graphics();
-        drawRoundRect(g, 0, H - 58, W, 58, 0, 0x16213e, 0.95);
+        drawRoundRect(g, 0, H - 62, W, 62, 0, 0x16213e, 0.96);
 
-        this._makeButton(110, H - 29, 150, 40, '📖 Коллекция', '#34495e',
-            () => this.scene.launch('CollectionScene', { collection: [...this.mergeField.collection] }));
+        this._makeButton(105, H - 31, 145, 46, '📖 Коллекция', '#34495e',
+            () => this.scene.launch('CollectionScene', { collection: [...this.mergeField.collection] }), '13px');
 
         // Кнопка Инкубатора
-        this._makeButton(280, H - 29, 150, 40, '🥚 Инкубатор', '#8e44ad',
-            () => this._openIncubatorModal());
+        this._makeButton(265, H - 31, 145, 46, '🥚 Инкубатор', '#8e44ad',
+            () => this._openIncubatorModal(), '13px');
 
-        this._makeButton(450, H - 29, 150, 40, '🏆 Награды', '#34495e',
-            () => spawnFloatingText(this, 450, H - 80, 'Скоро!', '#ffd700'));
+        this._makeButton(425, H - 31, 145, 46, '🏆 Награды', '#34495e',
+            () => spawnFloatingText(this, 425, H - 80, 'Скоро!', '#ffd700'), '13px');
 
         // Большая красная кнопка В БОЙ
-        this._makeButton(W - 110, H - 29, 170, 44, '⚔ В БОЙ!', '#c0392b', () => {
+        this._makeButton(W - 115, H - 31, 185, 48, '⚔ В БОЙ!', '#c0392b', () => {
             if (this.mergeField.mobs.length === 0) {
-                spawnFloatingText(this, W - 110, H - 80, 'Купите бойцов!', '#ff4444');
+                spawnFloatingText(this, W - 115, H - 80, 'Купите бойцов!', '#ff4444');
                 return;
             }
             this._openBattleModal();
-        });
+        }, '18px');
     }
 
     // ============================================================
@@ -637,9 +637,9 @@ class GameScene extends Phaser.Scene {
 
         this._playtimeListContainer = this.add.container(0, 0);
 
-        const closeBtn = this._makeButton(0, 168, 160, 38, 'ЗАКРЫТЬ', '#747d8c', () => {
+        const closeBtn = this._makeButton(0, 168, 170, 42, 'ЗАКРЫТЬ', '#747d8c', () => {
             this._playtimeModal.setVisible(false);
-        });
+        }, '14px');
 
         this._playtimeModal.add([overlay, bg, title, this._playtimeTimeHeader, this._playtimeListContainer, ...closeBtn]);
     }
@@ -663,8 +663,8 @@ class GameScene extends Phaser.Scene {
         this._playtimeTimeHeader.setText(`Текущее время в игре: ${pad(h)}:${pad(m)}:${pad(s)}`);
 
         const tiers = this._getPlaytimeTiers();
-        const startY = -105;
-        const cardH  = 40;
+        const startY = -106;
+        const cardH  = 42;
 
         tiers.forEach((tier, idx) => {
             const y = startY + idx * (cardH + 6);
@@ -676,38 +676,38 @@ class GameScene extends Phaser.Scene {
                 isReady ? 0x1b4332 : (isClaimed ? 0x242d38 : 0x1a233a), 0.9,
                 isReady ? 0x5dff6e : 0x4a5568, 1.5);
 
-            const icon = this.add.text(-250, y + cardH / 2, tier.icon, { fontSize: '20px' }).setOrigin(0.5);
+            const icon = this.add.text(-250, y + cardH / 2, tier.icon, { fontSize: '24px' }).setOrigin(0.5);
 
-            const timeTxt = this.add.text(-225, y + 10, tier.timeLabel, {
-                fontSize: '11px', fontFamily: 'monospace', color: '#ffd700', fontStyle: 'bold'
+            const timeTxt = this.add.text(-222, y + 10, tier.timeLabel, {
+                fontSize: '12px', fontFamily: 'monospace', color: '#ffd700', fontStyle: 'bold'
             });
 
-            const descTxt = this.add.text(-225, y + 23, tier.desc, {
-                fontSize: '10px', fontFamily: 'monospace', color: '#dddddd'
+            const descTxt = this.add.text(-222, y + 24, tier.desc, {
+                fontSize: '11px', fontFamily: 'monospace', color: '#dddddd'
             });
 
             this._playtimeListContainer.add([bg, icon, timeTxt, descTxt]);
 
             if (isClaimed) {
                 const claimBadge = this.add.text(210, y + cardH / 2, 'Получено ✅', {
-                    fontSize: '11px', fontFamily: 'monospace', color: '#8892b0', fontStyle: 'bold'
+                    fontSize: '12px', fontFamily: 'monospace', color: '#8892b0', fontStyle: 'bold'
                 }).setOrigin(0.5);
                 this._playtimeListContainer.add(claimBadge);
             } else if (isReady) {
-                const [cBg, cTxt, cHit] = this._makeButton(210, y + cardH / 2, 100, 28, 'ЗАБРАТЬ 🎁', '#2ed573', () => {
+                const [cBg, cTxt, cHit] = this._makeButton(210, y + cardH / 2, 108, 30, 'ЗАБРАТЬ 🎁', '#2ed573', () => {
                     this.state.playtime.claimed[idx] = true;
                     tier.claim(tier);
                     this._renderPlaytimeCards();
                     this._updateLeftStatusCard();
                     this._save();
-                });
+                }, '12px');
                 this._playtimeListContainer.add([cBg, cTxt, cHit]);
             } else {
                 const left = tier.seconds - curSeconds;
                 const lm = Math.floor(left / 60);
                 const ls = left % 60;
                 const timerTxt = this.add.text(210, y + cardH / 2, `⏱ ${pad(lm)}:${pad(ls)}`, {
-                    fontSize: '11px', fontFamily: 'monospace', color: '#a0aec0', fontStyle: 'bold'
+                    fontSize: '12px', fontFamily: 'monospace', color: '#a0aec0', fontStyle: 'bold'
                 }).setOrigin(0.5);
                 this._playtimeListContainer.add(timerTxt);
             }
@@ -739,9 +739,9 @@ class GameScene extends Phaser.Scene {
 
         this._incubatorSlotsContainer = this.add.container(0, 0);
 
-        const closeBtn = this._makeButton(0, 178, 160, 38, 'ЗАКРЫТЬ', '#747d8c', () => {
+        const closeBtn = this._makeButton(0, 180, 170, 42, 'ЗАКРЫТЬ', '#747d8c', () => {
             this._incubatorModal.setVisible(false);
-        });
+        }, '14px');
 
         this._incubatorModal.add([overlay, bg, title, sub, this._incubatorSlotsContainer, ...closeBtn]);
     }
@@ -757,7 +757,7 @@ class GameScene extends Phaser.Scene {
         this._incubatorSlotsContainer.removeAll(true);
 
         const slotW = 180;
-        const slotH = 260;
+        const slotH = 265;
         const startX = -195;
         const y = -10;
 
@@ -773,16 +773,16 @@ class GameScene extends Phaser.Scene {
                 isUnlocked ? 0x8e44ad : 0x4a5568, 2);
 
             const slotTitle = this.add.text(x, y - slotH / 2 + 16, `СЛОТ ${idx + 1}`, {
-                fontSize: '13px', fontFamily: 'monospace', color: '#ffd700', fontStyle: 'bold'
+                fontSize: '14px', fontFamily: 'monospace', color: '#ffd700', fontStyle: 'bold'
             }).setOrigin(0.5);
 
             this._incubatorSlotsContainer.add([bg, slotTitle]);
 
             if (!isUnlocked) {
                 // Заблокированный слот
-                const lockIcon = this.add.text(x, y - 20, '🔒', { fontSize: '42px' }).setOrigin(0.5);
+                const lockIcon = this.add.text(x, y - 20, '🔒', { fontSize: '44px' }).setOrigin(0.5);
                 const lockText = this.add.text(x, y + 35, `Откроется\nна ${slot.unlockLevel} уровне!`, {
-                    fontSize: '12px', fontFamily: 'monospace', color: '#a0aec0', align: 'center', fontStyle: 'bold'
+                    fontSize: '13px', fontFamily: 'monospace', color: '#a0aec0', align: 'center', fontStyle: 'bold'
                 }).setOrigin(0.5);
 
                 this._incubatorSlotsContainer.add([lockIcon, lockText]);
@@ -793,21 +793,21 @@ class GameScene extends Phaser.Scene {
                     const now = Date.now();
                     const isReady = now >= slot.endTime;
 
-                    const eggEmoji = this.add.text(x, y - 45, '🥚', { fontSize: '44px' }).setOrigin(0.5);
+                    const eggEmoji = this.add.text(x, y - 45, '🥚', { fontSize: '48px' }).setOrigin(0.5);
                     const mobInfo = getMobByLevel(slot.mobLevel);
 
                     const batchInfo = this.add.text(x, y + 5, `${slot.mobCount}x ${mobInfo ? mobInfo.name : 'Мобов'}\n(Ур. ${slot.mobLevel})`, {
-                        fontSize: '11px', fontFamily: 'monospace', color: '#ffffff', align: 'center', fontStyle: 'bold'
+                        fontSize: '12px', fontFamily: 'monospace', color: '#ffffff', align: 'center', fontStyle: 'bold'
                     }).setOrigin(0.5);
 
                     this._incubatorSlotsContainer.add([eggEmoji, batchInfo]);
 
                     if (isReady) {
                         const readyTxt = this.add.text(x, y + 42, 'ГОТОВО! 🎉', {
-                            fontSize: '12px', fontFamily: 'monospace', color: '#5dff6e', fontStyle: 'bold'
+                            fontSize: '13px', fontFamily: 'monospace', color: '#5dff6e', fontStyle: 'bold'
                         }).setOrigin(0.5);
 
-                        const [cBg, cTxt, cHit] = this._makeButton(x, y + 80, 150, 36, 'ЗАБРАТЬ 🎁', '#2ed573', () => {
+                        const [cBg, cTxt, cHit] = this._makeButton(x, y + 80, 155, 38, 'ЗАБРАТЬ 🎁', '#2ed573', () => {
                             // Спавним всех приготовленных мобов на поле
                             for (let i = 0; i < slot.mobCount; i++) {
                                 this.mergeField.spawnMob(slot.mobLevel);
@@ -818,7 +818,7 @@ class GameScene extends Phaser.Scene {
                             this._renderIncubatorSlots();
                             this._updateLeftStatusCard();
                             this._save();
-                        });
+                        }, '13px');
 
                         this._incubatorSlotsContainer.add([readyTxt, cBg, cTxt, cHit]);
                     } else {
@@ -828,11 +828,11 @@ class GameScene extends Phaser.Scene {
                         const pad = (n) => String(n).padStart(2, '0');
 
                         const timerTxt = this.add.text(x, y + 48, `⏱ ${pad(lm)}:${pad(ls)}`, {
-                            fontSize: '14px', fontFamily: 'monospace', color: '#ffd700', fontStyle: 'bold'
+                            fontSize: '15px', fontFamily: 'monospace', color: '#ffd700', fontStyle: 'bold'
                         }).setOrigin(0.5);
 
                         const statusTxt = this.add.text(x, y + 80, 'Варится в яйце...', {
-                            fontSize: '10px', fontFamily: 'monospace', color: '#b388ff'
+                            fontSize: '11px', fontFamily: 'monospace', color: '#b388ff'
                         }).setOrigin(0.5);
 
                         this._incubatorSlotsContainer.add([timerTxt, statusTxt]);
@@ -840,7 +840,7 @@ class GameScene extends Phaser.Scene {
                 } else {
                     // СЛОТ СВОБОДЕН — ВЫБОР ПАЧКИ
                     const freeTxt = this.add.text(x, y - slotH / 2 + 36, 'Свободен. Выберите:', {
-                        fontSize: '10px', fontFamily: 'monospace', color: '#b388ff'
+                        fontSize: '11px', fontFamily: 'monospace', color: '#b388ff'
                     }).setOrigin(0.5);
                     this._incubatorSlotsContainer.add(freeTxt);
 
@@ -855,7 +855,7 @@ class GameScene extends Phaser.Scene {
 
                     recipes.forEach((rcp, rIdx) => {
                         const ry = y - 48 + rIdx * 38;
-                        const [rBg, rTxt, rHit] = this._makeButton(x, ry, 150, 30, rcp.label, '#34495e', () => {
+                        const [rBg, rTxt, rHit] = this._makeButton(x, ry, 155, 32, rcp.label, '#34495e', () => {
                             const targetLvl = Math.max(1, maxUnlocked - rcp.levelOffset);
                             slot.active = true;
                             slot.endTime = Date.now() + rcp.minutes * 60 * 1000;
@@ -866,7 +866,7 @@ class GameScene extends Phaser.Scene {
                             this._renderIncubatorSlots();
                             this._save();
                             spawnFloatingText(this, CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, `🥚 Инкубация началась! (${rcp.label})`, '#ffd700');
-                        });
+                        }, '12px');
 
                         this._incubatorSlotsContainer.add([rBg, rTxt, rHit]);
                     });
@@ -896,9 +896,9 @@ class GameScene extends Phaser.Scene {
 
         this._newMobModalContent = this.add.container(0, 0);
 
-        const closeBtn = this._makeButton(0, 118, 200, 44, 'КРУТО! 👍', '#2ed573', () => {
+        const closeBtn = this._makeButton(0, 118, 220, 46, 'КРУТО! 👍', '#2ed573', () => {
             this._newMobModal.setVisible(false);
-        });
+        }, '16px');
 
         this._newMobModal.add([overlay, bg, title, this._newMobModalContent, ...closeBtn]);
     }
@@ -917,12 +917,12 @@ class GameScene extends Phaser.Scene {
         drawRoundRect(leftBg, leftX - cardW / 2, leftY - cardH / 2, cardW, cardH, 14, newMob.rarityColor, 0.45, 0x5dff6e, 3);
 
         const badgeG = this.add.graphics();
-        drawRoundRect(badgeG, leftX - 45, leftY - cardH / 2 - 12, 90, 22, 6, 0x2ed573, 1);
+        drawRoundRect(badgeG, leftX - 48, leftY - cardH / 2 - 12, 96, 22, 6, 0x2ed573, 1);
         const badgeTxt = this.add.text(leftX, leftY - cardH / 2 - 1, 'ОТКРЫТ!', {
-            fontSize: '11px', fontFamily: 'monospace', color: '#ffffff', fontStyle: 'bold'
+            fontSize: '12px', fontFamily: 'monospace', color: '#ffffff', fontStyle: 'bold'
         }).setOrigin(0.5);
 
-        const leftEmoji = this.add.text(leftX, leftY - 22, newMob.emoji, { fontSize: '56px' }).setOrigin(0.5);
+        const leftEmoji = this.add.text(leftX, leftY - 22, newMob.emoji, { fontSize: '62px' }).setOrigin(0.5);
 
         this.tweens.add({
             targets: leftEmoji,
@@ -935,16 +935,16 @@ class GameScene extends Phaser.Scene {
         });
 
         const leftName = this.add.text(leftX, leftY + 28, newMob.name, {
-            fontSize: '12px', fontFamily: 'monospace', color: '#ffffff',
+            fontSize: '13px', fontFamily: 'monospace', color: '#ffffff',
             stroke: '#000', strokeThickness: 2, fontStyle: 'bold', wordWrap: { width: cardW - 10 }
         }).setOrigin(0.5, 0);
 
         const leftAtk = this.add.text(leftX, leftY + 52, `⚔ ${formatNumber(newMob.atk)}`, {
-            fontSize: '12px', fontFamily: 'monospace', color: '#5dff6e', fontStyle: 'bold'
+            fontSize: '13px', fontFamily: 'monospace', color: '#5dff6e', fontStyle: 'bold'
         }).setOrigin(0.5, 0);
 
         const leftLvl = this.add.text(leftX - cardW / 2 + 10, leftY - cardH / 2 + 10, `Lv.${newMob.level}`, {
-            fontSize: '10px', fontFamily: 'monospace', color: '#ffd700', fontStyle: 'bold'
+            fontSize: '12px', fontFamily: 'monospace', color: '#ffd700', fontStyle: 'bold'
         });
 
         const arrow = this.add.text(0, leftY, '➔', {
@@ -967,23 +967,23 @@ class GameScene extends Phaser.Scene {
         drawRoundRect(rightBg, rightX - cardW / 2, rightY - cardH / 2, cardW, cardH, 14, 0x111625, 0.9, 0x4a5568, 2);
 
         const nextBadgeG = this.add.graphics();
-        drawRoundRect(nextBadgeG, rightX - 52, rightY - cardH / 2 - 12, 104, 22, 6, 0x4a5568, 1);
+        drawRoundRect(nextBadgeG, rightX - 54, rightY - cardH / 2 - 12, 108, 22, 6, 0x4a5568, 1);
         const nextBadgeTxt = this.add.text(rightX, rightY - cardH / 2 - 1, 'СЛЕДУЮЩИЙ', {
-            fontSize: '10px', fontFamily: 'monospace', color: '#ffd700', fontStyle: 'bold'
+            fontSize: '11px', fontFamily: 'monospace', color: '#ffd700', fontStyle: 'bold'
         }).setOrigin(0.5);
 
-        const rightEmoji = this.add.text(rightX, rightY - 22, '❓', { fontSize: '52px' }).setOrigin(0.5);
+        const rightEmoji = this.add.text(rightX, rightY - 22, '❓', { fontSize: '56px' }).setOrigin(0.5);
 
         const rightName = this.add.text(rightX, rightY + 28, nextMob ? nextMob.name : '???', {
-            fontSize: '12px', fontFamily: 'monospace', color: '#8892b0',
+            fontSize: '13px', fontFamily: 'monospace', color: '#8892b0',
             stroke: '#000', strokeThickness: 1, wordWrap: { width: cardW - 10 }
         }).setOrigin(0.5, 0);
 
         const rightLvl = this.add.text(rightX, rightY + 52, nextMob ? `Lv.${nextMob.level}` : 'МАКСИМУМ', {
-            fontSize: '12px', fontFamily: 'monospace', color: '#a0aec0', fontStyle: 'bold'
+            fontSize: '13px', fontFamily: 'monospace', color: '#a0aec0', fontStyle: 'bold'
         }).setOrigin(0.5, 0);
 
-        const rightLock = this.add.text(rightX + cardW / 2 - 16, rightY - cardH / 2 + 10, '🔒', { fontSize: '12px' }).setOrigin(0.5);
+        const rightLock = this.add.text(rightX + cardW / 2 - 16, rightY - cardH / 2 + 10, '🔒', { fontSize: '14px' }).setOrigin(0.5);
 
         this._newMobModalContent.add([
             leftBg, badgeG, badgeTxt, leftEmoji, leftName, leftAtk, leftLvl,
@@ -1027,10 +1027,10 @@ class GameScene extends Phaser.Scene {
             stroke: '#000', strokeThickness: 3, fontStyle: 'bold',
         }).setOrigin(0.5);
 
-        const runBtn = this._makeButton(-80, 55, 130, 42, 'Убежать', '#747d8c',
-            () => { this._battleModal.setVisible(false); });
-        const fightBtn = this._makeButton(80, 55, 130, 42, 'В бой!', '#2ed573',
-            () => { this._battleModal.setVisible(false); this._openFighterSelect(); });
+        const runBtn = this._makeButton(-85, 55, 140, 44, 'Убежать', '#747d8c',
+            () => { this._battleModal.setVisible(false); }, '14px');
+        const fightBtn = this._makeButton(85, 55, 140, 44, 'В бой! ⚔', '#2ed573',
+            () => { this._battleModal.setVisible(false); this._openFighterSelect(); }, '14px');
 
         this._battleModal.add([overlay, bg, title, this._battleModalName, ...runBtn, ...fightBtn]);
     }
@@ -1054,17 +1054,17 @@ class GameScene extends Phaser.Scene {
         drawRoundRect(bg, -300, -200, 600, 400, 16, 0x16213e, 0.98, 0xffd700, 2);
 
         const title = this.add.text(0, -170, 'Выберите до 3 мобов для боя', {
-            fontSize: '18px', fontFamily: 'monospace', color: '#ffd700',
+            fontSize: '19px', fontFamily: 'monospace', color: '#ffd700',
             stroke: '#000', strokeThickness: 2, fontStyle: 'bold',
         }).setOrigin(0.5);
 
         this._fighterCards = [];
         this._selectedFighters = new Set();
 
-        const runBtn = this._makeButton(-100, 165, 150, 42, 'Убежать', '#747d8c',
-            () => { this._fighterModal.setVisible(false); });
-        const startBtn = this._makeButton(100, 165, 150, 42, 'Начать бой', '#2ed573',
-            () => { this._startBattle(); });
+        const runBtn = this._makeButton(-100, 165, 150, 44, 'Убежать', '#747d8c',
+            () => { this._fighterModal.setVisible(false); }, '14px');
+        const startBtn = this._makeButton(100, 165, 160, 44, 'Начать бой ⚔', '#2ed573',
+            () => { this._startBattle(); }, '15px');
 
         this._fighterModal.add([overlay, bg, title, ...runBtn, ...startBtn]);
     }
@@ -1082,7 +1082,7 @@ class GameScene extends Phaser.Scene {
         availableMobs.forEach((entry, i) => {
             const col = i % perRow;
             const row = Math.floor(i / perRow);
-            const x = (col - 1) * 180;
+            const x = (col - 1) * 185;
             const y = -120 + row * 115;
             const objs = this._buildFighterCard(x, y, entry, i);
             this._fighterCards.push(objs);
@@ -1095,39 +1095,42 @@ class GameScene extends Phaser.Scene {
         const { mob } = entry;
         const objs = [];
 
+        const cardW = 160;
+        const cardH = 104;
+
         const bg = this.add.graphics();
-        drawRoundRect(bg, x - 75, y - 50, 150, 100, 10, mob.rarityColor, 0.4, 0xffffff, 1);
+        drawRoundRect(bg, x - cardW / 2, y - cardH / 2, cardW, cardH, 12, mob.rarityColor, 0.45, 0xffffff, 1.5);
         objs.push(bg);
 
-        const emojiTxt = this.add.text(x, y - 18, mob.emoji, { fontSize: '32px' }).setOrigin(0.5);
+        const emojiTxt = this.add.text(x, y - 18, mob.emoji, { fontSize: '38px' }).setOrigin(0.5);
         objs.push(emojiTxt);
 
-        const nameTxt = this.add.text(x, y + 12, mob.name, {
-            fontSize: '9px', fontFamily: 'monospace', color: '#fff', stroke: '#000', strokeThickness: 1,
-            wordWrap: { width: 140 }
+        const nameTxt = this.add.text(x, y + 14, mob.name, {
+            fontSize: '11px', fontFamily: 'monospace', color: '#fff', stroke: '#000', strokeThickness: 2,
+            fontStyle: 'bold', wordWrap: { width: cardW - 10 }
         }).setOrigin(0.5, 0);
         objs.push(nameTxt);
 
-        const atkTxt = this.add.text(x, y + 26, `⚔ ${formatNumber(mob.atk)}`, {
-            fontSize: '9px', fontFamily: 'monospace', color: '#ff8888', fontStyle: 'bold'
+        const atkTxt = this.add.text(x, y + 30, `⚔ ${formatNumber(mob.atk)}`, {
+            fontSize: '12px', fontFamily: 'monospace', color: '#ff8888', fontStyle: 'bold'
         }).setOrigin(0.5, 0);
         objs.push(atkTxt);
 
-        const checkmark = this.add.text(x + 65, y - 45, '', { fontSize: '16px' }).setOrigin(0.5);
+        const checkmark = this.add.text(x + cardW / 2 - 16, y - cardH / 2 + 16, '', { fontSize: '20px' }).setOrigin(0.5);
         objs.push(checkmark);
 
-        const hitArea = this.add.rectangle(x, y, 150, 100, 0, 0).setInteractive({ cursor: 'pointer' });
+        const hitArea = this.add.rectangle(x, y, cardW, cardH, 0, 0).setInteractive({ cursor: 'pointer' });
         hitArea.on('pointerdown', () => {
             if (this._selectedFighters.has(idx)) {
                 this._selectedFighters.delete(idx);
                 checkmark.setText('');
                 bg.clear();
-                drawRoundRect(bg, x - 75, y - 50, 150, 100, 10, mob.rarityColor, 0.4, 0xffffff, 1);
+                drawRoundRect(bg, x - cardW / 2, y - cardH / 2, cardW, cardH, 12, mob.rarityColor, 0.45, 0xffffff, 1.5);
             } else if (this._selectedFighters.size < CONFIG.BATTLE_MAX_FIGHTERS) {
                 this._selectedFighters.add(idx);
                 checkmark.setText('✅');
                 bg.clear();
-                drawRoundRect(bg, x - 75, y - 50, 150, 100, 10, 0xffd700, 0.6, 0xffd700, 2);
+                drawRoundRect(bg, x - cardW / 2, y - cardH / 2, cardW, cardH, 12, 0xffd700, 0.65, 0xffd700, 2.5);
             }
         });
         objs.push(hitArea);
@@ -1168,13 +1171,13 @@ class GameScene extends Phaser.Scene {
         if (this._coinsText) this._coinsText.setText(`${formatNumber(val)}`);
     }
 
-    _makeButton(cx, cy, w, h, label, color, callback) {
+    _makeButton(cx, cy, w, h, label, color, callback, fontSize = '13px') {
         const hex = parseInt(color.replace('#', ''), 16);
         const bg = this.add.graphics();
         drawRoundRect(bg, cx - w / 2, cy - h / 2, w, h, 8, hex, 1);
 
         const txt = this.add.text(cx, cy, label, {
-            fontSize: '12px', fontFamily: 'monospace',
+            fontSize, fontFamily: 'monospace',
             color: '#ffffff', stroke: '#000000', strokeThickness: 2, fontStyle: 'bold',
         }).setOrigin(0.5).setDepth(1);
 

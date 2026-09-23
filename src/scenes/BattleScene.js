@@ -135,7 +135,7 @@ class BattleScene extends Phaser.Scene {
 
         this.pBarFill = this.add.graphics();
         this.pBarText = this.add.text(this.pWallX, H - 78, '100%', {
-            fontSize: '11px', fontFamily: 'monospace', color: '#ffffff', fontStyle: 'bold'
+            fontSize: '13px', fontFamily: 'monospace', color: '#ffffff', fontStyle: 'bold'
         }).setOrigin(0.5);
         this._updateWallHPBar('player');
 
@@ -154,7 +154,7 @@ class BattleScene extends Phaser.Scene {
 
         this.bBarFill = this.add.graphics();
         this.bBarText = this.add.text(this.bWallX, H - 78, '100%', {
-            fontSize: '11px', fontFamily: 'monospace', color: '#ffffff', fontStyle: 'bold'
+            fontSize: '13px', fontFamily: 'monospace', color: '#ffffff', fontStyle: 'bold'
         }).setOrigin(0.5);
         this._updateWallHPBar('bot');
     }
@@ -208,17 +208,17 @@ class BattleScene extends Phaser.Scene {
 
             // Фон-кружок карточки бойца
             const bg = this.add.graphics();
-            drawRoundRect(bg, cx - 36, y - 36, 72, 72, 36, mob.rarityColor, 0.45, 0xffffff, 2);
+            drawRoundRect(bg, cx - 40, y - 40, 80, 80, 40, mob.rarityColor, 0.45, 0xffffff, 2);
 
-            const emoji = this.add.text(cx, y - 6, mob.emoji, { fontSize: '36px' }).setOrigin(0.5);
+            const emoji = this.add.text(cx, y - 6, mob.emoji, { fontSize: '42px' }).setOrigin(0.5);
 
-            const nameT = this.add.text(cx, y + 25, mob.name, {
-                fontSize: '8px', fontFamily: 'monospace', color: '#ffffff',
-                stroke: '#000', strokeThickness: 2,
+            const nameT = this.add.text(cx, y + 26, mob.name, {
+                fontSize: '10px', fontFamily: 'monospace', color: '#ffffff',
+                stroke: '#000', strokeThickness: 2, fontStyle: 'bold',
             }).setOrigin(0.5, 0);
 
-            const atkT = this.add.text(cx, y + 36, `⚔${formatNumber(mob.atk)}`, {
-                fontSize: '9px', fontFamily: 'monospace', color: isPlayer ? '#5dff6e' : '#ff7979',
+            const atkT = this.add.text(cx, y + 38, `⚔${formatNumber(mob.atk)}`, {
+                fontSize: '11px', fontFamily: 'monospace', color: isPlayer ? '#5dff6e' : '#ff7979',
                 fontStyle: 'bold',
             }).setOrigin(0.5, 0);
 
@@ -413,7 +413,7 @@ class BattleScene extends Phaser.Scene {
         }
 
         // Кнопка возврата в деревню
-        const [bbg, btxt, bhit] = this._makeButton(W / 2, H / 2 + 75, 180, 44,
+        const [bbg, btxt, bhit] = this._makeButton(W / 2, H / 2 + 75, 200, 48,
             '🏠 На главную', isWin ? '#2ed573' : '#747d8c', () => {
                 this.scene.start('GameScene');
             });
@@ -425,7 +425,7 @@ class BattleScene extends Phaser.Scene {
         const bg = this.add.graphics();
         drawRoundRect(bg, cx - w / 2, cy - h / 2, w, h, 8, hex, 1);
         const txt = this.add.text(cx, cy, label, {
-            fontSize: '13px', fontFamily: 'monospace',
+            fontSize: '15px', fontFamily: 'monospace',
             color: '#fff', stroke: '#000', strokeThickness: 2, fontStyle: 'bold',
         }).setOrigin(0.5);
         const hit = this.add.rectangle(cx, cy, w, h, 0, 0).setInteractive({ cursor: 'pointer' });

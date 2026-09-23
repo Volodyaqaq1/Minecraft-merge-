@@ -14,53 +14,103 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background: #1a1a2e;
+            background: #111625;
             display: flex;
             align-items: center;
             justify-content: center;
         }
         canvas {
             display: block;
-            image-rendering: pixelated;
         }
         #loading {
             position: fixed;
             inset: 0;
-            background: #1a1a2e;
+            background: #111625;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             color: #5dff6e;
-            font-family: monospace;
+            font-family: sans-serif;
             font-size: 20px;
             z-index: 9999;
             transition: opacity 0.5s;
         }
         #loading .title {
-            font-size: 28px;
+            font-size: 32px;
             font-weight: bold;
             margin-bottom: 20px;
-            text-shadow: 0 0 10px #5dff6e;
+            color: #ffd700;
+            text-shadow: 0 0 10px rgba(255,215,0,0.5);
         }
         #loading .bar-wrap {
             width: 300px;
-            height: 16px;
-            background: #333;
-            border-radius: 8px;
+            height: 18px;
+            background: #222;
+            border-radius: 9px;
             overflow: hidden;
-            margin-top: 12px;
+            margin-top: 14px;
+            border: 2px solid #444;
         }
         #loading .bar {
             height: 100%;
             background: linear-gradient(90deg, #5dff6e, #00c9ff);
-            border-radius: 8px;
+            border-radius: 9px;
             width: 0%;
             transition: width 0.3s;
+        }
+
+        /* Подсказка поворота экрана для телефона */
+        #rotate-hint {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(17, 22, 37, 0.97);
+            color: #ffffff;
+            font-family: sans-serif;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            z-index: 10000;
+            padding: 30px;
+        }
+        #rotate-hint .rotate-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            animation: rotateAnim 2.2s infinite ease-in-out;
+        }
+        #rotate-hint .rotate-title {
+            font-size: 26px;
+            font-weight: bold;
+            color: #ffd700;
+            margin-bottom: 12px;
+        }
+        #rotate-hint .rotate-sub {
+            font-size: 16px;
+            color: #cbd5e1;
+            line-height: 1.5;
+        }
+        @keyframes rotateAnim {
+            0%, 15% { transform: rotate(0deg); }
+            50%, 65% { transform: rotate(-90deg); }
+            100% { transform: rotate(0deg); }
+        }
+        @media screen and (orientation: portrait) and (max-width: 900px) {
+            #rotate-hint {
+                display: flex;
+            }
         }
     </style>
 </head>
 <body>
+    <!-- Подсказка перевернуть телефон для мобильных -->
+    <div id="rotate-hint">
+        <div class="rotate-icon">📱 ➔ 🔄</div>
+        <div class="rotate-title">Поверните телефон</div>
+        <div class="rotate-sub">Для удобной и комфортной игры поверните устройство горизонтально</div>
+    </div>
+
     <div id="loading">
         <div class="title">🧱 Майнкрафт Мёрдж</div>
         <div>Загрузка...</div>
