@@ -26,14 +26,14 @@ async function startGame() {
         width:  CONFIG.WIDTH,
         height: CONFIG.HEIGHT,
 
-        // Масштабирование под любой экран
+        // Масштабирование под любой экран (портретный и альбомный)
         scale: {
             mode:           Phaser.Scale.FIT,
             autoCenter:     Phaser.Scale.CENTER_BOTH,
-            parent:         document.body,
+            parent:         'game-container',
         },
 
-        backgroundColor: '#1a1a2e',
+        backgroundColor: '#111625',
 
         // Антиалиасинг выключен для пиксель-арта
         render: {
@@ -54,6 +54,20 @@ async function startGame() {
     };
 
     window.game = new Phaser.Game(config);
+
+    // Автоматическое мгновенное обновление масштаба при повороте устройства и изменении окна
+    window.addEventListener('resize', () => {
+        if (window.game && window.game.scale) {
+            window.game.scale.refresh();
+        }
+    });
+    window.addEventListener('orientationchange', () => {
+        setTimeout(() => {
+            if (window.game && window.game.scale) {
+                window.game.scale.refresh();
+            }
+        }, 150);
+    });
 }
 
 startGame();

@@ -24,6 +24,7 @@ const SaveManager = {
             totalSeconds: 0,
             claimed: {},    // { 0: true, 1: true... }
         },
+        quests: [],         // активные задания [{ id, mobLevel, targetCount, currentCount, isCompleted, rewardCoins, rewardXP }, ...]
     },
 
     /**
@@ -75,6 +76,7 @@ const SaveManager = {
         if (Array.isArray(saved.field)) def.field = saved.field;
         if (Array.isArray(saved.collection)) def.collection = saved.collection;
         if (Array.isArray(saved.incubatorSlots)) def.incubatorSlots = saved.incubatorSlots;
+        if (Array.isArray(saved.quests)) def.quests = saved.quests;
         if (saved.playtime) def.playtime = saved.playtime;
         return def;
     },

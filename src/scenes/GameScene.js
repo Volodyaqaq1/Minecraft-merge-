@@ -20,6 +20,10 @@ class GameScene extends Phaser.Scene {
         if (!this.state.playtime) {
             this.state.playtime = { totalSeconds: 0, claimed: {} };
         }
+        if (!Array.isArray(this.state.quests)) {
+            this.state.quests = [];
+        }
+        this.quests = this.state.quests;
 
         // Комбо-шкала кликера (0..100%)
         this.comboGauge = 0;
@@ -39,10 +43,9 @@ class GameScene extends Phaser.Scene {
         // Привязываем кликер по мобу к комбо и наградам
         this.mergeField.onMobClick = (mobItem) => this._onMobClicked(mobItem);
 
-        // При успешном слиянии обновляем магазин, левую карточку и показываем модалку открытия
+        // При успешном слиянии обновляем магазин, задания и показываем модалку открытия
         this.mergeField.onMergeSuccess = (newMob, isNew) => {
-            this._updateShopButton();
-            this._updateLeftStatusCard();
+            this._onFieldChanged();
             if (isNew) {
                 this._showNewMobUnlockModal(newMob);
             }
@@ -50,8 +53,7 @@ class GameScene extends Phaser.Scene {
 
         // Открытие нового моба из любого источника (магазин, реклама, инкубатор)
         this.mergeField.onNewMobDiscovered = (newMob) => {
-            this._updateShopButton();
-            this._updateLeftStatusCard();
+            this._onFieldChanged();
             this._showNewMobUnlockModal(newMob);
         };
 
@@ -61,8 +63,9 @@ class GameScene extends Phaser.Scene {
         // ─── 4. Правая панель (покупка за монеты и моб за рекламу) ───
         this._buildRightShop();
 
-        // ─── 5. Левая карточка статуса (лучший моб и счетчик на поле) ───
-        this._buildLeftStatusCard();
+        // ─── 5. Левая панель заданий (до 3 заданий с вариативностью до 5 мобов) ───
+        this._buildQuestPanel();
+        this._scheduleNextQuest();
 
         // ─── 6. Нижняя панель (Коллекция, Инкубатор, Награды, В бой!) ───
         this._buildBottomBar();
@@ -318,55 +321,237 @@ class GameScene extends Phaser.Scene {
     }
 
     // ============================================================
-    // Левая карточка статуса (Пояснение счетчика)
+    // Левая панель заданий (до 3 заданий, счетчик до 5 мобов)
     // ============================================================
 
-    _buildLeftStatusCard() {
-        this._leftCardGroup = [];
-        this._updateLeftStatusCard();
+    _buildQuestPanel() {
+        this._questUiGroup = [];
+        this._validateQuests();
+        this._renderQuests();
     }
 
-    _updateLeftStatusCard() {
-        this._leftCardGroup.forEach(item => item.destroy && item.destroy());
-        this._leftCardGroup = [];
+    _scheduleNextQuest() {
+        const nextDelay = Phaser.Math.Between(60000, 90000); // Появление новых заданий раз в минуту-полторы
+        this.time.delayedCall(nextDelay, () => {
+            if (this.quests.length < 3) {
+                this._generateQuest();
+                this._renderQuests();
+                this._save();
+            }
+            this._scheduleNextQuest();
+        });
+    }
 
-        const x = 62;
-        const y = 126;
-        const w = 106;
-        const h = 122;
+    _generateQuest() {
+        if (this.quests.length >= 3) return;
 
         const maxUnlocked = Math.max(...this.mergeField.collection, 1);
-        const topMob = getMobByLevel(maxUnlocked);
+        const buyLevel = Math.max(1, maxUnlocked - CONFIG.BUY_LEVEL_OFFSET);
 
-        const bg = this.add.graphics();
-        drawRoundRect(bg, x - w / 2, y - h / 2, w, h, 14, 0xffffff, 0.94, 0xffd700, 2.5);
-        this._leftCardGroup.push(bg);
+        // "сделай так чтобы в заданиях были мобы только которых можно сделать то есть уровень моба в магазине +1 или больше"
+        const minLvl = (buyLevel + 1 <= maxUnlocked) ? (buyLevel + 1) : maxUnlocked;
+        const availableLevels = [];
+        for (let lvl = minLvl; lvl <= maxUnlocked; lvl++) {
+            availableLevels.push(lvl);
+        }
 
-        // Поясняющий заголовок
-        const title = this.add.text(x, y - h / 2 + 13, 'ТОП МОБ', {
-            fontSize: '11px',
-            fontFamily: 'monospace',
-            color: '#b7791f',
-            fontStyle: 'bold',
-        }).setOrigin(0.5);
+        // Стараемся не дублировать уровни в активных заданиях
+        const existingLevels = new Set(this.quests.map(q => q.mobLevel));
+        let pool = availableLevels.filter(lvl => !existingLevels.has(lvl));
+        if (pool.length === 0) pool = availableLevels;
 
-        if (topMob) {
-            // Эмодзи сильнейшего открытого моба
-            const emoji = this.add.text(x, y - 5, topMob.emoji, { fontSize: '48px' }).setOrigin(0.5);
+        const mobLevel = Phaser.Utils.Array.GetRandom(pool);
+        const mob = getMobByLevel(mobLevel);
+        if (!mob) return;
 
-            // Бейдж количества мобов на полянке
-            const countBadge = this.add.graphics();
-            drawRoundRect(countBadge, x - 47, y + 28, 94, 25, 7, 0x27ae60, 1);
+        // "сделай вариативность таких заданий, но чтобы счетчик был до 5"
+        let targetCount = 2;
+        if (mobLevel === maxUnlocked) {
+            targetCount = Phaser.Math.Between(2, 3);
+        } else {
+            targetCount = Phaser.Math.Between(2, 5);
+        }
 
-            const countText = this.add.text(x, y + 40, `На поле: ${this.mergeField.mobs.length}`, {
+        const baseCost = getMobCost(mobLevel);
+        const rewardCoins = Math.max(80, Math.floor(baseCost * 0.8 * targetCount));
+        const rewardXP    = Math.max(25, mobLevel * 20 * targetCount);
+
+        const newQuest = {
+            id: Date.now() + Math.random(),
+            mobLevel,
+            targetCount,
+            rewardCoins,
+            rewardXP,
+        };
+
+        this.quests.push(newQuest);
+    }
+
+    _validateQuests() {
+        const maxUnlocked = Math.max(...this.mergeField.collection, 1);
+        const buyLevel = Math.max(1, maxUnlocked - CONFIG.BUY_LEVEL_OFFSET);
+
+        let modified = false;
+        // Если игрок ушел вперед и моб ниже уровня магазина, задание пропадает или заменяется
+        this.quests = this.quests.filter(q => {
+            if (q.mobLevel < buyLevel && maxUnlocked > q.mobLevel + CONFIG.BUY_LEVEL_OFFSET) {
+                modified = true;
+                return false;
+            }
+            return true;
+        });
+
+        // На старте гарантируем хотя бы 2 задания
+        while (this.quests.length < 2) {
+            this._generateQuest();
+            modified = true;
+        }
+
+        if (modified) {
+            this.state.quests = this.quests;
+        }
+    }
+
+    _renderQuests() {
+        this._questUiGroup.forEach(item => item && item.destroy && item.destroy());
+        this._questUiGroup = [];
+
+        const startX = 76;
+        const startY = 105;
+        const cardH  = 72;
+        const spacing = 82;
+
+        this.quests.forEach((quest, idx) => {
+            const mob = getMobByLevel(quest.mobLevel);
+            if (!mob) return;
+
+            // Считаем СТРОГО мобов на поле прямо сейчас!
+            const curCount = this.mergeField.mobs.filter(m => m.mobLevel === quest.mobLevel).length;
+            const isReady = curCount >= quest.targetCount;
+
+            const cx = startX;
+            const cy = startY + idx * spacing;
+            const cardW = 134;
+
+            // Фон карточки задания
+            const bg = this.add.graphics();
+            drawRoundRect(bg, cx - cardW / 2, cy - cardH / 2, cardW, cardH, 12,
+                isReady ? 0x1b4332 : 0x16213e, 0.95,
+                isReady ? 0x2ed573 : 0x3d5a80, isReady ? 2.5 : 1.5);
+            this._questUiGroup.push(bg);
+
+            // Эмодзи моба слева
+            const emoji = this.add.text(cx - 40, cy - 8, mob.emoji, {
+                fontSize: '34px',
+            }).setOrigin(0.5);
+
+            // Бейдж уровня моба
+            const lvlBadge = this.add.graphics();
+            drawRoundRect(lvlBadge, cx - 58, cy + 12, 36, 16, 4, 0x000000, 0.85);
+            const lvlText = this.add.text(cx - 40, cy + 20, `Lv.${mob.level}`, {
+                fontSize: '10px',
+                fontFamily: 'monospace',
+                color: '#ffd700',
+                fontStyle: 'bold',
+            }).setOrigin(0.5);
+
+            // Название моба
+            const nameText = this.add.text(cx + 14, cy - 22, mob.name, {
                 fontSize: '11px',
                 fontFamily: 'monospace',
                 color: '#ffffff',
                 fontStyle: 'bold',
+                wordWrap: { width: 78 }
             }).setOrigin(0.5);
 
-            this._leftCardGroup.push(title, emoji, countBadge, countText);
+            // Прогресс (например, 1/4 или ГОТОВО!)
+            const countText = this.add.text(cx + 14, cy - 6,
+                isReady ? `🎉 ${curCount}/${quest.targetCount}` : `${curCount} / ${quest.targetCount}`, {
+                fontSize: '12px',
+                fontFamily: 'monospace',
+                color: isReady ? '#5dff6e' : '#ffd700',
+                fontStyle: 'bold',
+            }).setOrigin(0.5);
+
+            // Полоска прогресса
+            const barBg = this.add.graphics();
+            drawRoundRect(barBg, cx - 22, cy + 7, 72, 6, 3, 0x222222, 0.85);
+
+            const barFill = this.add.graphics();
+            const ratio = Math.min(1, curCount / quest.targetCount);
+            if (ratio > 0) {
+                barFill.fillStyle(isReady ? 0x2ed573 : 0x00c9ff, 1);
+                barFill.fillRoundedRect(cx - 22, cy + 7, Math.floor(72 * ratio), 6, 3);
+            }
+
+            // Нижняя строка: награда или кнопка "ЗАБРАТЬ"
+            let rewardOrClaim;
+            if (isReady) {
+                const claimBg = this.add.graphics();
+                drawRoundRect(claimBg, cx - 18, cy + 17, 64, 18, 5, 0x2ed573, 1);
+                const claimTxt = this.add.text(cx + 14, cy + 26, 'ЗАБРАТЬ 🎁', {
+                    fontSize: '10px',
+                    fontFamily: 'monospace',
+                    color: '#ffffff',
+                    fontStyle: 'bold',
+                }).setOrigin(0.5);
+                rewardOrClaim = [claimBg, claimTxt];
+            } else {
+                const rewText = this.add.text(cx + 14, cy + 24, `💎 ${formatNumber(quest.rewardCoins)}  +${quest.rewardXP}XP`, {
+                    fontSize: '9px',
+                    fontFamily: 'monospace',
+                    color: '#5dff6e',
+                    fontStyle: 'bold',
+                }).setOrigin(0.5);
+                rewardOrClaim = [rewText];
+            }
+
+            // Интерактивная зона
+            const hitArea = this.add.rectangle(cx, cy, cardW, cardH, 0, 0)
+                .setInteractive({ cursor: isReady ? 'pointer' : 'default' });
+
+            hitArea.on('pointerdown', () => {
+                if (isReady) {
+                    this._claimQuest(idx, cx, cy);
+                } else {
+                    spawnFloatingText(this, cx + 50, cy - 20, `Соберите ${quest.targetCount}x ${mob.name}!`, '#ffd700');
+                }
+            });
+
+            this._questUiGroup.push(
+                emoji, lvlBadge, lvlText, nameText, countText,
+                barBg, barFill, ...rewardOrClaim, hitArea
+            );
+        });
+    }
+
+    _claimQuest(idx, x, y) {
+        const quest = this.quests[idx];
+        if (!quest) return;
+
+        // Начисляем монеты и опыт
+        this.economy.addCoins(quest.rewardCoins);
+        this.economy.addXP(quest.rewardXP);
+
+        spawnFloatingText(this, x, y - 20, `+💎 ${formatNumber(quest.rewardCoins)}  +${quest.rewardXP} XP!`, '#5dff6e');
+
+        // Удаляем выполненное задание
+        this.quests.splice(idx, 1);
+        this.state.quests = this.quests;
+
+        // Если заданий осталось меньше 2, генерируем новое
+        if (this.quests.length < 2) {
+            this._generateQuest();
         }
+
+        this._renderQuests();
+        this._save();
+    }
+
+    _onFieldChanged() {
+        this._updateShopButton();
+        this._validateQuests();
+        this._renderQuests();
     }
 
     // ============================================================
@@ -465,7 +650,7 @@ class GameScene extends Phaser.Scene {
             spawnFloatingText(this, spawned.x, spawned.y - 40, `+${mob.emoji} ${mob.name}`, '#5dff6e');
         }
 
-        this._updateLeftStatusCard();
+        this._onFieldChanged();
     }
 
     _onAdMob(mob) {
@@ -473,7 +658,7 @@ class GameScene extends Phaser.Scene {
         if (spawned) {
             spawnFloatingText(this, spawned.x, spawned.y - 40, `🎁 +${mob.emoji} ${mob.name}!`, '#ffd700');
         }
-        this._updateLeftStatusCard();
+        this._onFieldChanged();
     }
 
     // ============================================================
@@ -698,7 +883,7 @@ class GameScene extends Phaser.Scene {
                     this.state.playtime.claimed[idx] = true;
                     tier.claim(tier);
                     this._renderPlaytimeCards();
-                    this._updateLeftStatusCard();
+                    this._onFieldChanged();
                     this._save();
                 }, '12px');
                 this._playtimeListContainer.add([cBg, cTxt, cHit]);
@@ -816,7 +1001,7 @@ class GameScene extends Phaser.Scene {
 
                             slot.active = false;
                             this._renderIncubatorSlots();
-                            this._updateLeftStatusCard();
+                            this._onFieldChanged();
                             this._save();
                         }, '13px');
 
@@ -974,7 +1159,7 @@ class GameScene extends Phaser.Scene {
 
         const rightEmoji = this.add.text(rightX, rightY - 22, '❓', { fontSize: '56px' }).setOrigin(0.5);
 
-        const rightName = this.add.text(rightX, rightY + 28, nextMob ? nextMob.name : '???', {
+        const rightName = this.add.text(rightX, rightY + 28, '???', {
             fontSize: '13px', fontFamily: 'monospace', color: '#8892b0',
             stroke: '#000', strokeThickness: 1, wordWrap: { width: cardW - 10 }
         }).setOrigin(0.5, 0);
@@ -1197,6 +1382,7 @@ class GameScene extends Phaser.Scene {
         this.state.collection     = fieldState.collection;
         this.state.incubatorSlots = this.state.incubatorSlots;
         this.state.playtime       = this.state.playtime;
+        this.state.quests         = this.quests;
         SaveManager.save(this.state);
     }
 
