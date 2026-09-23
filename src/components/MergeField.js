@@ -429,10 +429,100 @@ class MergeField {
         this.shownModals.add(newLevel);
         this.collection.add(newLevel);
 
+        // Очищаем устаревших мобов ниже уровня магазина, которые больше не смогут объединиться
+        const currentShopLevel = Math.max(1, Math.max(...this.collection) - CONFIG.BUY_LEVEL_OFFSET);
+        this.cleanupUnmergeableOldMobs(currentShopLevel);
+
         // Оповещаем о слиянии (обновить магазин, задания и показать окно открытия)
         if (this.onMergeSuccess) {
             this.onMergeSuccess(newMob, isNewUnlock);
         }
+    }
+
+    /**
+     * Удаляет устаревших мобов, чей уровень ниже уровня магазина (shopLevel),
+     * которые математически больше никогда не смогут объединиться
+     */
+    cleanupUnmergeableOldMobs(shopLevel) {
+        if (!shopLevel || shopLevel <= 1) return;
+
+        const belowMobs = this.mobs.filter(m => m.mobLevel < shopLevel);
+        if (belowMobs.length === 0) return;
+
+        // Группируем мобов по уровням
+        const mobsByLvl = new Map();
+        belowMobs.forEach(m => {
+            if (!mobsByLvl.has(m.mobLevel)) mobsByLvl.set(m.mobLevel, []);
+            mobsByLvl.get(m.mobLevel).push(m);
+        });
+
+        // Проверяем суммарную "силу" всех мобов ниже уровня магазина.
+        // Чтобы собрать хотя бы одного моба уровня shopLevel, нужно суммарно 2^(shopLevel - 1) единиц.
+        const targetUnits = Math.pow(2, shopLevel - 1);
+        let totalUnits = 0;
+        belowMobs.forEach(m => {
+            totalUnits += Math.pow(2, m.mobLevel - 1);
+        });
+
+        let toRemove = [];
+
+        if (totalUnits < targetUnits) {
+            // Если все мобы ниже shopLevel вместе взятые не могут дойти до shopLevel —
+            // ВСЕ они гарантированно тупиковые и никогда не объединятся с магазином!
+            toRemove = [...belowMobs];
+        } else {
+            // Если потенциал есть, проверяем по цепочке снизу вверх:
+            // мобы без пары на своём уровне не могут объединиться
+            const carryCount = new Map();
+            for (let lvl = 1; lvl < shopLevel; lvl++) {
+                const list = mobsByLvl.get(lvl) || [];
+                const carry = carryCount.get(lvl) || 0;
+                const totalAtLvl = list.length + carry;
+                const pairs = Math.floor(totalAtLvl / 2);
+                const remainder = totalAtLvl % 2;
+
+                if (remainder === 1 && list.length > 0) {
+                    // Последний моб без пары — лишний сирота
+                    toRemove.push(list[list.length - 1]);
+                }
+
+                if (pairs > 0) {
+                    carryCount.set(lvl + 1, (carryCount.get(lvl + 1) || 0) + pairs);
+                }
+            }
+        }
+
+        if (toRemove.length === 0) return;
+
+        // Удаляем отобранных мобов с поля с красивой анимацией растворения и начислением компенсации
+        toRemove.forEach((mobItem, i) => {
+            // Исключаем из массива мобов
+            this.mobs = this.mobs.filter(m => m.id !== mobItem.id);
+
+            // Компенсация за продажу устаревшего существа
+            const sellValue = Math.max(1, Math.round(getMobCost(mobItem.mobLevel) * 0.5));
+            this.economy.addCoins(sellValue);
+
+            const cx = mobItem.container.x;
+            const cy = mobItem.container.y;
+
+            this.scene.time.delayedCall(i * 90, () => {
+                spawnFloatingText(this.scene, cx, cy - 35, `💨 +${formatNumber(sellValue)} 💎 (Продан)`, '#ffd700');
+                if (typeof SoundManager !== 'undefined') SoundManager.playCoin();
+
+                this.scene.tweens.add({
+                    targets: mobItem.container,
+                    scaleX: 0,
+                    scaleY: 0,
+                    alpha: 0,
+                    duration: 260,
+                    ease: 'Back.In',
+                    onComplete: () => {
+                        mobItem.container.destroy();
+                    }
+                });
+            });
+        });
     }
 
     // ============================================================

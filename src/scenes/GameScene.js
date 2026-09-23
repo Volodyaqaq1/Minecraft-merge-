@@ -322,7 +322,8 @@ class GameScene extends Phaser.Scene {
         this.comboGauge = Math.min(100, this.comboGauge + CONFIG.COMBO_GAIN_PER_CLICK);
         this._redrawComboBar();
 
-        const reward = Math.max(1, Math.floor(mob.atk * CONFIG.CLICK_REWARD_RATIO * this.currentMultiplier));
+        const baseClick = mob.clickReward || getMobClickReward(mob.level);
+        const reward = Math.max(1, Math.floor(baseClick * this.currentMultiplier));
         this.economy.addCoins(reward);
 
         const clickX = mobItem.container.x;
@@ -568,6 +569,11 @@ class GameScene extends Phaser.Scene {
     _onFieldChanged() {
         const maxUnlocked = Math.max(...this.mergeField.collection, 1);
         const shopMobLevel = Math.max(1, maxUnlocked - CONFIG.BUY_LEVEL_OFFSET);
+
+        // Очищаем устаревших мобов, которые больше не смогут объединиться
+        if (this.mergeField && this.mergeField.cleanupUnmergeableOldMobs) {
+            this.mergeField.cleanupUnmergeableOldMobs(shopMobLevel);
+        }
 
         // Авто-улучшение моба в инкубаторе до уровня магазина при открытии новых мобов
         if (Array.isArray(this.state.incubatorSlots)) {

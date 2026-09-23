@@ -57,20 +57,21 @@ const MOBS = (function () {
         0xff4444, // Lv 26-30: Мифический (красный)
     ];
 
-    const BASE_ATK = 10;
-    const MULTIPLIER = 2.2;
-
     const mobs = [];
     for (let i = 0; i < 30; i++) {
         const level = i + 1;
-        const atk = Math.round(BASE_ATK * Math.pow(MULTIPLIER, i));
+        const clickReward = getMobClickReward(level);
+        const atk = getMobAtk(level);
+        const cost = getMobCost(level);
         const rarityIdx = Math.floor(i / 5);
         mobs.push({
             id: level,
             name: names[i],
             emoji: emojis[i],
             level,
+            clickReward,
             atk,
+            cost,
             rarity: rarityIdx,
             rarityColor: rarityColors[rarityIdx],
             // Имя файла арта: assets/mobs/mob_01.png, mob_02.png ...
