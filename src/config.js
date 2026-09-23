@@ -111,25 +111,37 @@ const MOB_ECONOMY_TABLE = [
 ];
 
 /**
- * Расчет цены покупки моба заданного уровня
+ * Расчет цены покупки моба заданного уровня (с поддержкой до 85+ мобов)
  */
 function getMobCost(level) {
-    const lvl = Math.max(1, Math.min(30, Math.floor(level)));
-    return MOB_ECONOMY_TABLE[lvl]?.cost || 50;
+    const lvl = Math.max(1, Math.floor(level));
+    if (lvl < MOB_ECONOMY_TABLE.length && MOB_ECONOMY_TABLE[lvl]) {
+        return MOB_ECONOMY_TABLE[lvl].cost;
+    }
+    const base = MOB_ECONOMY_TABLE[30].cost;
+    return Math.floor(base * Math.pow(2.15, lvl - 30));
 }
 
 /**
  * Базовый доход за клик по мобу заданного уровня
  */
 function getMobClickReward(level) {
-    const lvl = Math.max(1, Math.min(30, Math.floor(level)));
-    return MOB_ECONOMY_TABLE[lvl]?.click || 3;
+    const lvl = Math.max(1, Math.floor(level));
+    if (lvl < MOB_ECONOMY_TABLE.length && MOB_ECONOMY_TABLE[lvl]) {
+        return MOB_ECONOMY_TABLE[lvl].click;
+    }
+    const base = MOB_ECONOMY_TABLE[30].click;
+    return Math.floor(base * Math.pow(2.0, lvl - 30));
 }
 
 /**
  * Урон моба в бою
  */
 function getMobAtk(level) {
-    const lvl = Math.max(1, Math.min(30, Math.floor(level)));
-    return MOB_ECONOMY_TABLE[lvl]?.atk || 12;
+    const lvl = Math.max(1, Math.floor(level));
+    if (lvl < MOB_ECONOMY_TABLE.length && MOB_ECONOMY_TABLE[lvl]) {
+        return MOB_ECONOMY_TABLE[lvl].atk;
+    }
+    const base = MOB_ECONOMY_TABLE[30].atk;
+    return Math.floor(base * Math.pow(2.0, lvl - 30));
 }

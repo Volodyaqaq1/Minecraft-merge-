@@ -63,18 +63,38 @@ function getMultiplier(playerLevel) {
 }
 
 /**
+ * Единый UI helper для создания четкого HD текста с учетом devicePixelRatio
+ * @param {Phaser.Scene} scene
+ * @param {number} x
+ * @param {number} y
+ * @param {string} text
+ * @param {object} style
+ * @returns {Phaser.GameObjects.Text}
+ */
+function createHDText(scene, x, y, text, style = {}) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const hdStyle = {
+        fontFamily: (typeof CONFIG !== 'undefined' && CONFIG.FONT_FAMILY) || "'Nunito', sans-serif",
+        ...style,
+        resolution: style.resolution !== undefined ? style.resolution : dpr,
+    };
+    return scene.add.text(x, y, text, hdStyle);
+}
+
+/**
  * Анимация всплывающего текста (урон / мёрдж)
  * scene: Phaser.Scene, x, y: координаты, text: строка, color: hex string
  */
 function spawnFloatingText(scene, x, y, text, color = '#ffffff') {
-    const t = scene.add.text(x, y, text, {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const t = createHDText(scene, x, y, text, {
         fontSize: '22px',
-        fontFamily: (typeof CONFIG !== 'undefined' && CONFIG.FONT_FAMILY) || "'Nunito', sans-serif",
         fontStyle: '900',
         color: color,
         stroke: '#111625',
         strokeThickness: 3.5,
-        shadow: { blur: 6, color: '#000', fill: true }
+        shadow: { blur: 6, color: '#000', fill: true },
+        resolution: dpr,
     }).setOrigin(0.5, 1).setDepth(100);
 
     scene.tweens.add({

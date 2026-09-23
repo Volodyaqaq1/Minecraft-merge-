@@ -20,9 +20,9 @@ class BattleScene extends Phaser.Scene {
         this._buildArenaBackground();
 
         // ─── 2. Заголовок ───
-        this.add.text(W / 2, 20, `⚔  ГОНКА ПРОРЫВА  VS  ${this.botName}`, {
-            fontSize: '18px', fontFamily: 'monospace',
-            color: '#ffd700', stroke: '#000', strokeThickness: 3, fontStyle: 'bold',
+        createHDText(this, W / 2, 20, `⚔  ГОНКА ПРОРЫВА  VS  ${this.botName}`, {
+            fontSize: '18px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#ffd700', stroke: '#111625', strokeThickness: 3, fontStyle: '900',
         }).setOrigin(0.5, 0);
 
         // ─── 3. Сундук с сокровищами в центре ───
@@ -110,12 +110,12 @@ class BattleScene extends Phaser.Scene {
         this.rays.fillCircle(0, 0, 110);
 
         // Иконка сундука
-        this.chestIcon = this.add.text(cx, cy - 20, '🎁', { fontSize: '64px' }).setOrigin(0.5);
+        this.chestIcon = this.add.image(cx, cy - 20, 'icon_chest').setDisplaySize(68, 68);
 
         // Подпись награды
-        this.prizeText = this.add.text(cx, cy + 40, `💎 ${formatNumber(this.prize)}`, {
-            fontSize: '18px', fontFamily: 'monospace',
-            color: '#5dff6e', stroke: '#000000', strokeThickness: 3, fontStyle: 'bold',
+        this.prizeText = createHDText(this, cx, cy + 40, `💎 ${formatNumber(this.prize)}`, {
+            fontSize: '18px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#5dff6e', stroke: '#111625', strokeThickness: 3, fontStyle: '900',
         }).setOrigin(0.5);
     }
 
@@ -157,8 +157,8 @@ class BattleScene extends Phaser.Scene {
         drawRoundRect(pBarBg, this.pWallX - 60, H - 90, 120, 24, 6, 0x1f2421, 0.9, 0xffffff, 2);
 
         this.pBarFill = this.add.graphics();
-        this.pBarText = this.add.text(this.pWallX, H - 78, '100%', {
-            fontSize: '13px', fontFamily: 'monospace', color: '#ffffff', fontStyle: 'bold'
+        this.pBarText = createHDText(this, this.pWallX, H - 78, '100%', {
+            fontSize: '13px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#ffffff', fontStyle: '800'
         }).setOrigin(0.5);
         this._updateWallHPBar('player');
 
@@ -177,8 +177,8 @@ class BattleScene extends Phaser.Scene {
         drawRoundRect(bBarBg, this.bWallX - 60, H - 90, 120, 24, 6, 0x1f2421, 0.9, 0xffffff, 2);
 
         this.bBarFill = this.add.graphics();
-        this.bBarText = this.add.text(this.bWallX, H - 78, '100%', {
-            fontSize: '13px', fontFamily: 'monospace', color: '#ffffff', fontStyle: 'bold'
+        this.bBarText = createHDText(this, this.bWallX, H - 78, '100%', {
+            fontSize: '13px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#ffffff', fontStyle: '800'
         }).setOrigin(0.5);
         this._updateWallHPBar('bot');
     }
@@ -234,19 +234,20 @@ class BattleScene extends Phaser.Scene {
             const bg = this.add.graphics();
             drawRoundRect(bg, cx - 40, y - 40, 80, 80, 40, mob.rarityColor, 0.45, 0xffffff, 2);
 
-            const emoji = this.add.text(cx, y - 6, mob.emoji, { fontSize: '42px' }).setOrigin(0.5);
+            const mobTex = mob.texture || (mob.level <= 10 ? `mob_0${mob.level}` : 'mob_placeholder');
+            const avatar = this.add.image(cx, y - 6, mobTex).setDisplaySize(56, 56);
 
-            const nameT = this.add.text(cx, y + 26, mob.name, {
+            const nameT = createHDText(this, cx, y + 26, mob.name, {
                 fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#ffffff',
                 stroke: '#111625', strokeThickness: 2, fontStyle: '800',
             }).setOrigin(0.5, 0);
 
-            const atkT = this.add.text(cx, y + 39, `⚔${formatNumber(mob.atk)}`, {
+            const atkT = createHDText(this, cx, y + 39, `⚔${formatNumber(mob.atk)}`, {
                 fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: isPlayer ? '#4ade80' : '#f87171',
                 stroke: '#111625', strokeThickness: 2, fontStyle: '800',
             }).setOrigin(0.5, 0);
 
-            sprites.push({ bg, emoji, nameT, atkT, mob, x: cx, y });
+            sprites.push({ bg, avatar, emoji: avatar, nameT, atkT, mob, x: cx, y });
         });
 
         return sprites;
@@ -316,10 +317,11 @@ class BattleScene extends Phaser.Scene {
         });
 
         // Небольшой отскок самого моба при ударе
+        const baseScale = attacker.avatar.scaleX;
         this.tweens.add({
-            targets: attacker.emoji,
-            scaleX: 1.25,
-            scaleY: 1.25,
+            targets: attacker.avatar,
+            scaleX: baseScale * 1.25,
+            scaleY: baseScale * 1.25,
             duration: 90,
             yoyo: true,
         });
@@ -382,8 +384,17 @@ class BattleScene extends Phaser.Scene {
         });
 
         // Награда перетягивается в сторону победителя («как будто он её забирает»)!
+        const chestBaseScale = this.chestIcon.scaleX;
         this.tweens.add({
-            targets: [this.chestIcon, this.prizeText, this.rays],
+            targets: this.chestIcon,
+            x: targetX,
+            scaleX: chestBaseScale * 1.25,
+            scaleY: chestBaseScale * 1.25,
+            duration: 800,
+            ease: 'Back.Out',
+        });
+        this.tweens.add({
+            targets: [this.prizeText, this.rays],
             x: targetX,
             scaleX: 1.25,
             scaleY: 1.25,
@@ -418,19 +429,19 @@ class BattleScene extends Phaser.Scene {
 
         const titleText = isWin ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ...';
         const titleColor = isWin ? '#198754' : '#b02a37';
-        const title = this.add.text(0, -112, titleText, {
-            fontSize: '28px', fontFamily: 'monospace', color: titleColor, fontStyle: 'bold'
+        const title = createHDText(this, 0, -112, titleText, {
+            fontSize: '28px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: titleColor, fontStyle: '900'
         }).setOrigin(0.5);
 
         const subText = isWin
             ? '🏆 Отличный бой! Сокровище принадлежит вашей команде!'
             : '📗 Бери мобов более высокого уровня в бой, чтобы победить';
-        const sub = this.add.text(0, -74, subText, {
-            fontSize: '12px', fontFamily: 'monospace', color: '#555555', fontStyle: 'bold', align: 'center', wordWrap: { width: cardW - 40 }
+        const sub = createHDText(this, 0, -74, subText, {
+            fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#555555', fontStyle: '800', align: 'center', wordWrap: { width: cardW - 40 }
         }).setOrigin(0.5);
 
-        const adTitle = this.add.text(0, -36, 'Увеличить награду за просмотр рекламы?', {
-            fontSize: '13px', fontFamily: 'monospace', color: '#7f8c8d', fontStyle: 'bold'
+        const adTitle = createHDText(this, 0, -36, 'Увеличить награду за просмотр рекламы?', {
+            fontSize: '13px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#7f8c8d', fontStyle: '800'
         }).setOrigin(0.5);
 
         // Полоса слайдера от x2 до x5
@@ -442,17 +453,17 @@ class BattleScene extends Phaser.Scene {
 
         // Метки множителей над шкалой
         const labelY = trackY - 18;
-        const lX2Left  = this.add.text(-trackW / 2 + 10, labelY, 'x2', { fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#888', fontStyle: '800' }).setOrigin(0.5);
-        const lX3Left  = this.add.text(-trackW / 4, labelY, 'x3', { fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#888', fontStyle: '800' }).setOrigin(0.5);
-        const lX5Mid   = this.add.text(0, labelY, 'x5 🔥', { fontSize: '16px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#e11d48', fontStyle: '900' }).setOrigin(0.5);
-        const lX3Right = this.add.text(trackW / 4, labelY, 'x3', { fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#888', fontStyle: '800' }).setOrigin(0.5);
-        const lX2Right = this.add.text(trackW / 2 - 10, labelY, 'x2', { fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#888', fontStyle: '800' }).setOrigin(0.5);
+        const lX2Left  = createHDText(this, -trackW / 2 + 10, labelY, 'x2', { fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#888', fontStyle: '800' }).setOrigin(0.5);
+        const lX3Left  = createHDText(this, -trackW / 4, labelY, 'x3', { fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#888', fontStyle: '800' }).setOrigin(0.5);
+        const lX5Mid   = createHDText(this, 0, labelY, 'x5 🔥', { fontSize: '16px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#e11d48', fontStyle: '900' }).setOrigin(0.5);
+        const lX3Right = createHDText(this, trackW / 4, labelY, 'x3', { fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#888', fontStyle: '800' }).setOrigin(0.5);
+        const lX2Right = createHDText(this, trackW / 2 - 10, labelY, 'x2', { fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#888', fontStyle: '800' }).setOrigin(0.5);
 
         // Бегающий ползунок
         const knobContainer = this.add.container(0, trackY);
         const knobG = this.add.graphics();
         drawRoundRect(knobG, -15, -15, 30, 30, 7, 0x8e44ad, 1, 0xffffff, 2);
-        const knobTxt = this.add.text(0, 0, '🎬', { fontSize: '16px' }).setOrigin(0.5);
+        const knobTxt = createHDText(this, 0, 0, '🎬', { fontSize: '16px' }).setOrigin(0.5);
         knobContainer.add([knobG, knobTxt]);
 
         let sliderActive = true;
@@ -479,7 +490,7 @@ class BattleScene extends Phaser.Scene {
         }, '16px');
 
         // Текстовая кнопка "НЕ НАДО" (забрать 1x без рекламы)
-        const skipTxt = this.add.text(0, 124, 'НЕ НАДО', {
+        const skipTxt = createHDText(this, 0, 124, 'НЕ НАДО', {
             fontSize: '13px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#7f8c8d', fontStyle: '800'
         }).setOrigin(0.5).setInteractive({ cursor: 'pointer' });
 
@@ -552,7 +563,7 @@ class BattleScene extends Phaser.Scene {
         bg.fillStyle(0xffffff, 0.25);
         bg.fillRoundedRect(cx - w / 2 + 4, cy - h / 2 + 2, w - 8, Math.floor((h - 2) * 0.42), 5);
 
-        const txt = this.add.text(cx, cy - 1, label, {
+        const txt = createHDText(this, cx, cy - 1, label, {
             fontSize,
             fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
             color: '#fff',
@@ -584,7 +595,7 @@ class BattleScene extends Phaser.Scene {
         const label = isCrit ? `КРИТ -${formatNumber(damage)}` : `-${formatNumber(damage)}`;
         // If isPlayer wall was hit, show orange/red. If bot wall was hit, show emerald/cyan.
         const bgHex = isCrit ? 0xdc2626 : (isPlayer ? 0xef4444 : 0x10b981);
-        const txt = this.add.text(0, 0, `${icon} ${label}`, {
+        const txt = createHDText(this, 0, 0, `${icon} ${label}`, {
             fontSize: isCrit ? '14px' : '12px',
             fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
             color: '#ffffff',

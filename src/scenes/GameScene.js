@@ -253,10 +253,9 @@ class GameScene extends Phaser.Scene {
         const coinCard = this.add.graphics();
         drawRoundRect(coinCard, W - 180, 10, 168, 44, 12, 0xffffff, 0.96, 0xe2e8f0, 2.5);
 
-        this.add.text(W - 164, 32, '💎', { fontSize: '22px' }).setOrigin(0.5);
-        this._coinsText = this.add.text(W - 20, 32, `${formatNumber(this.economy.coins)}`, {
+        this.add.image(W - 156, 32, 'icon_gem').setDisplaySize(28, 28);
+        this._coinsText = createHDText(this, W - 20, 32, `${formatNumber(this.economy.coins)}`, {
             fontSize: '18px',
-            fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
             color: '#1e293b',
             fontStyle: '800',
         }).setOrigin(1, 0.5);
@@ -271,25 +270,20 @@ class GameScene extends Phaser.Scene {
         gearBg.fillStyle(0xffffff, 0.28);
         gearBg.fillRoundedRect(x + 3, y + 2, gearSize - 6, 18, 10);
 
-        const gearTxt = this.add.text(x + gearSize / 2, y + gearSize / 2, '⚙', {
-            fontSize: '24px',
-            color: '#ffffff',
-            stroke: '#1e3a8a',
-            strokeThickness: 2,
-        }).setOrigin(0.5);
+        const gearIcon = this.add.image(x + gearSize / 2, y + gearSize / 2, 'icon_gear').setDisplaySize(24, 24);
 
         const gearHit = this.add.rectangle(x + gearSize / 2, y + gearSize / 2 + 2, gearSize, gearSize + 4, 0, 0)
             .setInteractive({ cursor: 'pointer' });
         gearHit.on('pointerdown', () => {
             if (typeof SoundManager !== 'undefined') SoundManager.playClick();
-            gearTxt.y = y + gearSize / 2 + 2;
+            gearIcon.y = y + gearSize / 2 + 2;
         });
         gearHit.on('pointerup', () => {
-            gearTxt.y = y + gearSize / 2;
+            gearIcon.y = y + gearSize / 2;
             this._openSettingsModal();
         });
         gearHit.on('pointerout', () => {
-            gearTxt.y = y + gearSize / 2;
+            gearIcon.y = y + gearSize / 2;
         });
 
         // Бейдж уровня (соединён справа, тёплый персиково-золотой фон)
@@ -303,9 +297,8 @@ class GameScene extends Phaser.Scene {
         this.levelBadgeBg.fillStyle(0xffffff, 0.4);
         this.levelBadgeBg.fillRoundedRect(lvlX + 3, y + 2, lvlW - 6, 18, 10);
 
-        this.levelWidgetTitle = this.add.text(lvlX + lvlW / 2, y + lvlH / 2, `Уровень ${this.economy.level}`, {
+        this.levelWidgetTitle = createHDText(this, lvlX + lvlW / 2, y + lvlH / 2, `Уровень ${this.economy.level}`, {
             fontSize: '15px',
-            fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
             color: '#92400e',
             stroke: '#ffffff',
             strokeThickness: 2,
@@ -555,24 +548,23 @@ class GameScene extends Phaser.Scene {
             this._questUiGroup.push(bg);
 
             // 2. Имя моба вверху карточки
-            const nameText = this.add.text(cx, cy - cardH / 2 + 13, mob.name, {
+            const nameText = createHDText(this, cx, cy - cardH / 2 + 13, mob.name, {
                 fontSize: '11px',
                 fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
                 color: '#475569',
                 fontStyle: '800',
             }).setOrigin(0.5);
 
-            // 3. Эмодзи моба в центре (крупный и сочный)
-            const emoji = this.add.text(cx, cy + 2, mob.emoji, {
-                fontSize: '44px',
-            }).setOrigin(0.5);
+            // 3. HD аватар моба в центре
+            const mobTex = mob.texture || (mob.level <= 10 ? `mob_0${mob.level}` : 'mob_placeholder');
+            const mobImg = this.add.image(cx, cy + 2, mobTex).setDisplaySize(42, 42);
 
             // 4. Статус / бейдж в правом нижнем углу
             let statusElements = [];
             if (isReady) {
                 const claimBg = this.add.graphics();
                 drawRoundRect(claimBg, cx - cardW / 2 + 4, cy + cardH / 2 - 24, cardW - 8, 22, 11, 0x22c55e, 1, 0xffffff, 1.8);
-                const claimTxt = this.add.text(cx, cy + cardH / 2 - 13, 'ЗАБРАТЬ 🎁', {
+                const claimTxt = createHDText(this, cx, cy + cardH / 2 - 13, 'ЗАБРАТЬ 🎁', {
                     fontSize: '10px',
                     fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
                     color: '#ffffff',
@@ -584,7 +576,7 @@ class GameScene extends Phaser.Scene {
                 const pillW = 44;
                 const pillH = 20;
                 drawRoundRect(pillBg, cx + cardW / 2 - pillW - 4, cy + cardH / 2 - pillH - 4, pillW, pillH, 10, 0xfef3c7, 1, 0xf59e0b, 1.5);
-                const countText = this.add.text(cx + cardW / 2 - pillW / 2 - 4, cy + cardH / 2 - pillH / 2 - 4, `${displayCount}/${quest.targetCount}`, {
+                const countText = createHDText(this, cx + cardW / 2 - pillW / 2 - 4, cy + cardH / 2 - pillH / 2 - 4, `${displayCount}/${quest.targetCount}`, {
                     fontSize: '11px',
                     fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
                     color: '#b45309',
@@ -605,7 +597,7 @@ class GameScene extends Phaser.Scene {
                 }
             });
 
-            this._questUiGroup.push(nameText, emoji, ...statusElements, hitArea);
+            this._questUiGroup.push(nameText, mobImg, ...statusElements, hitArea);
         });
     }
 
@@ -695,9 +687,8 @@ class GameScene extends Phaser.Scene {
         this._shopUiGroup.push(bg1);
 
         if (buyMob) {
-            const mobImg = this.add.text(cardX, cardY - 10, buyMob.emoji, {
-                fontSize: '48px',
-            }).setOrigin(0.5);
+            const buyTex = buyMob.texture || (buyMob.level <= 10 ? `mob_0${buyMob.level}` : 'mob_placeholder');
+            const mobImg = this.add.image(cardX, cardY - 10, buyTex).setDisplaySize(52, 52);
 
             // Кнопка-пилюля стоимости
             const priceBg = this.add.graphics();
@@ -705,7 +696,7 @@ class GameScene extends Phaser.Scene {
             drawRoundRect(priceBg, cardX - pillW / 2, cardY + cardSize / 2 - 28, pillW, 24, 12, 0xd97706, 1);
             drawRoundRect(priceBg, cardX - pillW / 2, cardY + cardSize / 2 - 30, pillW, 24, 12, 0xfbbf24, 1, 0xffffff, 1.5);
 
-            const priceText = this.add.text(cardX, cardY + cardSize / 2 - 18, `💎 ${formatNumber(cost)}`, {
+            const priceText = createHDText(this, cardX, cardY + cardSize / 2 - 18, `💎 ${formatNumber(cost)}`, {
                 fontSize: '12px',
                 fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
                 color: '#78350f',
@@ -734,16 +725,15 @@ class GameScene extends Phaser.Scene {
         this._shopUiGroup.push(bg2);
 
         if (adMob) {
-            const mobImg2 = this.add.text(cardX, cardY2 - 10, adMob.emoji, {
-                fontSize: '48px',
-            }).setOrigin(0.5);
+            const adTex = adMob.texture || (adMob.level <= 10 ? `mob_0${adMob.level}` : 'mob_placeholder');
+            const mobImg2 = this.add.image(cardX, cardY2 - 10, adTex).setDisplaySize(52, 52);
 
             const adBg = this.add.graphics();
             const pillW = cardSize - 14;
             drawRoundRect(adBg, cardX - pillW / 2, cardY2 + cardSize / 2 - 28, pillW, 24, 12, 0x7e22ce, 1);
             drawRoundRect(adBg, cardX - pillW / 2, cardY2 + cardSize / 2 - 30, pillW, 24, 12, 0xa855f7, 1, 0xffffff, 1.5);
 
-            const adText = this.add.text(cardX, cardY2 + cardSize / 2 - 18, 'Реклама 🎬', {
+            const adText = createHDText(this, cardX, cardY2 + cardSize / 2 - 18, 'Реклама 🎬', {
                 fontSize: '11px',
                 fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
                 color: '#ffffff',
@@ -767,7 +757,7 @@ class GameScene extends Phaser.Scene {
 
         const spawned = this.mergeField.spawnMob(mob.level);
         if (spawned) {
-            spawnFloatingText(this, spawned.x, spawned.y - 40, `+${mob.emoji} ${mob.name}`, '#5dff6e');
+            spawnFloatingText(this, spawned.x, spawned.y - 40, `+${mob.name}`, '#5dff6e');
         }
 
         this._onFieldChanged();
@@ -776,7 +766,7 @@ class GameScene extends Phaser.Scene {
     _onAdMob(mob) {
         const spawned = this.mergeField.spawnMob(mob.level);
         if (spawned) {
-            spawnFloatingText(this, spawned.x, spawned.y - 40, `🎁 +${mob.emoji} ${mob.name}!`, '#ffd700');
+            spawnFloatingText(this, spawned.x, spawned.y - 40, `🎁 +${mob.name}!`, '#ffd700');
         }
         this._onFieldChanged();
     }
@@ -1129,7 +1119,7 @@ class GameScene extends Phaser.Scene {
         const shopMob = getMobByLevel(shopMobLevel) || getMobByLevel(1);
 
         if (this._incubatorSubtitle) {
-            this._incubatorSubtitle.setText(`Высиживание: ${shopMob.emoji} ${shopMob.name} (Lv.${shopMobLevel})`);
+            this._incubatorSubtitle.setText(`Высиживание: ${shopMob.name} (Lv.${shopMobLevel})`);
         }
 
         const tierConfigs = [
@@ -1161,17 +1151,17 @@ class GameScene extends Phaser.Scene {
                 isUnlocked ? (slot.active ? 0x2ed573 : 0x8e44ad) : 0xc8d6e5,
                 isUnlocked ? (slot.active ? 2.5 : 2) : 1.5);
 
-            const slotTitle = this.add.text(x, y - slotH / 2 + 16, `СЛОТ ${idx + 1} (${slot.unlockLevel} УР)`, {
-                fontSize: '12px', fontFamily: 'monospace', color: isUnlocked ? '#2c3e50' : '#8395a7', fontStyle: 'bold'
+            const slotTitle = createHDText(this, x, y - slotH / 2 + 16, `СЛОТ ${idx + 1} (${slot.unlockLevel} УР)`, {
+                fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: isUnlocked ? '#2c3e50' : '#8395a7', fontStyle: 'bold'
             }).setOrigin(0.5);
 
             this._incubatorSlotsContainer.add([bg, slotTitle]);
 
             if (!isUnlocked) {
                 // Заблокированный слот
-                const lockIcon = this.add.text(x, y - 20, '🔒', { fontSize: '42px' }).setOrigin(0.5);
-                const lockText = this.add.text(x, y + 36, `Откроется\nна ${slot.unlockLevel} уровне!`, {
-                    fontSize: '13px', fontFamily: 'monospace', color: '#576574', align: 'center', fontStyle: 'bold'
+                const lockIcon = createHDText(this, x, y - 20, '🔒', { fontSize: '42px' }).setOrigin(0.5);
+                const lockText = createHDText(this, x, y + 36, `Откроется\nна ${slot.unlockLevel} уровне!`, {
+                    fontSize: '13px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#576574', align: 'center', fontStyle: 'bold'
                 }).setOrigin(0.5);
 
                 this._incubatorSlotsContainer.add([lockIcon, lockText]);
@@ -1181,7 +1171,7 @@ class GameScene extends Phaser.Scene {
                     const now = Date.now();
                     const isReady = now >= slot.endTime;
 
-                    const eggEmoji = this.add.text(x, y - 55, '🥚', { fontSize: '50px' }).setOrigin(0.5);
+                    const eggEmoji = this.add.image(x, y - 55, 'icon_egg').setDisplaySize(54, 54);
                     this.tweens.add({
                         targets: eggEmoji,
                         angle: isReady ? 12 : 5,
@@ -1195,12 +1185,12 @@ class GameScene extends Phaser.Scene {
                     const mobCount = slot.mobCount || currentTier.count;
                     const durLabel = slot.durationMinutes >= 60 ? `${slot.durationMinutes / 60} ч` : `${slot.durationMinutes} мин`;
 
-                    const batchInfo = this.add.text(x, y - 2, `${mobInfo.emoji} ${mobInfo.name}\n(Lv.${mobInfo.level})`, {
-                        fontSize: '12px', fontFamily: 'monospace', color: '#2d3436', align: 'center', fontStyle: 'bold'
+                    const batchInfo = createHDText(this, x, y - 2, `${mobInfo.name}\n(Lv.${mobInfo.level})`, {
+                        fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#2d3436', align: 'center', fontStyle: 'bold'
                     }).setOrigin(0.5);
 
-                    const countInfo = this.add.text(x, y + 26, `Пачка: ${mobCount} шт. (${durLabel})`, {
-                        fontSize: '11px', fontFamily: 'monospace', color: '#e67e22', fontStyle: 'bold'
+                    const countInfo = createHDText(this, x, y + 26, `Пачка: ${mobCount} шт. (${durLabel})`, {
+                        fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#e67e22', fontStyle: 'bold'
                     }).setOrigin(0.5);
 
                     this._incubatorSlotsContainer.add([eggEmoji, batchInfo, countInfo]);
@@ -1236,8 +1226,8 @@ class GameScene extends Phaser.Scene {
                         const ls = leftSec % 60;
                         const timeStr = lh > 0 ? `${lh}:${pad(lm)}:${pad(ls)}` : `${pad(lm)}:${pad(ls)}`;
 
-                        const timerTxt = this.add.text(x, y + 46, `⏱ ${timeStr}`, {
-                            fontSize: '15px', fontFamily: 'monospace', color: '#d35400', fontStyle: 'bold'
+                        const timerTxt = createHDText(this, x, y + 46, `⏱ ${timeStr}`, {
+                            fontSize: '15px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#d35400', fontStyle: 'bold'
                         }).setOrigin(0.5);
 
                         // Кнопка ускорения рекламой
@@ -1253,21 +1243,22 @@ class GameScene extends Phaser.Scene {
                     }
                 } else {
                     // СЛОТ СВОБОДЕН — ВЫБОР ДЛИТЕЛЬНОСТИ И ПАЧКИ МОБОВ
-                    const mobEmoji = this.add.text(x, y - 52, shopMob.emoji, { fontSize: '38px' }).setOrigin(0.5);
+                    const shopTex = shopMob.texture || (shopMob.level <= 10 ? `mob_0${shopMob.level}` : 'mob_placeholder');
+                    const mobEmoji = this.add.image(x, y - 52, shopTex).setDisplaySize(44, 44);
 
-                    const mobName = this.add.text(x, y - 18, `${shopMob.name} (Lv.${shopMob.level})`, {
-                        fontSize: '11px', fontFamily: 'monospace', color: '#2d3436', align: 'center', fontStyle: 'bold'
+                    const mobName = createHDText(this, x, y - 18, `${shopMob.name} (Lv.${shopMob.level})`, {
+                        fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#2d3436', align: 'center', fontStyle: 'bold'
                     }).setOrigin(0.5);
 
-                    const selTitle = this.add.text(x, y + 3, 'Время инкубации:', {
-                        fontSize: '10px', fontFamily: 'monospace', color: '#7f8c8d', fontStyle: 'bold'
+                    const selTitle = createHDText(this, x, y + 3, 'Время инкубации:', {
+                        fontSize: '10px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#7f8c8d', fontStyle: 'bold'
                     }).setOrigin(0.5);
 
                     // Плашка переключателя времени и количества
                     const selBox = this.add.graphics();
                     drawRoundRect(selBox, x - 72, y + 15, 144, 38, 8, 0xede7f6, 0.95, 0xd1c4e9, 1.5);
 
-                    const leftArrow = this.add.text(x - 56, y + 34, '◀', {
+                    const leftArrow = createHDText(this, x - 56, y + 34, '◀', {
                         fontSize: '18px', color: '#8e44ad', fontStyle: 'bold'
                     }).setOrigin(0.5).setInteractive({ cursor: 'pointer' });
 
@@ -1277,7 +1268,7 @@ class GameScene extends Phaser.Scene {
                         this._renderIncubatorSlots();
                     });
 
-                    const rightArrow = this.add.text(x + 56, y + 34, '▶', {
+                    const rightArrow = createHDText(this, x + 56, y + 34, '▶', {
                         fontSize: '18px', color: '#8e44ad', fontStyle: 'bold'
                     }).setOrigin(0.5).setInteractive({ cursor: 'pointer' });
 
@@ -1287,12 +1278,12 @@ class GameScene extends Phaser.Scene {
                         this._renderIncubatorSlots();
                     });
 
-                    const timeInfo = this.add.text(x, y + 26, `⏱ ${currentTier.labelTime}`, {
-                        fontSize: '12px', fontFamily: 'monospace', color: '#2c3e50', fontStyle: 'bold'
+                    const timeInfo = createHDText(this, x, y + 26, `⏱ ${currentTier.labelTime}`, {
+                        fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#2c3e50', fontStyle: 'bold'
                     }).setOrigin(0.5);
 
-                    const countInfo = this.add.text(x, y + 42, `${currentTier.labelCount}`, {
-                        fontSize: '11px', fontFamily: 'monospace', color: '#27ae60', fontStyle: 'bold'
+                    const countInfo = createHDText(this, x, y + 42, `${currentTier.labelCount}`, {
+                        fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#27ae60', fontStyle: 'bold'
                     }).setOrigin(0.5);
 
                     const [startBg, startTxt, startHit] = this._makeButton(x, y + 84, 155, 36, '🥚 В ИНКУБАТОР', '#8e44ad', () => {
@@ -1397,21 +1388,23 @@ class GameScene extends Phaser.Scene {
             }
             this.cameras.main.shake(180, 0.008);
 
-            // Огромный моб посередине с пульсацией
-            const centerEmoji = this.add.text(0, -50, newMob.emoji, { fontSize: '88px' }).setOrigin(0.5);
-            centerEmoji.setScale(0.1);
+            // Огромный HD аватар моба посередине с пульсацией
+            const newMobTex = newMob.texture || (newMob.level <= 10 ? `mob_0${newMob.level}` : 'mob_placeholder');
+            const centerImg = this.add.image(0, -50, newMobTex).setDisplaySize(120, 120);
+            const baseScale = centerImg.scaleX;
+            centerImg.setScale(baseScale * 0.1);
 
             this.tweens.add({
-                targets: centerEmoji,
-                scaleX: 1.2,
-                scaleY: 1.2,
+                targets: centerImg,
+                scaleX: baseScale * 1.2,
+                scaleY: baseScale * 1.2,
                 duration: 250,
                 ease: 'Back.Out',
                 onComplete: () => {
                     this.tweens.add({
-                        targets: centerEmoji,
-                        scaleX: 1.05,
-                        scaleY: 1.05,
+                        targets: centerImg,
+                        scaleX: baseScale * 1.05,
+                        scaleY: baseScale * 1.05,
                         duration: 500,
                         yoyo: true,
                         repeat: -1,
@@ -1444,7 +1437,7 @@ class GameScene extends Phaser.Scene {
             }
 
             // Название моба
-            const nameText = this.add.text(0, 14, newMob.name.toUpperCase(), {
+            const nameText = createHDText(this, 0, 14, newMob.name.toUpperCase(), {
                 fontSize: '24px',
                 fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
                 color: '#ffffff',
@@ -1454,7 +1447,7 @@ class GameScene extends Phaser.Scene {
             }).setOrigin(0.5).setAlpha(0);
 
             // Уровень и АТК
-            const statsText = this.add.text(0, 44, `LV.${newMob.level}   ⚔ ${formatNumber(newMob.atk)}`, {
+            const statsText = createHDText(this, 0, 44, `LV.${newMob.level}   ⚔ ${formatNumber(newMob.atk)}`, {
                 fontSize: '17px',
                 fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
                 color: '#5dff6e',
@@ -1468,7 +1461,7 @@ class GameScene extends Phaser.Scene {
             if (prevMob && prevMob.atk > 0) {
                 diffPct = Math.round(((newMob.atk - prevMob.atk) / prevMob.atk) * 100);
             }
-            const bumpText = this.add.text(0, 70, `+${diffPct}% к предыдущему! 🔥`, {
+            const bumpText = createHDText(this, 0, 70, `+${diffPct}% к предыдущему! 🔥`, {
                 fontSize: '14px',
                 fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
                 color: '#ff9f43',
@@ -1482,7 +1475,7 @@ class GameScene extends Phaser.Scene {
             drawRoundRect(nextBg, -150, 94, 300, 42, 12, 0x111625, 0.95, 0xf59e0b, 1.8);
             nextBg.setAlpha(0);
 
-            const nextTxt = this.add.text(0, 115, `➔ Следующий: ??? 🔒 (Lv.${newMob.level + 1})`, {
+            const nextTxt = createHDText(this, 0, 115, `➔ Следующий: ??? 🔒 (Lv.${newMob.level + 1})`, {
                 fontSize: '13px',
                 fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
                 color: '#ffd700',
@@ -1490,7 +1483,7 @@ class GameScene extends Phaser.Scene {
             }).setOrigin(0.5).setAlpha(0);
 
             this._newMobModalContent.add([
-                centerEmoji, nameText, statsText, bumpText, nextBg, nextTxt
+                centerImg, nameText, statsText, bumpText, nextBg, nextTxt
             ]);
 
             this.tweens.add({
@@ -1503,9 +1496,10 @@ class GameScene extends Phaser.Scene {
 
         if (prevMob) {
             // Мини-анимация слияния: два моба слетаются из сторон в центр
-            const leftMob = this.add.text(-150, -50, prevMob.emoji, { fontSize: '52px' }).setOrigin(0.5);
-            const rightMob = this.add.text(150, -50, prevMob.emoji, { fontSize: '52px' }).setOrigin(0.5);
-            const mergeLabel = this.add.text(0, -115, 'СЛИЯНИЕ... ⚡', {
+            const prevMobTex = prevMob.texture || (prevMob.level <= 10 ? `mob_0${prevMob.level}` : 'mob_placeholder');
+            const leftMob = this.add.image(-150, -50, prevMobTex).setDisplaySize(70, 70);
+            const rightMob = this.add.image(150, -50, prevMobTex).setDisplaySize(70, 70);
+            const mergeLabel = createHDText(this, 0, -115, 'СЛИЯНИЕ... ⚡', {
                 fontSize: '18px',
                 fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
                 color: '#ffd700',
@@ -1729,17 +1723,18 @@ class GameScene extends Phaser.Scene {
 
         drawCardState(isSelected);
 
-        const emojiTxt = this.add.text(x, y - 18, mob.emoji, { fontSize: '36px' }).setOrigin(0.5);
-        objs.push(emojiTxt);
+        const mobTex = mob.texture || (mob.level <= 10 ? `mob_0${mob.level}` : 'mob_placeholder');
+        const mobImg = this.add.image(x, y - 18, mobTex).setDisplaySize(42, 42);
+        objs.push(mobImg);
 
-        const nameTxt = this.add.text(x, y + 15, mob.name, {
-            fontSize: '10.5px', fontFamily: 'monospace', color: '#2d3436', fontStyle: 'bold',
+        const nameTxt = createHDText(this, x, y + 15, mob.name, {
+            fontSize: '10.5px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#2d3436', fontStyle: 'bold',
             align: 'center', wordWrap: { width: cardW - 8 }
         }).setOrigin(0.5);
         objs.push(nameTxt);
 
-        const atkTxt = this.add.text(x, y + 31, `⚔ ${formatNumber(mob.atk)}`, {
-            fontSize: '11px', fontFamily: 'monospace', color: '#e74c3c', fontStyle: 'bold'
+        const atkTxt = createHDText(this, x, y + 31, `⚔ ${formatNumber(mob.atk)}`, {
+            fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#e74c3c', fontStyle: 'bold'
         }).setOrigin(0.5);
         objs.push(atkTxt);
 
@@ -2008,7 +2003,7 @@ class GameScene extends Phaser.Scene {
 
         drawBtn(false);
 
-        const txt = this.add.text(cx, cy, label, {
+        const txt = createHDText(this, cx, cy, label, {
             fontSize,
             fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
             color: '#ffffff',

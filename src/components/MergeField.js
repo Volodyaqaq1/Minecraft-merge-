@@ -163,10 +163,9 @@ class MergeField {
         highlight.fillEllipse(0, -mobSize / 2 + 10, mobSize * 0.52, 12);
         container.add(highlight);
 
-        // 5. Эмодзи / спрайт моба (крупный и сочный)
-        const mobImg = scene.add.text(0, -10, mob.emoji, {
-            fontSize: `${Math.round(mobSize * 0.54)}px`,
-        }).setOrigin(0.5);
+        // 5. HD арт моба (или нейтральный placeholder)
+        const texKey = scene.textures.exists(mob.texture) ? mob.texture : 'mob_placeholder';
+        const mobImg = scene.add.image(0, -6, texKey).setDisplaySize(mobSize * 0.82, mobSize * 0.82);
         container.add(mobImg);
 
         // 6. Имя моба снизу в бейдже
@@ -175,11 +174,10 @@ class MergeField {
         drawRoundRect(nameBadge, -badgeW / 2, mobSize / 2 - 19, badgeW, 20, 10, 0x000000, 0.72);
         container.add(nameBadge);
 
-        const nameText = scene.add.text(0, mobSize / 2 - 9, mob.name, {
+        const nameText = createHDText(scene, 0, mobSize / 2 - 9, mob.name, {
             fontSize: '11px',
-            fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
             color: '#ffffff',
-            fontStyle: 'bold',
+            fontStyle: '800',
         }).setOrigin(0.5);
         container.add(nameText);
 
@@ -188,9 +186,8 @@ class MergeField {
         drawRoundRect(lvlBadge, -mobSize / 2 + 2, -mobSize / 2 - 4, 30, 22, 8, 0x111625, 0.9, 0xffd700, 1.5);
         container.add(lvlBadge);
 
-        const lvlText = scene.add.text(-mobSize / 2 + 17, -mobSize / 2 + 7, `${mobItem.mobLevel}`, {
+        const lvlText = createHDText(scene, -mobSize / 2 + 17, -mobSize / 2 + 7, `${mobItem.mobLevel}`, {
             fontSize: '12px',
-            fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
             color: '#ffd700',
             fontStyle: '900',
         }).setOrigin(0.5);

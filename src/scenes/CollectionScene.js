@@ -21,14 +21,14 @@ class CollectionScene extends Phaser.Scene {
         drawRoundRect(g, 20, 10, W - 40, H - 20, 16, 0x162032, 0.98, 0x38bdf8, 2);
 
         // Заголовок
-        this.add.text(W / 2, 26, '📖 Кубический Бестиарий', {
+        createHDText(this, W / 2, 26, '📖 Кубический Бестиарий', {
             fontSize: '22px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
             color: '#ffd700', stroke: '#111625', strokeThickness: 3, fontStyle: '900',
         }).setOrigin(0.5, 0);
 
         // Счётчик
         const unlocked = this.unlockedSet.size;
-        this.add.text(W / 2, 54, `Открыто: ${unlocked} / ${CONFIG.MOB_LEVELS}`, {
+        createHDText(this, W / 2, 54, `Открыто: ${unlocked} / ${CONFIG.MOB_LEVELS}`, {
             fontSize: '13px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
             color: '#94a3b8', fontStyle: '800',
         }).setOrigin(0.5, 0);
@@ -66,21 +66,22 @@ class CollectionScene extends Phaser.Scene {
                 isUnlocked ? mob.rarityColor : 0x334155, 1.5);
 
             if (isUnlocked) {
-                const emoji = this.add.text(x + cardW / 2, y + 26, mob.emoji, { fontSize: '32px' }).setOrigin(0.5);
-                const name = this.add.text(x + cardW / 2, y + 54, mob.name, {
+                const mobTex = mob.texture || (mob.level <= 10 ? `mob_0${mob.level}` : 'mob_placeholder');
+                const avatar = this.add.image(x + cardW / 2, y + 26, mobTex).setDisplaySize(44, 44);
+                const name = createHDText(this, x + cardW / 2, y + 54, mob.name, {
                     fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#fff',
                     stroke: '#111625', strokeThickness: 2, fontStyle: '800', wordWrap: { width: cardW - 8 }
                 }).setOrigin(0.5, 0);
-                const atk = this.add.text(x + cardW / 2, y + 72, `⚔ ${formatNumber(mob.atk)}`, {
+                const atk = createHDText(this, x + cardW / 2, y + 72, `⚔ ${formatNumber(mob.atk)}`, {
                     fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#4ade80', fontStyle: '800'
                 }).setOrigin(0.5, 0);
-                const lvl = this.add.text(x + 8, y + 6, `Lv.${mob.level}`, {
+                const lvl = createHDText(this, x + 8, y + 6, `Lv.${mob.level}`, {
                     fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#facc15', fontStyle: '900'
                 });
-                this.cardsContainer.add([bg, emoji, name, atk, lvl]);
+                this.cardsContainer.add([bg, avatar, name, atk, lvl]);
             } else {
-                const lock = this.add.text(x + cardW / 2, y + cardH / 2 - 10, '🔒', { fontSize: '28px' }).setOrigin(0.5);
-                const lvl = this.add.text(x + cardW / 2, y + cardH / 2 + 18, `Lv.${mob.level}`, {
+                const lock = createHDText(this, x + cardW / 2, y + cardH / 2 - 10, '🔒', { fontSize: '28px' }).setOrigin(0.5);
+                const lvl = createHDText(this, x + cardW / 2, y + cardH / 2 + 18, `Lv.${mob.level}`, {
                     fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#64748b', fontStyle: '800'
                 }).setOrigin(0.5);
                 this.cardsContainer.add([bg, lock, lvl]);
@@ -140,7 +141,7 @@ class CollectionScene extends Phaser.Scene {
         bg.fillStyle(0xffffff, 0.2);
         bg.fillRoundedRect(cx - 56, cy - 14, 112, 12, 4);
 
-        const txt = this.add.text(cx, cy - 1, label, {
+        const txt = createHDText(this, cx, cy - 1, label, {
             fontSize: '13px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
             color: '#fff', stroke: '#111625', strokeThickness: 2, fontStyle: '800',
         }).setOrigin(0.5).setDepth(1);

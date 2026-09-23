@@ -41,7 +41,7 @@ async function startGame() {
             pixelArt: false,
             antialias: true,
             antialiasGL: true,
-            roundPixels: true,
+            roundPixels: false,
             powerPreference: 'high-performance',
         },
 

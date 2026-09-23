@@ -18,23 +18,26 @@ class BootScene extends Phaser.Scene {
         this._createColorTexture('bg_game',   0x2d5a27, 960, 540);
         this._createColorTexture('bg_battle', 0x1a1a2e, 960, 540);
 
-        // ─── UI элементы ───
-        this._createColorTexture('ui_panel',  0x16213e, 10, 10);
-        this._createColorTexture('ui_btn_green', 0x27ae60, 10, 10);
-        this._createColorTexture('ui_btn_red',   0xc0392b, 10, 10);
-        this._createColorTexture('ui_btn_blue',  0x2980b9, 10, 10);
-        this._createColorTexture('ui_btn_gray',  0x636e72, 10, 10);
+        // ─── Мобы из манифеста (HD 512 & 256) ───
+        if (typeof MOB_MANIFEST !== 'undefined') {
+            MOB_MANIFEST.forEach(mob => {
+                if (mob.hasSkin) {
+                    const key = `mob_${String(mob.level).padStart(2, '0')}`;
+                    this.load.image(key, `assets/mobs/512/${key}.png`);
+                    this.load.image(`${key}_sm`, `assets/mobs/256/${key}.png`);
+                }
+            });
+        }
+        // Нейтральный development placeholder для еще не добавленных скинов
+        this.load.image('mob_placeholder', 'assets/mobs/placeholder.png');
 
-        // ─── Мобы — эмодзи-заглушки ───
-        // Когда появится арт, заменить на:
-        // for (let i = 1; i <= 30; i++) {
-        //     const key = `mob_${String(i).padStart(2,'0')}`;
-        //     this.load.image(key, `assets/mobs/${key}.png`);
-        // }
-
-        // ─── Иконки ───
-        this._createColorTexture('icon_emerald', 0x27ae60, 24, 24);
-        this._createColorTexture('icon_chest',   0xf39c12, 48, 48);
+        // ─── UI Иконки (128x128 HD) ───
+        this.load.image('icon_gem',   'assets/icons/gem.png');
+        this.load.image('icon_sword', 'assets/icons/sword.png');
+        this.load.image('icon_chest', 'assets/icons/chest.png');
+        this.load.image('icon_egg',   'assets/icons/egg.png');
+        this.load.image('icon_gear',  'assets/icons/gear.png');
+        this.load.image('icon_emerald', 'assets/icons/gem.png');
     }
 
     /**
