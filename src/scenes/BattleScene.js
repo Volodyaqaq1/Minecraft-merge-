@@ -9,7 +9,7 @@ class BattleScene extends Phaser.Scene {
         this.playerTeam = data.playerTeam || [];   // Array<mob>
         this.botTeam    = data.botTeam || [];      // Array<mob>
         this.botName    = data.botName || 'Бот';
-        this.economy    = data.economy;
+        this.state      = data.state || SaveManager.load();
     }
 
     create() {
@@ -392,7 +392,8 @@ class BattleScene extends Phaser.Scene {
         }).setOrigin(0.5).setDepth(202);
 
         if (isWin) {
-            this.economy.onBattleWin(this.prize);
+            this.state.player.coins = (this.state.player.coins || 0) + this.prize;
+            this.state.player.xp = (this.state.player.xp || 0) + CONFIG.XP_PER_MERGE * 4;
             this.add.text(W / 2, H / 2 + 5, `+💎 ${formatNumber(this.prize)} изумрудов!`, {
                 fontSize: '18px', fontFamily: 'monospace',
                 color: '#5dff6e', stroke: '#000', strokeThickness: 2, fontStyle: 'bold',
@@ -400,7 +401,7 @@ class BattleScene extends Phaser.Scene {
         } else {
             // По требованию: 0.5 (50%) от возможной награды при поражении!
             const halfPrize = Math.floor(this.prize * 0.5);
-            this.economy.addCoins(halfPrize);
+            this.state.player.coins = (this.state.player.coins || 0) + halfPrize;
 
             this.add.text(W / 2, H / 2 - 2, `+💎 ${formatNumber(halfPrize)} изумрудов`, {
                 fontSize: '17px', fontFamily: 'monospace',
@@ -411,6 +412,9 @@ class BattleScene extends Phaser.Scene {
                 fontSize: '12px', fontFamily: 'monospace', color: '#ffd700',
             }).setOrigin(0.5).setDepth(202);
         }
+
+        // Сохраняем состояние сразу же!
+        SaveManager.save(this.state);
 
         // Кнопка возврата в деревню
         const [bbg, btxt, bhit] = this._makeButton(W / 2, H / 2 + 75, 200, 48,

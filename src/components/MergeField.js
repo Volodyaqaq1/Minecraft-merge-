@@ -22,6 +22,14 @@ class MergeField {
             this.collection.add(1);
         }
 
+        // Уровни мобов, модалка для которых уже показывалась
+        this.shownModals = new Set();
+        if (Array.isArray(state.shownModals) && state.shownModals.length > 0) {
+            state.shownModals.forEach(lvl => this.shownModals.add(Number(lvl)));
+        } else {
+            this.shownModals.add(1);
+        }
+
         // Список всех активных мобов на поле: [{ id, mobLevel, container, x, y }]
         this.mobs = [];
         this._nextId = 1;
@@ -62,10 +70,11 @@ class MergeField {
         this.mobs.push(mobItem);
 
         // Проверяем, открыт ли этот уровень впервые
-        const isNew = !this.collection.has(mob.level);
+        const isNew = !this.collection.has(mob.level) || !this.shownModals.has(mob.level);
         this.collection.add(mob.level);
 
         if (isNew && !this._isLoading) {
+            this.shownModals.add(mob.level);
             if (this.onNewMobDiscovered) {
                 this.onNewMobDiscovered(mob);
             }
@@ -323,10 +332,12 @@ class MergeField {
         spawnFloatingText(this.scene, targetX, targetY - 45, `+${xpEarned} XP ⭐`, '#ffd700');
 
         // 4. Добавляем в коллекцию (проверяем, открыт ли моб впервые)
-        const isNewUnlock = !this.collection.has(newLevel);
+        const maxPrevUnlocked = this.collection.size > 0 ? Math.max(...this.collection) : 1;
+        const isNewUnlock = (newLevel > maxPrevUnlocked) || !this.shownModals.has(newLevel);
+        this.shownModals.add(newLevel);
         this.collection.add(newLevel);
 
-        // Оповещаем о слиянии (обновить магазин, левую карточку и показать окно открытия)
+        // Оповещаем о слиянии (обновить магазин, задания и показать окно открытия)
         if (this.onMergeSuccess) {
             this.onMergeSuccess(newMob, isNewUnlock);
         }
@@ -361,6 +372,7 @@ class MergeField {
                 y: Math.round(m.container ? m.container.y : m.y),
             })),
             collection: Array.from(this.collection),
+            shownModals: Array.from(this.shownModals),
         };
     }
 }

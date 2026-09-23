@@ -425,9 +425,16 @@ class GameScene extends Phaser.Scene {
             const mob = getMobByLevel(quest.mobLevel);
             if (!mob) return;
 
-            // Считаем СТРОГО мобов на поле прямо сейчас!
-            const curCount = this.mergeField.mobs.filter(m => m.mobLevel === quest.mobLevel).length;
-            const isReady = curCount >= quest.targetCount;
+            // Считаем мобов на поле прямо сейчас!
+            const rawCount = this.mergeField.mobs.filter(m => m.mobLevel === quest.mobLevel).length;
+            if (rawCount >= quest.targetCount) {
+                // Если игрок дошел до нужного значения, статус выполнения сохраняется даже после слияния
+                quest.isCompleted = true;
+            }
+
+            const isReady = !!quest.isCompleted;
+            // Не считаем больше мобов, чем нужно (оставляем ровно targetCount)
+            const displayCount = isReady ? quest.targetCount : Math.min(rawCount, quest.targetCount);
 
             const cx = startX;
             const cy = startY + idx * spacing;
@@ -440,23 +447,13 @@ class GameScene extends Phaser.Scene {
                 isReady ? 0x2ed573 : 0x3d5a80, isReady ? 2.5 : 1.5);
             this._questUiGroup.push(bg);
 
-            // Эмодзи моба слева
-            const emoji = this.add.text(cx - 40, cy - 8, mob.emoji, {
-                fontSize: '34px',
-            }).setOrigin(0.5);
-
-            // Бейдж уровня моба
-            const lvlBadge = this.add.graphics();
-            drawRoundRect(lvlBadge, cx - 58, cy + 12, 36, 16, 4, 0x000000, 0.85);
-            const lvlText = this.add.text(cx - 40, cy + 20, `Lv.${mob.level}`, {
-                fontSize: '10px',
-                fontFamily: 'monospace',
-                color: '#ffd700',
-                fontStyle: 'bold',
+            // Эмодзи моба слева (крупный и отцентрированный по вертикали)
+            const emoji = this.add.text(cx - 38, cy, mob.emoji, {
+                fontSize: '38px',
             }).setOrigin(0.5);
 
             // Название моба
-            const nameText = this.add.text(cx + 14, cy - 22, mob.name, {
+            const nameText = this.add.text(cx + 14, cy - 20, mob.name, {
                 fontSize: '11px',
                 fontFamily: 'monospace',
                 color: '#ffffff',
@@ -464,10 +461,10 @@ class GameScene extends Phaser.Scene {
                 wordWrap: { width: 78 }
             }).setOrigin(0.5);
 
-            // Прогресс (например, 1/4 или ГОТОВО!)
-            const countText = this.add.text(cx + 14, cy - 6,
-                isReady ? `🎉 ${curCount}/${quest.targetCount}` : `${curCount} / ${quest.targetCount}`, {
-                fontSize: '12px',
+            // Прогресс (например, 1/4 или 3/3 ГОТОВО!)
+            const countText = this.add.text(cx + 14, cy - 4,
+                isReady ? `🎉 ${displayCount}/${quest.targetCount} ГОТОВО!` : `${displayCount} / ${quest.targetCount}`, {
+                fontSize: isReady ? '10px' : '12px',
                 fontFamily: 'monospace',
                 color: isReady ? '#5dff6e' : '#ffd700',
                 fontStyle: 'bold',
@@ -475,21 +472,21 @@ class GameScene extends Phaser.Scene {
 
             // Полоска прогресса
             const barBg = this.add.graphics();
-            drawRoundRect(barBg, cx - 22, cy + 7, 72, 6, 3, 0x222222, 0.85);
+            drawRoundRect(barBg, cx - 22, cy + 9, 72, 6, 3, 0x222222, 0.85);
 
             const barFill = this.add.graphics();
-            const ratio = Math.min(1, curCount / quest.targetCount);
+            const ratio = isReady ? 1.0 : Math.min(1, displayCount / quest.targetCount);
             if (ratio > 0) {
                 barFill.fillStyle(isReady ? 0x2ed573 : 0x00c9ff, 1);
-                barFill.fillRoundedRect(cx - 22, cy + 7, Math.floor(72 * ratio), 6, 3);
+                barFill.fillRoundedRect(cx - 22, cy + 9, Math.floor(72 * ratio), 6, 3);
             }
 
             // Нижняя строка: награда или кнопка "ЗАБРАТЬ"
             let rewardOrClaim;
             if (isReady) {
                 const claimBg = this.add.graphics();
-                drawRoundRect(claimBg, cx - 18, cy + 17, 64, 18, 5, 0x2ed573, 1);
-                const claimTxt = this.add.text(cx + 14, cy + 26, 'ЗАБРАТЬ 🎁', {
+                drawRoundRect(claimBg, cx - 18, cy + 18, 64, 18, 5, 0x2ed573, 1);
+                const claimTxt = this.add.text(cx + 14, cy + 27, 'ЗАБРАТЬ 🎁', {
                     fontSize: '10px',
                     fontFamily: 'monospace',
                     color: '#ffffff',
@@ -497,7 +494,7 @@ class GameScene extends Phaser.Scene {
                 }).setOrigin(0.5);
                 rewardOrClaim = [claimBg, claimTxt];
             } else {
-                const rewText = this.add.text(cx + 14, cy + 24, `💎 ${formatNumber(quest.rewardCoins)}  +${quest.rewardXP}XP`, {
+                const rewText = this.add.text(cx + 14, cy + 25, `💎 ${formatNumber(quest.rewardCoins)}  +${quest.rewardXP}XP`, {
                     fontSize: '9px',
                     fontFamily: 'monospace',
                     color: '#5dff6e',
@@ -519,7 +516,7 @@ class GameScene extends Phaser.Scene {
             });
 
             this._questUiGroup.push(
-                emoji, lvlBadge, lvlText, nameText, countText,
+                emoji, nameText, countText,
                 barBg, barFill, ...rewardOrClaim, hitArea
             );
         });
@@ -1176,6 +1173,8 @@ class GameScene extends Phaser.Scene {
             rightBg, nextBadgeG, nextBadgeTxt, rightEmoji, rightName, rightLvl, rightLock
         ]);
 
+        this.tweens.killTweensOf(this._newMobModal);
+        this._newMobModal.setDepth(1000);
         this._newMobModal.setScale(0.7);
         this._newMobModal.setVisible(true);
 
@@ -1340,11 +1339,14 @@ class GameScene extends Phaser.Scene {
         // Случайный подбор команды бота: слабее, равный (50 на 50), или сильнее
         const botTeam = generateBotTeam(playerTeam);
 
+        // Сохраняем состояние поля со всеми мобами перед началом боя!
+        this._save();
+
         this.scene.start('BattleScene', {
             playerTeam,
             botTeam,
             botName: this._currentBotName,
-            economy: this.economy,
+            state: this.state,
         });
     }
 
@@ -1380,6 +1382,7 @@ class GameScene extends Phaser.Scene {
         this.state.player         = this.economy.toState();
         this.state.field          = fieldState.field;
         this.state.collection     = fieldState.collection;
+        this.state.shownModals    = fieldState.shownModals;
         this.state.incubatorSlots = this.state.incubatorSlots;
         this.state.playtime       = this.state.playtime;
         this.state.quests         = this.quests;

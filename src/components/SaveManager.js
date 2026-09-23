@@ -25,6 +25,7 @@ const SaveManager = {
             claimed: {},    // { 0: true, 1: true... }
         },
         quests: [],         // активные задания [{ id, mobLevel, targetCount, currentCount, isCompleted, rewardCoins, rewardXP }, ...]
+        shownModals: [1],   // уровни мобов, модалка для которых уже показывалась
     },
 
     /**
@@ -77,6 +78,7 @@ const SaveManager = {
         if (Array.isArray(saved.collection)) def.collection = saved.collection;
         if (Array.isArray(saved.incubatorSlots)) def.incubatorSlots = saved.incubatorSlots;
         if (Array.isArray(saved.quests)) def.quests = saved.quests;
+        if (Array.isArray(saved.shownModals)) def.shownModals = saved.shownModals;
         if (saved.playtime) def.playtime = saved.playtime;
         return def;
     },
