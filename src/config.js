@@ -32,18 +32,18 @@ const CONFIG = {
                   128000, 256000, 512000, 1000000, 2000000],
 
     // --- Кликер и Комбо (множитель 1x-5x) ---
-    COMBO_DECAY_PER_SEC: 12,       // % падения шкалы в секунду
-    COMBO_GAIN_PER_CLICK: 10,      // % прироста шкалы за клик
+    COMBO_DECAY_PER_SEC: 5.0,       // % падения шкалы в секунду (падает медленнее)
+    COMBO_GAIN_PER_CLICK: 4.5,      // % прироста шкалы за клик (набирается дольше)
     CLICK_REWARD_RATIO: 0.25,      // монет за клик = max(1, atk * 0.25 * multiplier)
 
     // --- Магазин ---
-    BUY_LEVEL_OFFSET: 3,           // моб за монеты = max(1, maxUnlocked - 3)
-    AD_LEVEL_OFFSET: 1,            // моб за рекламу = max(1, maxUnlocked - 1)
+    BUY_LEVEL_OFFSET: 5,           // моб за монеты = max(1, maxUnlocked - 5)
+    AD_LEVEL_OFFSET: 2,            // моб за рекламу = max(1, maxUnlocked - 2)
     FREE_MOB_COOLDOWN: 5 * 60 * 1000, // 5 минут в мс
 
     // --- Бои (Гонка по разрушению стенки) ---
     BATTLE_MAX_FIGHTERS: 3,
-    BATTLE_WALL_HP_FACTOR: 7.0,    // Здоровье стенки = средний урон матча * 7.0
+    BATTLE_WALL_HP_FACTOR: 11.5,   // Здоровье стенки для длительности боя ~7-8 сек
     BATTLE_ATTACK_SPEED: 700,      // интервал атак мобов (мс)
     BATTLE_PRIZE_MULTIPLIER: 60,   // приз = сумма atk всех мобов × 60
     BOT_CHALLENGE_INTERVAL: 90000, // вызов на бой раз в 90 сек

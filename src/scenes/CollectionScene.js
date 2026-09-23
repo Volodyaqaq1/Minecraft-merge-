@@ -32,51 +32,97 @@ class CollectionScene extends Phaser.Scene {
             fontSize: '13px', fontFamily: 'monospace', color: '#aaa',
         }).setOrigin(0.5, 0);
 
-        // Сетка мобов
-        const cols = 6;
-        const cardW = 130, cardH = 100;
-        const startX = 50, startY = 80;
+        // Контейнер с маской для плавной вертикальной прокрутки
+        const viewY = 80;
+        const viewH = H - 95;
+        const viewW = W - 40;
+
+        const maskShape = this.make.graphics();
+        maskShape.fillRect(20, viewY, viewW, viewH);
+        const mask = maskShape.createGeometryMask();
+
+        this.cardsContainer = this.add.container(0, 0);
+        this.cardsContainer.setMask(mask);
+
+        // Сетка мобов (5 колонок × 6 рядов, удобно под прокрутку)
+        const cols = 5;
+        const cardW = 160, cardH = 95;
+        const startX = 55, startY = viewY + 10;
+        let totalContentH = 0;
 
         MOBS.forEach((mob, i) => {
             const col = i % cols;
             const row = Math.floor(i / cols);
-            const x = startX + col * (cardW + 10);
-            const y = startY + row * (cardH + 10);
+            const x = startX + col * (cardW + 12);
+            const y = startY + row * (cardH + 12);
+            totalContentH = Math.max(totalContentH, y + cardH + 20);
 
             const isUnlocked = this.unlockedSet.has(mob.level);
 
             const bg = this.add.graphics();
-            drawRoundRect(bg, x, y, cardW, cardH, 8,
-                isUnlocked ? mob.rarityColor : 0x222222, isUnlocked ? 0.4 : 0.6,
-                isUnlocked ? mob.rarityColor : 0x444444, 1);
+            drawRoundRect(bg, x, y, cardW, cardH, 10,
+                isUnlocked ? mob.rarityColor : 0x222222, isUnlocked ? 0.35 : 0.6,
+                isUnlocked ? mob.rarityColor : 0x444444, 1.5);
 
             if (isUnlocked) {
-                // Эмодзи
-                this.add.text(x + cardW / 2, y + 26, mob.emoji, { fontSize: '32px' }).setOrigin(0.5);
-                // Имя
-                this.add.text(x + cardW / 2, y + 54, mob.name, {
-                    fontSize: '10px', fontFamily: 'monospace', color: '#fff',
-                    stroke: '#000', strokeThickness: 2, fontStyle: 'bold', wordWrap: { width: cardW - 6 }
+                const emoji = this.add.text(x + cardW / 2, y + 26, mob.emoji, { fontSize: '32px' }).setOrigin(0.5);
+                const name = this.add.text(x + cardW / 2, y + 54, mob.name, {
+                    fontSize: '11px', fontFamily: 'monospace', color: '#fff',
+                    stroke: '#000', strokeThickness: 2, fontStyle: 'bold', wordWrap: { width: cardW - 8 }
                 }).setOrigin(0.5, 0);
-                // АТК
-                this.add.text(x + cardW / 2, y + 74, `⚔ ${formatNumber(mob.atk)}`, {
-                    fontSize: '10px', fontFamily: 'monospace', color: '#ff8888', fontStyle: 'bold'
+                const atk = this.add.text(x + cardW / 2, y + 72, `⚔ ${formatNumber(mob.atk)}`, {
+                    fontSize: '11px', fontFamily: 'monospace', color: '#5dff6e', fontStyle: 'bold'
                 }).setOrigin(0.5, 0);
-                // Уровень
-                this.add.text(x + 6, y + 5, `Lv${mob.level}`, {
+                const lvl = this.add.text(x + 8, y + 6, `Lv.${mob.level}`, {
                     fontSize: '10px', fontFamily: 'monospace', color: '#ffd700', fontStyle: 'bold'
                 });
+                this.cardsContainer.add([bg, emoji, name, atk, lvl]);
             } else {
-                // Заблокирован — показываем ?
-                this.add.text(x + cardW / 2, y + cardH / 2 - 10, '🔒', { fontSize: '32px' }).setOrigin(0.5);
-                this.add.text(x + cardW / 2, y + cardH / 2 + 20, `Lv${mob.level}`, {
+                const lock = this.add.text(x + cardW / 2, y + cardH / 2 - 10, '🔒', { fontSize: '30px' }).setOrigin(0.5);
+                const lvl = this.add.text(x + cardW / 2, y + cardH / 2 + 18, `Lv.${mob.level}`, {
                     fontSize: '11px', fontFamily: 'monospace', color: '#777', fontStyle: 'bold'
                 }).setOrigin(0.5);
+                this.cardsContainer.add([bg, lock, lvl]);
             }
         });
 
+        // Логика прокрутки (колёсико мыши + свайп/перетаскивание пальцем)
+        const minScrollY = Math.min(0, viewH - (totalContentH - viewY));
+        let scrollY = 0;
+        let isDragging = false;
+        let startDragY = 0;
+        let startContainerY = 0;
+
+        const updateScroll = (newY) => {
+            scrollY = Phaser.Math.Clamp(newY, minScrollY, 0);
+            this.cardsContainer.y = scrollY;
+        };
+
+        this.input.on('wheel', (pointer, gameObjects, deltaX, deltaY) => {
+            updateScroll(scrollY - deltaY * 0.7);
+        });
+
+        this.input.on('pointerdown', (pointer) => {
+            if (pointer.y >= viewY && pointer.y <= viewY + viewH) {
+                isDragging = true;
+                startDragY = pointer.y;
+                startContainerY = scrollY;
+            }
+        });
+
+        this.input.on('pointermove', (pointer) => {
+            if (isDragging) {
+                const delta = pointer.y - startDragY;
+                updateScroll(startContainerY + delta);
+            }
+        });
+
+        this.input.on('pointerup', () => {
+            isDragging = false;
+        });
+
         // Кнопка закрыть
-        const [bbg, btxt, bhit] = this._makeBtn(W - 75, 28, 'X Закрыть', () => {
+        const [bbg, btxt, bhit] = this._makeBtn(W - 85, 28, '✕ Закрыть', () => {
             this.scene.stop();
         });
 

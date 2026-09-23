@@ -91,7 +91,7 @@ class BattleScene extends Phaser.Scene {
         this.chestIcon = this.add.text(cx, cy - 20, '🎁', { fontSize: '64px' }).setOrigin(0.5);
 
         // Подпись награды
-        this.add.text(cx, cy + 40, `💎 ${formatNumber(this.prize)}`, {
+        this.prizeText = this.add.text(cx, cy + 40, `💎 ${formatNumber(this.prize)}`, {
             fontSize: '18px', fontFamily: 'monospace',
             color: '#5dff6e', stroke: '#000000', strokeThickness: 3, fontStyle: 'bold',
         }).setOrigin(0.5);
@@ -350,6 +350,7 @@ class BattleScene extends Phaser.Scene {
         this.battleEnded = true;
 
         const isWin = winner === 'player';
+        const targetX = isWin ? 150 : CONFIG.WIDTH - 150;
 
         // Анимация разрушения стенки победителя
         const brokenWall = isWin ? this.pWallGraphics : this.bWallGraphics;
@@ -360,16 +361,17 @@ class BattleScene extends Phaser.Scene {
             duration: 350,
         });
 
-        // Анимация сундука при открытии
+        // Награда перетягивается в сторону победителя («как будто он её забирает»)!
         this.tweens.add({
-            targets: this.chestIcon,
-            scaleX: 1.4,
-            scaleY: 1.4,
-            duration: 250,
-            yoyo: true,
+            targets: [this.chestIcon, this.prizeText, this.rays],
+            x: targetX,
+            scaleX: 1.25,
+            scaleY: 1.25,
+            duration: 800,
+            ease: 'Back.Out',
         });
 
-        this.time.delayedCall(700, () => {
+        this.time.delayedCall(900, () => {
             this._showResultModal(isWin);
         });
     }
@@ -378,68 +380,152 @@ class BattleScene extends Phaser.Scene {
         const W = CONFIG.WIDTH;
         const H = CONFIG.HEIGHT;
 
-        const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.65).setDepth(200);
-        const bg = this.add.graphics().setDepth(201);
-        drawRoundRect(bg, W / 2 - 200, H / 2 - 130, 400, 260, 16,
-            isWin ? 0x1b4332 : 0x49111c, 0.98,
-            isWin ? 0xffd700 : 0xff4757, 3);
-
-        const emoji = isWin ? '🏆' : '💀';
-        // По требованию: пишем «ник бота вас опередил» при поражении
-        const title = isWin ? 'СОКРОВИЩЕ ВАШЕ!' : `${this.botName} вас опередил!`;
-        const color = isWin ? '#ffd700' : '#ff6b81';
-
-        this.add.text(W / 2, H / 2 - 95, emoji, { fontSize: '48px' }).setOrigin(0.5).setDepth(202);
-        this.add.text(W / 2, H / 2 - 45, title, {
-            fontSize: '18px', fontFamily: 'monospace',
-            color, stroke: '#000', strokeThickness: 3, fontStyle: 'bold',
-        }).setOrigin(0.5).setDepth(202);
-
         if (isWin) {
-            if (typeof SoundManager !== 'undefined') {
-                SoundManager.playVictory();
-            }
-            this.state.player.coins = (this.state.player.coins || 0) + this.prize;
-            this.state.player.xp = (this.state.player.xp || 0) + CONFIG.XP_PER_MERGE * 4;
-            this.add.text(W / 2, H / 2 + 5, `+💎 ${formatNumber(this.prize)} изумрудов!`, {
-                fontSize: '18px', fontFamily: 'monospace',
-                color: '#5dff6e', stroke: '#000', strokeThickness: 2, fontStyle: 'bold',
-            }).setOrigin(0.5).setDepth(202);
+            if (typeof SoundManager !== 'undefined') SoundManager.playVictory();
         } else {
-            if (typeof SoundManager !== 'undefined') {
-                SoundManager.playDefeat();
-            }
-            // По требованию: 0.5 (50%) от возможной награды при поражении!
-            const halfPrize = Math.floor(this.prize * 0.5);
-            this.state.player.coins = (this.state.player.coins || 0) + halfPrize;
-
-            this.add.text(W / 2, H / 2 - 2, `+💎 ${formatNumber(halfPrize)} изумрудов`, {
-                fontSize: '17px', fontFamily: 'monospace',
-                color: '#5dff6e', stroke: '#000', strokeThickness: 2, fontStyle: 'bold',
-            }).setOrigin(0.5).setDepth(202);
-
-            this.add.text(W / 2, H / 2 + 25, '(Утешительная награда 50%)', {
-                fontSize: '12px', fontFamily: 'monospace', color: '#ffd700',
-            }).setOrigin(0.5).setDepth(202);
+            if (typeof SoundManager !== 'undefined') SoundManager.playDefeat();
         }
 
-        // Сохраняем состояние сразу же!
-        SaveManager.save(this.state);
+        const basePrize = isWin ? this.prize : Math.max(1, Math.floor(this.prize * 0.5));
 
-        // Кнопка возврата в деревню
-        const [bbg, btxt, bhit] = this._makeButton(W / 2, H / 2 + 75, 200, 48,
-            '🏠 На главную', isWin ? '#2ed573' : '#747d8c', () => {
+        const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.72).setDepth(200).setInteractive();
+        const modal = this.add.container(W / 2, H / 2).setDepth(201);
+
+        const cardW = 480;
+        const cardH = 310;
+        const bg = this.add.graphics();
+        drawRoundRect(bg, -cardW / 2, -cardH / 2, cardW, cardH, 20, 0xfffdf0, 0.99, 0xf39c12, 3.5);
+
+        const titleText = isWin ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ...';
+        const titleColor = isWin ? '#198754' : '#b02a37';
+        const title = this.add.text(0, -112, titleText, {
+            fontSize: '28px', fontFamily: 'monospace', color: titleColor, fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        const subText = isWin
+            ? '🏆 Отличный бой! Сокровище принадлежит вашей команде!'
+            : '📗 Бери мобов более высокого уровня в бой, чтобы победить';
+        const sub = this.add.text(0, -74, subText, {
+            fontSize: '12px', fontFamily: 'monospace', color: '#555555', fontStyle: 'bold', align: 'center', wordWrap: { width: cardW - 40 }
+        }).setOrigin(0.5);
+
+        const adTitle = this.add.text(0, -36, 'Увеличить награду за просмотр рекламы?', {
+            fontSize: '13px', fontFamily: 'monospace', color: '#7f8c8d', fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        // Полоса слайдера от x2 до x5
+        const trackW = 280;
+        const trackH = 10;
+        const trackY = 10;
+        const trackBg = this.add.graphics();
+        drawRoundRect(trackBg, -trackW / 2, trackY - trackH / 2, trackW, trackH, 5, 0xe8c48a, 1, 0xb98e4f, 1.5);
+
+        // Метки множителей над шкалой
+        const labelY = trackY - 18;
+        const lX2Left  = this.add.text(-trackW / 2 + 10, labelY, 'x2', { fontSize: '11px', fontFamily: 'monospace', color: '#888', fontStyle: 'bold' }).setOrigin(0.5);
+        const lX3Left  = this.add.text(-trackW / 4, labelY, 'x3', { fontSize: '12px', fontFamily: 'monospace', color: '#888', fontStyle: 'bold' }).setOrigin(0.5);
+        const lX5Mid   = this.add.text(0, labelY, 'x5 🔥', { fontSize: '16px', fontFamily: 'monospace', color: '#d35400', fontStyle: 'bold' }).setOrigin(0.5);
+        const lX3Right = this.add.text(trackW / 4, labelY, 'x3', { fontSize: '12px', fontFamily: 'monospace', color: '#888', fontStyle: 'bold' }).setOrigin(0.5);
+        const lX2Right = this.add.text(trackW / 2 - 10, labelY, 'x2', { fontSize: '11px', fontFamily: 'monospace', color: '#888', fontStyle: 'bold' }).setOrigin(0.5);
+
+        // Бегающий ползунок
+        const knobContainer = this.add.container(0, trackY);
+        const knobG = this.add.graphics();
+        drawRoundRect(knobG, -15, -15, 30, 30, 7, 0x8e44ad, 1, 0xffffff, 2);
+        const knobTxt = this.add.text(0, 0, '🎬', { fontSize: '16px' }).setOrigin(0.5);
+        knobContainer.add([knobG, knobTxt]);
+
+        let sliderActive = true;
+        let currentMult = 3;
+
+        // Большая зеленая кнопка множителя
+        const [claimBg, claimTxt, claimHit] = this._makeButton(0, 70, 240, 50, '', '#2ed573', () => {
+            if (!sliderActive) return;
+            sliderActive = false;
+
+            const finalCoins = basePrize * currentMult;
+            this.state.player.coins = (this.state.player.coins || 0) + finalCoins;
+            if (isWin) {
+                this.state.player.xp = (this.state.player.xp || 0) + CONFIG.XP_PER_MERGE * 4;
+            }
+            SaveManager.save(this.state);
+
+            if (typeof SoundManager !== 'undefined') SoundManager.playVictory();
+            spawnFloatingText(this, W / 2, H / 2, `🎁 x${currentMult} НАГРАДА ПОЛУЧЕНА!`, '#ffd700', 24);
+
+            this.time.delayedCall(450, () => {
                 this.scene.start('GameScene');
             });
-        bbg.setDepth(202); btxt.setDepth(203); bhit.setDepth(204);
+        }, '16px');
+
+        // Текстовая кнопка "НЕ НАДО" (забрать 1x без рекламы)
+        const skipTxt = this.add.text(0, 124, 'НЕ НАДО', {
+            fontSize: '13px', fontFamily: 'monospace', color: '#7f8c8d', fontStyle: 'bold'
+        }).setOrigin(0.5).setInteractive({ cursor: 'pointer' });
+
+        skipTxt.on('pointerdown', () => {
+            if (!sliderActive) return;
+            sliderActive = false;
+
+            this.state.player.coins = (this.state.player.coins || 0) + basePrize;
+            if (isWin) {
+                this.state.player.xp = (this.state.player.xp || 0) + CONFIG.XP_PER_MERGE * 4;
+            }
+            SaveManager.save(this.state);
+
+            if (typeof SoundManager !== 'undefined') SoundManager.playClick();
+            this.scene.start('GameScene');
+        });
+
+        modal.add([
+            bg, title, sub, adTitle,
+            trackBg, lX2Left, lX3Left, lX5Mid, lX3Right, lX2Right,
+            knobContainer,
+            claimBg, claimTxt, claimHit,
+            skipTxt
+        ]);
+
+        // Анимация бегающего ползунка с комфортной скоростью (~1.8 сек проход)
+        this._resultSlider = {
+            active: true,
+            container: knobContainer,
+            trackW,
+            onUpdate: (time) => {
+                if (!sliderActive) return;
+                const sinVal = Math.sin(time * 0.0035);
+                const xPos = sinVal * (trackW / 2 - 15);
+                knobContainer.x = xPos;
+
+                const absDist = Math.abs(xPos);
+                if (absDist < 30) {
+                    currentMult = 5;
+                } else if (absDist < 75) {
+                    currentMult = 4;
+                } else if (absDist < 110) {
+                    currentMult = 3;
+                } else {
+                    currentMult = 2;
+                }
+
+                claimTxt.setText(`${formatNumber(basePrize * currentMult)} 💎 ▶`);
+            }
+        };
+
+        claimTxt.setText(`${formatNumber(basePrize * 3)} 💎 ▶`);
     }
 
-    _makeButton(cx, cy, w, h, label, color, callback) {
+    update(time, delta) {
+        if (this._resultSlider && this._resultSlider.active) {
+            this._resultSlider.onUpdate(time);
+        }
+    }
+
+    _makeButton(cx, cy, w, h, label, color, callback, fontSize = '15px') {
         const hex = parseInt(color.replace('#', ''), 16);
         const bg = this.add.graphics();
         drawRoundRect(bg, cx - w / 2, cy - h / 2, w, h, 8, hex, 1);
         const txt = this.add.text(cx, cy, label, {
-            fontSize: '15px', fontFamily: 'monospace',
+            fontSize, fontFamily: 'monospace',
             color: '#fff', stroke: '#000', strokeThickness: 2, fontStyle: 'bold',
         }).setOrigin(0.5);
         const hit = this.add.rectangle(cx, cy, w, h, 0, 0).setInteractive({ cursor: 'pointer' });

@@ -71,16 +71,57 @@
             align-items: center;
             justify-content: center;
         }
-        canvas {
-            display: block;
-            max-width: 100vw !important;
-            max-height: 100vh !important;
-            max-height: 100dvh !important;
-            object-fit: contain;
+        #rotate-device {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: #111625;
+            z-index: 100000;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            text-align: center;
+            padding: 24px;
+        }
+        #rotate-device .rotate-icon {
+            font-size: 64px;
+            margin-bottom: 18px;
+            animation: phoneRotate 2.2s ease-in-out infinite;
+        }
+        #rotate-device .rotate-title {
+            font-size: 22px;
+            font-weight: bold;
+            color: #ffd700;
+            margin-bottom: 10px;
+        }
+        #rotate-device .rotate-sub {
+            font-size: 14px;
+            color: #a0aec0;
+            max-width: 320px;
+            line-height: 1.4;
+        }
+        @keyframes phoneRotate {
+            0%, 20% { transform: rotate(0deg); }
+            50%, 80% { transform: rotate(90deg); }
+            100% { transform: rotate(0deg); }
+        }
+
+        @media screen and (orientation: portrait) and (max-width: 900px) {
+            #rotate-device {
+                display: flex !important;
+            }
         }
     </style>
 </head>
 <body>
+    <div id="rotate-device">
+        <div class="rotate-icon">📱🔄</div>
+        <div class="rotate-title">Поверните телефон</div>
+        <div class="rotate-sub">Для комфортной игры, пожалуйста, держите телефон горизонтально</div>
+    </div>
+
     <div id="game-container"></div>
 
     <div id="loading">
