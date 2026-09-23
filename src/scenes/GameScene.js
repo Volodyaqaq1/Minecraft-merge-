@@ -1,5 +1,5 @@
 // ============================================================
-// scenes/GameScene.js — главный экран: свободное поле, кликер, комбо x1-x5, магазин
+// scenes/GameScene.js — главный экран: свободное поле, кликер, инкубатор (5-10-15 ур), подарки за онлайн
 // ============================================================
 
 class GameScene extends Phaser.Scene {
@@ -8,6 +8,18 @@ class GameScene extends Phaser.Scene {
     init() {
         this.state    = SaveManager.load();
         this.economy  = new Economy(this.state);
+
+        // Гарантируем структуру инкубатора и наград за онлайн
+        if (!Array.isArray(this.state.incubatorSlots)) {
+            this.state.incubatorSlots = [
+                { id: 0, unlockLevel: 5, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0 },
+                { id: 1, unlockLevel: 10, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0 },
+                { id: 2, unlockLevel: 15, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0 },
+            ];
+        }
+        if (!this.state.playtime) {
+            this.state.playtime = { totalSeconds: 0, claimed: {} };
+        }
 
         // Комбо-шкала кликера (0..100%)
         this.comboGauge = 0;
@@ -36,22 +48,24 @@ class GameScene extends Phaser.Scene {
             }
         };
 
-        // ─── 3. Верхняя панель (уровень, комбо-шкала x1-x5, монеты) ───
+        // ─── 3. Верхняя панель (уровень, комбо-шкала x1-x5, монеты, подарки) ───
         this._buildTopBar();
 
         // ─── 4. Правая панель (покупка за монеты и моб за рекламу) ───
         this._buildRightShop();
 
-        // ─── 5. Левая карточка статуса (лучший моб и счетчик) ───
+        // ─── 5. Левая карточка статуса (лучший моб и счетчик на поле) ───
         this._buildLeftStatusCard();
 
         // ─── 6. Нижняя панель (Коллекция, Инкубатор, Награды, В бой!) ───
         this._buildBottomBar();
 
-        // ─── 7. Модальные окна (вызов на бой, выбор команды, открытие нового моба) ───
+        // ─── 7. Модальные окна ───
         this._buildBattleModal();
         this._buildFighterSelectModal();
         this._buildNewMobModal();
+        this._buildPlaytimeModal();
+        this._buildIncubatorModal();
 
         // ─── 8. Привязка событий экономики к UI ───
         this.economy.onCoinsChange = (val) => this._setCoinsText(val);
@@ -59,18 +73,30 @@ class GameScene extends Phaser.Scene {
             if (this._levelText) this._levelText.setText(`Уровень ${lvl}`);
         };
 
-        // ─── 9. Редкий вызов на бой от ботов (раз в 90 сек) ───
+        // ─── 9. Таймер секунд (для онлайна и инкубатора) ───
+        this.time.addEvent({
+            delay: 1000,
+            loop: true,
+            callback: () => this._onSecondTick(),
+        });
+
+        // ─── 10. Редкий вызов на бой от ботов (раз в 90 сек) ───
         this.time.addEvent({
             delay: CONFIG.BOT_CHALLENGE_INTERVAL,
             loop: true,
             callback: () => {
-                if (this.mergeField.mobs.length > 0 && !this._battleModal.visible && !this._fighterModal.visible) {
+                if (this.mergeField.mobs.length > 0 &&
+                    !this._battleModal.visible &&
+                    !this._fighterModal.visible &&
+                    !this._newMobModal.visible &&
+                    !this._playtimeModal.visible &&
+                    !this._incubatorModal.visible) {
                     this._openBattleModal();
                 }
             },
         });
 
-        // ─── 10. Автосохранение каждые 30 сек ───
+        // ─── 11. Автосохранение каждые 30 сек ───
         this.time.addEvent({
             delay: 30000,
             loop: true,
@@ -78,7 +104,7 @@ class GameScene extends Phaser.Scene {
             callbackScope: this,
         });
 
-        // ─── 11. Пауза при сворачивании (для Яндекс Игр) ───
+        // ─── 12. Пауза при сворачивании (для Яндекс Игр) ───
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) this._save();
         });
@@ -92,17 +118,14 @@ class GameScene extends Phaser.Scene {
         const W = CONFIG.WIDTH;
         const H = CONFIG.HEIGHT;
 
-        // Небо
         const sky = this.add.graphics();
         sky.fillGradientStyle(0x73c9f7, 0x73c9f7, 0xb8e3fa, 0xb8e3fa, 1);
         sky.fillRect(0, 0, W, H / 2);
 
-        // Зеленые холмы и лесная поляна
         const ground = this.add.graphics();
         ground.fillGradientStyle(0x56a635, 0x56a635, 0x3d7b23, 0x3d7b23, 1);
         ground.fillRect(0, H / 3, W, H * 2 / 3);
 
-        // Стилизованные деревья на заднем плане
         for (let i = 0; i < 7; i++) {
             const x = 70 + i * 140;
             const treeY = H / 3 + 20;
@@ -116,7 +139,7 @@ class GameScene extends Phaser.Scene {
     }
 
     // ============================================================
-    // Верхняя панель (Уровень, Комбо-шкала x1-x5, Баланс)
+    // Верхняя панель (Уровень, Комбо-шкала x1-x5, Подарки, Баланс)
     // ============================================================
 
     _buildTopBar() {
@@ -124,21 +147,22 @@ class GameScene extends Phaser.Scene {
 
         // 1. Уровень игрока (слева)
         const lvlBg = this.add.graphics();
-        drawRoundRect(lvlBg, 16, 12, 140, 42, 10, 0xffffff, 0.9, 0xdddddd, 2);
-        this._levelText = this.add.text(86, 33, `Уровень ${this.economy.level}`, {
-            fontSize: '15px',
+        drawRoundRect(lvlBg, 16, 12, 130, 42, 10, 0xffffff, 0.9, 0xdddddd, 2);
+        this._levelText = this.add.text(81, 33, `Уровень ${this.economy.level}`, {
+            fontSize: '14px',
             fontFamily: 'monospace',
             color: '#333333',
             fontStyle: 'bold',
         }).setOrigin(0.5);
 
-        // 2. Кнопка "Бесплатные мобы"
-        this._freeBtn = this._makeButton(245, 33, 150, 42, '🎁 Бесплатно', '#27ae60', () => {
-            this._onFreeSpawn();
+        // 2. Кнопка "🎁 Подарки" (открывает меню наград за время в игре)
+        const [fBg, fTxt, fHit] = this._makeButton(225, 33, 130, 42, '🎁 Подарки', '#27ae60', () => {
+            this._openPlaytimeModal();
         });
+        this._giftBtnText = fTxt;
 
         // 3. Комбо-шкала множителя (центр: x1 x2 x3 x4 x5)
-        this._buildComboBar(340, 18, 230, 30);
+        this._buildComboBar(310, 18, 240, 30);
 
         // 4. Баланс изумрудов (справа)
         const coinBg = this.add.graphics();
@@ -159,14 +183,10 @@ class GameScene extends Phaser.Scene {
         this.comboW = w;
         this.comboH = h;
 
-        // Рамка шкалы
         this.comboBg = this.add.graphics();
         drawRoundRect(this.comboBg, x, y, w, h, 8, 0x5a3e1b, 0.9, 0xffd700, 2);
 
-        // Заполнение шкалы
         this.comboFill = this.add.graphics();
-
-        // Подписи множителей: x1, x2, x3, x4, x5
         this.multiplierTexts = [];
         const mults = [1, 2, 3, 4, 5];
         const step = w / 5;
@@ -193,7 +213,6 @@ class GameScene extends Phaser.Scene {
             this.comboFill.fillRoundedRect(this.comboX + 3, this.comboY + 3, fillW, this.comboH - 6, 6);
         }
 
-        // Вычисляем текущий множитель
         let mul = 1;
         if (this.comboGauge >= 80) mul = 5;
         else if (this.comboGauge >= 60) mul = 4;
@@ -203,7 +222,6 @@ class GameScene extends Phaser.Scene {
 
         this.currentMultiplier = mul;
 
-        // Подсвечиваем активный множитель
         this.multiplierTexts.forEach((txt, idx) => {
             if (idx + 1 === mul) {
                 txt.setColor('#ffd700');
@@ -223,22 +241,18 @@ class GameScene extends Phaser.Scene {
         const mob = getMobByLevel(mobItem.mobLevel);
         if (!mob) return;
 
-        // 1. Увеличиваем шкалу комбо
         this.comboGauge = Math.min(100, this.comboGauge + CONFIG.COMBO_GAIN_PER_CLICK);
         this._redrawComboBar();
 
-        // 2. Рассчитываем награду от клика с учетом текущего множителя
         const reward = Math.max(1, Math.floor(mob.atk * CONFIG.CLICK_REWARD_RATIO * this.currentMultiplier));
         this.economy.addCoins(reward);
 
-        // 3. Всплывающий текст награды
         const clickX = mobItem.container.x;
         const clickY = mobItem.container.y - 45;
         const mulBadge = this.currentMultiplier > 1 ? ` (x${this.currentMultiplier})` : '';
         spawnFloatingText(this, clickX, clickY, `+${formatNumber(reward)} 💎${mulBadge}`, '#5dff6e');
     }
 
-    // Обновление таймера и затухания комбо-шкалы каждый кадр
     update(time, delta) {
         if (this.comboGauge > 0) {
             const decay = (CONFIG.COMBO_DECAY_PER_SEC * delta) / 1000;
@@ -248,7 +262,7 @@ class GameScene extends Phaser.Scene {
     }
 
     // ============================================================
-    // Левая карточка статуса
+    // Левая карточка статуса (Пояснение счетчика)
     // ============================================================
 
     _buildLeftStatusCard() {
@@ -260,30 +274,42 @@ class GameScene extends Phaser.Scene {
         this._leftCardGroup.forEach(item => item.destroy && item.destroy());
         this._leftCardGroup = [];
 
-        const x = 50;
-        const y = 110;
-        const w = 90;
-        const h = 100;
+        const x = 55;
+        const y = 112;
+        const w = 96;
+        const h = 108;
 
         const maxUnlocked = Math.max(...this.mergeField.collection, 1);
         const topMob = getMobByLevel(maxUnlocked);
 
         const bg = this.add.graphics();
-        drawRoundRect(bg, x - w / 2, y - h / 2, w, h, 12, 0xffffff, 0.9, 0xffd700, 2);
+        drawRoundRect(bg, x - w / 2, y - h / 2, w, h, 12, 0xffffff, 0.94, 0xffd700, 2.5);
         this._leftCardGroup.push(bg);
 
+        // Поясняющий заголовок
+        const title = this.add.text(x, y - h / 2 + 11, 'ТОП МОБ', {
+            fontSize: '10px',
+            fontFamily: 'monospace',
+            color: '#b7791f',
+            fontStyle: 'bold',
+        }).setOrigin(0.5);
+
         if (topMob) {
-            const emoji = this.add.text(x, y - 10, topMob.emoji, { fontSize: '42px' }).setOrigin(0.5);
+            // Эмодзи сильнейшего открытого моба
+            const emoji = this.add.text(x, y - 4, topMob.emoji, { fontSize: '38px' }).setOrigin(0.5);
+
+            // Бейдж количества мобов на полянке
             const countBadge = this.add.graphics();
-            drawRoundRect(countBadge, x - 35, y + 25, 70, 18, 6, 0xffd700, 0.9);
-            const countText = this.add.text(x, y + 34, `${this.mergeField.mobs.length} шт`, {
-                fontSize: '11px',
+            drawRoundRect(countBadge, x - 42, y + 26, 84, 20, 6, 0x27ae60, 1);
+
+            const countText = this.add.text(x, y + 36, `На поле: ${this.mergeField.mobs.length}`, {
+                fontSize: '9px',
                 fontFamily: 'monospace',
-                color: '#333333',
+                color: '#ffffff',
                 fontStyle: 'bold',
             }).setOrigin(0.5);
 
-            this._leftCardGroup.push(emoji, countBadge, countText);
+            this._leftCardGroup.push(title, emoji, countBadge, countText);
         }
     }
 
@@ -321,7 +347,6 @@ class GameScene extends Phaser.Scene {
                 fontSize: '46px',
             }).setOrigin(0.5);
 
-            // Кнопка с ценой снизу
             const priceBg = this.add.graphics();
             drawRoundRect(priceBg, cardX - cardSize / 2 + 6, cardY + cardSize / 2 - 28, cardSize - 12, 22, 6, 0xffd700, 1);
 
@@ -340,7 +365,7 @@ class GameScene extends Phaser.Scene {
             this._shopUiGroup.push(mobImg, priceBg, priceText, hitArea1);
         }
 
-        // 2. Слот 2: Моб за рекламу — ПО ТРЕБОВАНИЮ: на 1 уровень ниже максимального!
+        // 2. Слот 2: Моб за рекламу (на 1 уровень ниже максимального!)
         const adMobLevel = Math.max(1, maxUnlocked - CONFIG.AD_LEVEL_OFFSET);
         const adMob      = getMobByLevel(adMobLevel);
 
@@ -388,29 +413,10 @@ class GameScene extends Phaser.Scene {
     }
 
     _onAdMob(mob) {
-        // Выдаем моба на 1 уровень ниже максимального
         const spawned = this.mergeField.spawnMob(mob.level);
         if (spawned) {
             spawnFloatingText(this, spawned.x, spawned.y - 40, `🎁 +${mob.emoji} ${mob.name}!`, '#ffd700');
         }
-        this._updateLeftStatusCard();
-    }
-
-    _onFreeSpawn() {
-        const now = Date.now();
-        if (this.state.freeSpawnTime > now) {
-            const leftSec = Math.ceil((this.state.freeSpawnTime - now) / 1000);
-            spawnFloatingText(this, 245, 65, `Подождите ${leftSec}с`, '#ff4444');
-            return;
-        }
-
-        const maxUnlocked = Math.max(...this.mergeField.collection, 1);
-        const freeLevel = Math.max(1, maxUnlocked - 2);
-
-        this.mergeField.spawnMob(freeLevel);
-        this.state.freeSpawnTime = now + CONFIG.FREE_MOB_COOLDOWN;
-
-        spawnFloatingText(this, 245, 65, '🎁 Моб получен!', '#5dff6e');
         this._updateLeftStatusCard();
     }
 
@@ -428,8 +434,9 @@ class GameScene extends Phaser.Scene {
         this._makeButton(110, H - 29, 150, 40, '📖 Коллекция', '#34495e',
             () => this.scene.launch('CollectionScene', { collection: [...this.mergeField.collection] }));
 
-        this._makeButton(280, H - 29, 150, 40, '🥚 Инкубатор', '#34495e',
-            () => spawnFloatingText(this, 280, H - 80, 'Скоро!', '#ffd700'));
+        // Кнопка Инкубатора
+        this._makeButton(280, H - 29, 150, 40, '🥚 Инкубатор', '#8e44ad',
+            () => this._openIncubatorModal());
 
         this._makeButton(450, H - 29, 150, 40, '🏆 Награды', '#34495e',
             () => spawnFloatingText(this, 450, H - 80, 'Скоро!', '#ffd700'));
@@ -441,6 +448,502 @@ class GameScene extends Phaser.Scene {
                 return;
             }
             this._openBattleModal();
+        });
+    }
+
+    // ============================================================
+    // Таймер секунд (Онлайн-награды и Инкубатор)
+    // ============================================================
+
+    _onSecondTick() {
+        this.state.playtime.totalSeconds++;
+
+        // Проверяем, есть ли готовые награды за онлайн
+        const tiers = this._getPlaytimeTiers();
+        const hasUnclaimed = tiers.some((t, i) =>
+            this.state.playtime.totalSeconds >= t.seconds && !this.state.playtime.claimed[i]
+        );
+
+        if (this._giftBtnText) {
+            this._giftBtnText.setText(hasUnclaimed ? '🎁 Подарки 🔴' : '🎁 Подарки');
+        }
+
+        // Если окно наград открыто — обновляем таймеры
+        if (this._playtimeModal && this._playtimeModal.visible) {
+            this._renderPlaytimeCards();
+        }
+
+        // Если окно инкубатора открыто — обновляем слоты
+        if (this._incubatorModal && this._incubatorModal.visible) {
+            this._renderIncubatorSlots();
+        }
+    }
+
+    // ============================================================
+    // МЕНЮ НАГРАД ЗА ВРЕМЯ В ИГРЕ (Подарки)
+    // ============================================================
+
+    _getPlaytimeTiers() {
+        const maxUnlocked = Math.max(...this.mergeField.collection, 1);
+        const subMobLevel = Math.max(1, maxUnlocked - 1);
+        const subMob      = getMobByLevel(subMobLevel);
+        const topMob      = getMobByLevel(maxUnlocked);
+
+        return [
+            {
+                seconds: 600, // 10 минут
+                timeLabel: '10 минут',
+                desc: `2x ${subMob ? subMob.name : 'Моб'} (Lv.${subMobLevel})`,
+                icon: subMob ? subMob.emoji : '🐔',
+                claim: () => {
+                    this.mergeField.spawnMob(subMobLevel);
+                    this.mergeField.spawnMob(subMobLevel);
+                    spawnFloatingText(this, CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, `🎁 Получено 2x ${subMob.name}!`, '#5dff6e');
+                }
+            },
+            {
+                seconds: 1800, // 30 минут
+                timeLabel: '30 минут',
+                coins: getMobCost(maxUnlocked) * 4,
+                desc: `💎 Мешок изумрудов (${formatNumber(getMobCost(maxUnlocked) * 4)})`,
+                icon: '💰',
+                claim: (tier) => {
+                    this.economy.addCoins(tier.coins);
+                    spawnFloatingText(this, CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, `+💎 ${formatNumber(tier.coins)} изумрудов!`, '#5dff6e');
+                }
+            },
+            {
+                seconds: 3600, // 1 час
+                timeLabel: '1 час',
+                desc: `3x ${subMob ? subMob.name : 'Моб'} (Lv.${subMobLevel})`,
+                icon: subMob ? subMob.emoji : '🐔',
+                claim: () => {
+                    for (let i = 0; i < 3; i++) this.mergeField.spawnMob(subMobLevel);
+                    spawnFloatingText(this, CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, `🎁 Получено 3x ${subMob.name}!`, '#5dff6e');
+                }
+            },
+            {
+                seconds: 7200, // 2 часа
+                timeLabel: '2 часа',
+                coins: getMobCost(maxUnlocked) * 10,
+                desc: `💎 Сундук изумрудов (${formatNumber(getMobCost(maxUnlocked) * 10)}) + 200 XP`,
+                icon: '📦',
+                claim: (tier) => {
+                    this.economy.addCoins(tier.coins);
+                    this.economy.addXP(200);
+                    spawnFloatingText(this, CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, `+💎 ${formatNumber(tier.coins)} + 200 XP!`, '#5dff6e');
+                }
+            },
+            {
+                seconds: 14400, // 4 часа
+                timeLabel: '4 часа',
+                desc: `2x ${topMob ? topMob.name : 'Топ Моб'} (Lv.${maxUnlocked})`,
+                icon: topMob ? topMob.emoji : '⭐',
+                claim: () => {
+                    this.mergeField.spawnMob(maxUnlocked);
+                    this.mergeField.spawnMob(maxUnlocked);
+                    spawnFloatingText(this, CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, `👑 2x ${topMob.name} получено!`, '#ffd700');
+                }
+            },
+            {
+                seconds: 28800, // 8 часов
+                timeLabel: '8 часов',
+                coins: getMobCost(maxUnlocked) * 20,
+                desc: `👑 Королевский клад + 1x ${topMob ? topMob.name : 'Топ'}!`,
+                icon: '👑',
+                claim: (tier) => {
+                    this.mergeField.spawnMob(maxUnlocked);
+                    this.economy.addCoins(tier.coins);
+                    spawnFloatingText(this, CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, `👑 КОРОЛЕВСКИЙ КЛАД ПОЛУЧЕН!`, '#ffd700');
+                }
+            },
+        ];
+    }
+
+    _buildPlaytimeModal() {
+        const W = CONFIG.WIDTH;
+        const H = CONFIG.HEIGHT;
+
+        this._playtimeModal = this.add.container(W / 2, H / 2).setDepth(450).setVisible(false);
+
+        const overlay = this.add.rectangle(0, 0, W, H, 0x000000, 0.72).setInteractive();
+        const bg = this.add.graphics();
+        drawRoundRect(bg, -300, -200, 600, 400, 18, 0x16213e, 0.98, 0xffd700, 3);
+
+        const title = this.add.text(0, -165, '🎁 НАГРАДЫ ЗА ВРЕМЯ В ИГРЕ', {
+            fontSize: '20px', fontFamily: 'monospace', color: '#ffd700',
+            stroke: '#000', strokeThickness: 2, fontStyle: 'bold',
+        }).setOrigin(0.5);
+
+        this._playtimeTimeHeader = this.add.text(0, -138, '', {
+            fontSize: '12px', fontFamily: 'monospace', color: '#5dff6e', fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        this._playtimeListContainer = this.add.container(0, 0);
+
+        const closeBtn = this._makeButton(0, 168, 160, 38, 'ЗАКРЫТЬ', '#747d8c', () => {
+            this._playtimeModal.setVisible(false);
+        });
+
+        this._playtimeModal.add([overlay, bg, title, this._playtimeTimeHeader, this._playtimeListContainer, ...closeBtn]);
+    }
+
+    _openPlaytimeModal() {
+        this._renderPlaytimeCards();
+        this._playtimeModal.setScale(0.7);
+        this._playtimeModal.setVisible(true);
+        this.tweens.add({ targets: this._playtimeModal, scaleX: 1, scaleY: 1, duration: 200, ease: 'Back.Out' });
+    }
+
+    _renderPlaytimeCards() {
+        this._playtimeListContainer.removeAll(true);
+
+        const curSeconds = this.state.playtime.totalSeconds;
+        const h = Math.floor(curSeconds / 3600);
+        const m = Math.floor((curSeconds % 3600) / 60);
+        const s = curSeconds % 60;
+        const pad = (n) => String(n).padStart(2, '0');
+
+        this._playtimeTimeHeader.setText(`Текущее время в игре: ${pad(h)}:${pad(m)}:${pad(s)}`);
+
+        const tiers = this._getPlaytimeTiers();
+        const startY = -105;
+        const cardH  = 40;
+
+        tiers.forEach((tier, idx) => {
+            const y = startY + idx * (cardH + 6);
+            const isClaimed = !!this.state.playtime.claimed[idx];
+            const isReady   = curSeconds >= tier.seconds && !isClaimed;
+
+            const bg = this.add.graphics();
+            drawRoundRect(bg, -270, y, 540, cardH, 8,
+                isReady ? 0x1b4332 : (isClaimed ? 0x242d38 : 0x1a233a), 0.9,
+                isReady ? 0x5dff6e : 0x4a5568, 1.5);
+
+            const icon = this.add.text(-250, y + cardH / 2, tier.icon, { fontSize: '20px' }).setOrigin(0.5);
+
+            const timeTxt = this.add.text(-225, y + 10, tier.timeLabel, {
+                fontSize: '11px', fontFamily: 'monospace', color: '#ffd700', fontStyle: 'bold'
+            });
+
+            const descTxt = this.add.text(-225, y + 23, tier.desc, {
+                fontSize: '10px', fontFamily: 'monospace', color: '#dddddd'
+            });
+
+            this._playtimeListContainer.add([bg, icon, timeTxt, descTxt]);
+
+            if (isClaimed) {
+                const claimBadge = this.add.text(210, y + cardH / 2, 'Получено ✅', {
+                    fontSize: '11px', fontFamily: 'monospace', color: '#8892b0', fontStyle: 'bold'
+                }).setOrigin(0.5);
+                this._playtimeListContainer.add(claimBadge);
+            } else if (isReady) {
+                const [cBg, cTxt, cHit] = this._makeButton(210, y + cardH / 2, 100, 28, 'ЗАБРАТЬ 🎁', '#2ed573', () => {
+                    this.state.playtime.claimed[idx] = true;
+                    tier.claim(tier);
+                    this._renderPlaytimeCards();
+                    this._updateLeftStatusCard();
+                    this._save();
+                });
+                this._playtimeListContainer.add([cBg, cTxt, cHit]);
+            } else {
+                const left = tier.seconds - curSeconds;
+                const lm = Math.floor(left / 60);
+                const ls = left % 60;
+                const timerTxt = this.add.text(210, y + cardH / 2, `⏱ ${pad(lm)}:${pad(ls)}`, {
+                    fontSize: '11px', fontFamily: 'monospace', color: '#a0aec0', fontStyle: 'bold'
+                }).setOrigin(0.5);
+                this._playtimeListContainer.add(timerTxt);
+            }
+        });
+    }
+
+    // ============================================================
+    // ИНКУБАТОР (Открывается на 5, 10, 15 уровне)
+    // ============================================================
+
+    _buildIncubatorModal() {
+        const W = CONFIG.WIDTH;
+        const H = CONFIG.HEIGHT;
+
+        this._incubatorModal = this.add.container(W / 2, H / 2).setDepth(450).setVisible(false);
+
+        const overlay = this.add.rectangle(0, 0, W, H, 0x000000, 0.75).setInteractive();
+        const bg = this.add.graphics();
+        drawRoundRect(bg, -310, -210, 620, 420, 20, 0x16213e, 0.98, 0x8e44ad, 3);
+
+        const title = this.add.text(0, -175, '🥚 ИНКУБАТОР МОБОВ', {
+            fontSize: '22px', fontFamily: 'monospace', color: '#ffd700',
+            stroke: '#000', strokeThickness: 2, fontStyle: 'bold',
+        }).setOrigin(0.5);
+
+        const sub = this.add.text(0, -145, 'Слоты открываются на 5, 10 и 15 уровнях игрока!', {
+            fontSize: '12px', fontFamily: 'monospace', color: '#b388ff'
+        }).setOrigin(0.5);
+
+        this._incubatorSlotsContainer = this.add.container(0, 0);
+
+        const closeBtn = this._makeButton(0, 178, 160, 38, 'ЗАКРЫТЬ', '#747d8c', () => {
+            this._incubatorModal.setVisible(false);
+        });
+
+        this._incubatorModal.add([overlay, bg, title, sub, this._incubatorSlotsContainer, ...closeBtn]);
+    }
+
+    _openIncubatorModal() {
+        this._renderIncubatorSlots();
+        this._incubatorModal.setScale(0.7);
+        this._incubatorModal.setVisible(true);
+        this.tweens.add({ targets: this._incubatorModal, scaleX: 1, scaleY: 1, duration: 200, ease: 'Back.Out' });
+    }
+
+    _renderIncubatorSlots() {
+        this._incubatorSlotsContainer.removeAll(true);
+
+        const slotW = 180;
+        const slotH = 260;
+        const startX = -195;
+        const y = -10;
+
+        const maxUnlocked = Math.max(...this.mergeField.collection, 1);
+
+        this.state.incubatorSlots.forEach((slot, idx) => {
+            const x = startX + idx * 195;
+            const isUnlocked = this.economy.level >= slot.unlockLevel;
+
+            const bg = this.add.graphics();
+            drawRoundRect(bg, x - slotW / 2, y - slotH / 2, slotW, slotH, 14,
+                isUnlocked ? 0x221738 : 0x151824, 0.92,
+                isUnlocked ? 0x8e44ad : 0x4a5568, 2);
+
+            const slotTitle = this.add.text(x, y - slotH / 2 + 16, `СЛОТ ${idx + 1}`, {
+                fontSize: '13px', fontFamily: 'monospace', color: '#ffd700', fontStyle: 'bold'
+            }).setOrigin(0.5);
+
+            this._incubatorSlotsContainer.add([bg, slotTitle]);
+
+            if (!isUnlocked) {
+                // Заблокированный слот
+                const lockIcon = this.add.text(x, y - 20, '🔒', { fontSize: '42px' }).setOrigin(0.5);
+                const lockText = this.add.text(x, y + 35, `Откроется\nна ${slot.unlockLevel} уровне!`, {
+                    fontSize: '12px', fontFamily: 'monospace', color: '#a0aec0', align: 'center', fontStyle: 'bold'
+                }).setOrigin(0.5);
+
+                this._incubatorSlotsContainer.add([lockIcon, lockText]);
+            } else {
+                // Разблокированный слот
+                if (slot.active) {
+                    // ИДЁТ ИНКУБАЦИЯ
+                    const now = Date.now();
+                    const isReady = now >= slot.endTime;
+
+                    const eggEmoji = this.add.text(x, y - 45, '🥚', { fontSize: '44px' }).setOrigin(0.5);
+                    const mobInfo = getMobByLevel(slot.mobLevel);
+
+                    const batchInfo = this.add.text(x, y + 5, `${slot.mobCount}x ${mobInfo ? mobInfo.name : 'Мобов'}\n(Ур. ${slot.mobLevel})`, {
+                        fontSize: '11px', fontFamily: 'monospace', color: '#ffffff', align: 'center', fontStyle: 'bold'
+                    }).setOrigin(0.5);
+
+                    this._incubatorSlotsContainer.add([eggEmoji, batchInfo]);
+
+                    if (isReady) {
+                        const readyTxt = this.add.text(x, y + 42, 'ГОТОВО! 🎉', {
+                            fontSize: '12px', fontFamily: 'monospace', color: '#5dff6e', fontStyle: 'bold'
+                        }).setOrigin(0.5);
+
+                        const [cBg, cTxt, cHit] = this._makeButton(x, y + 80, 150, 36, 'ЗАБРАТЬ 🎁', '#2ed573', () => {
+                            // Спавним всех приготовленных мобов на поле
+                            for (let i = 0; i < slot.mobCount; i++) {
+                                this.mergeField.spawnMob(slot.mobLevel);
+                            }
+                            spawnFloatingText(this, CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, `🥚 +${slot.mobCount}x мобов из инкубатора!`, '#5dff6e');
+
+                            slot.active = false;
+                            this._renderIncubatorSlots();
+                            this._updateLeftStatusCard();
+                            this._save();
+                        });
+
+                        this._incubatorSlotsContainer.add([readyTxt, cBg, cTxt, cHit]);
+                    } else {
+                        const leftSec = Math.ceil((slot.endTime - now) / 1000);
+                        const lm = Math.floor(leftSec / 60);
+                        const ls = leftSec % 60;
+                        const pad = (n) => String(n).padStart(2, '0');
+
+                        const timerTxt = this.add.text(x, y + 48, `⏱ ${pad(lm)}:${pad(ls)}`, {
+                            fontSize: '14px', fontFamily: 'monospace', color: '#ffd700', fontStyle: 'bold'
+                        }).setOrigin(0.5);
+
+                        const statusTxt = this.add.text(x, y + 80, 'Варится в яйце...', {
+                            fontSize: '10px', fontFamily: 'monospace', color: '#b388ff'
+                        }).setOrigin(0.5);
+
+                        this._incubatorSlotsContainer.add([timerTxt, statusTxt]);
+                    }
+                } else {
+                    // СЛОТ СВОБОДЕН — ВЫБОР ПАЧКИ
+                    const freeTxt = this.add.text(x, y - slotH / 2 + 36, 'Свободен. Выберите:', {
+                        fontSize: '10px', fontFamily: 'monospace', color: '#b388ff'
+                    }).setOrigin(0.5);
+                    this._incubatorSlotsContainer.add(freeTxt);
+
+                    // Рецепты:
+                    // 10 мин (5 мобов), 30 мин (10 мобов), 2 часа (15 мобов), 8 часов (25 мобов)
+                    const recipes = [
+                        { minutes: 10, count: 5,  levelOffset: 2, label: '⏱ 10м → 5 моб.' },
+                        { minutes: 30, count: 10, levelOffset: 2, label: '⏱ 30м → 10 моб.' },
+                        { minutes: 120, count: 15, levelOffset: 1, label: '⏱ 2ч → 15 моб.' },
+                        { minutes: 480, count: 25, levelOffset: 1, label: '⏱ 8ч → 25 моб.' },
+                    ];
+
+                    recipes.forEach((rcp, rIdx) => {
+                        const ry = y - 48 + rIdx * 38;
+                        const [rBg, rTxt, rHit] = this._makeButton(x, ry, 150, 30, rcp.label, '#34495e', () => {
+                            const targetLvl = Math.max(1, maxUnlocked - rcp.levelOffset);
+                            slot.active = true;
+                            slot.endTime = Date.now() + rcp.minutes * 60 * 1000;
+                            slot.durationMinutes = rcp.minutes;
+                            slot.mobCount = rcp.count;
+                            slot.mobLevel = targetLvl;
+
+                            this._renderIncubatorSlots();
+                            this._save();
+                            spawnFloatingText(this, CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, `🥚 Инкубация началась! (${rcp.label})`, '#ffd700');
+                        });
+
+                        this._incubatorSlotsContainer.add([rBg, rTxt, rHit]);
+                    });
+                }
+            }
+        });
+    }
+
+    // ============================================================
+    // Модальное окно открытия нового моба
+    // ============================================================
+
+    _buildNewMobModal() {
+        const W = CONFIG.WIDTH;
+        const H = CONFIG.HEIGHT;
+
+        this._newMobModal = this.add.container(W / 2, H / 2).setDepth(400).setVisible(false);
+
+        const overlay = this.add.rectangle(0, 0, W, H, 0x000000, 0.72).setInteractive();
+        const bg = this.add.graphics();
+        drawRoundRect(bg, -270, -165, 540, 330, 20, 0x16213e, 0.98, 0xffd700, 3);
+
+        const title = this.add.text(0, -125, '🎉 НОВЫЙ МОБ ОТКРЫТ! 🎉', {
+            fontSize: '22px', fontFamily: 'monospace', color: '#ffd700',
+            stroke: '#000000', strokeThickness: 3, fontStyle: 'bold',
+        }).setOrigin(0.5);
+
+        this._newMobModalContent = this.add.container(0, 0);
+
+        const closeBtn = this._makeButton(0, 118, 200, 44, 'КРУТО! 👍', '#2ed573', () => {
+            this._newMobModal.setVisible(false);
+        });
+
+        this._newMobModal.add([overlay, bg, title, this._newMobModalContent, ...closeBtn]);
+    }
+
+    _showNewMobUnlockModal(newMob) {
+        this._newMobModalContent.removeAll(true);
+
+        const nextMob = getMobByLevel(newMob.level + 1);
+
+        const leftX = -130;
+        const leftY = -12;
+        const cardW = 160;
+        const cardH = 175;
+
+        const leftBg = this.add.graphics();
+        drawRoundRect(leftBg, leftX - cardW / 2, leftY - cardH / 2, cardW, cardH, 14, newMob.rarityColor, 0.45, 0x5dff6e, 3);
+
+        const badgeG = this.add.graphics();
+        drawRoundRect(badgeG, leftX - 45, leftY - cardH / 2 - 12, 90, 22, 6, 0x2ed573, 1);
+        const badgeTxt = this.add.text(leftX, leftY - cardH / 2 - 1, 'ОТКРЫТ!', {
+            fontSize: '11px', fontFamily: 'monospace', color: '#ffffff', fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        const leftEmoji = this.add.text(leftX, leftY - 22, newMob.emoji, { fontSize: '56px' }).setOrigin(0.5);
+
+        this.tweens.add({
+            targets: leftEmoji,
+            scaleX: 1.15,
+            scaleY: 1.15,
+            duration: 500,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.InOut'
+        });
+
+        const leftName = this.add.text(leftX, leftY + 28, newMob.name, {
+            fontSize: '12px', fontFamily: 'monospace', color: '#ffffff',
+            stroke: '#000', strokeThickness: 2, fontStyle: 'bold', wordWrap: { width: cardW - 10 }
+        }).setOrigin(0.5, 0);
+
+        const leftAtk = this.add.text(leftX, leftY + 52, `⚔ ${formatNumber(newMob.atk)}`, {
+            fontSize: '12px', fontFamily: 'monospace', color: '#5dff6e', fontStyle: 'bold'
+        }).setOrigin(0.5, 0);
+
+        const leftLvl = this.add.text(leftX - cardW / 2 + 10, leftY - cardH / 2 + 10, `Lv.${newMob.level}`, {
+            fontSize: '10px', fontFamily: 'monospace', color: '#ffd700', fontStyle: 'bold'
+        });
+
+        const arrow = this.add.text(0, leftY, '➔', {
+            fontSize: '38px', color: '#ffd700', stroke: '#000', strokeThickness: 2, fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        this.tweens.add({
+            targets: arrow,
+            x: 8,
+            duration: 400,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.InOut'
+        });
+
+        const rightX = 130;
+        const rightY = -12;
+
+        const rightBg = this.add.graphics();
+        drawRoundRect(rightBg, rightX - cardW / 2, rightY - cardH / 2, cardW, cardH, 14, 0x111625, 0.9, 0x4a5568, 2);
+
+        const nextBadgeG = this.add.graphics();
+        drawRoundRect(nextBadgeG, rightX - 52, rightY - cardH / 2 - 12, 104, 22, 6, 0x4a5568, 1);
+        const nextBadgeTxt = this.add.text(rightX, rightY - cardH / 2 - 1, 'СЛЕДУЮЩИЙ', {
+            fontSize: '10px', fontFamily: 'monospace', color: '#ffd700', fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        const rightEmoji = this.add.text(rightX, rightY - 22, '❓', { fontSize: '52px' }).setOrigin(0.5);
+
+        const rightName = this.add.text(rightX, rightY + 28, nextMob ? nextMob.name : '???', {
+            fontSize: '12px', fontFamily: 'monospace', color: '#8892b0',
+            stroke: '#000', strokeThickness: 1, wordWrap: { width: cardW - 10 }
+        }).setOrigin(0.5, 0);
+
+        const rightLvl = this.add.text(rightX, rightY + 52, nextMob ? `Lv.${nextMob.level}` : 'МАКСИМУМ', {
+            fontSize: '12px', fontFamily: 'monospace', color: '#a0aec0', fontStyle: 'bold'
+        }).setOrigin(0.5, 0);
+
+        const rightLock = this.add.text(rightX + cardW / 2 - 16, rightY - cardH / 2 + 10, '🔒', { fontSize: '12px' }).setOrigin(0.5);
+
+        this._newMobModalContent.add([
+            leftBg, badgeG, badgeTxt, leftEmoji, leftName, leftAtk, leftLvl,
+            arrow,
+            rightBg, nextBadgeG, nextBadgeTxt, rightEmoji, rightName, rightLvl, rightLock
+        ]);
+
+        this._newMobModal.setScale(0.7);
+        this._newMobModal.setVisible(true);
+
+        this.tweens.add({
+            targets: this._newMobModal,
+            scaleX: 1.0,
+            scaleY: 1.0,
+            duration: 220,
+            ease: 'Back.Out'
         });
     }
 
@@ -599,149 +1102,6 @@ class GameScene extends Phaser.Scene {
     }
 
     // ============================================================
-    // Модальное окно открытия нового моба
-    // ============================================================
-
-    _buildNewMobModal() {
-        const W = CONFIG.WIDTH;
-        const H = CONFIG.HEIGHT;
-
-        this._newMobModal = this.add.container(W / 2, H / 2).setDepth(400).setVisible(false);
-
-        const overlay = this.add.rectangle(0, 0, W, H, 0x000000, 0.72).setInteractive();
-        const bg = this.add.graphics();
-        drawRoundRect(bg, -270, -165, 540, 330, 20, 0x16213e, 0.98, 0xffd700, 3);
-
-        const title = this.add.text(0, -125, '🎉 НОВЫЙ МОБ ОТКРЫТ! 🎉', {
-            fontSize: '22px', fontFamily: 'monospace', color: '#ffd700',
-            stroke: '#000000', strokeThickness: 3, fontStyle: 'bold',
-        }).setOrigin(0.5);
-
-        this._newMobModalContent = this.add.container(0, 0);
-
-        const closeBtn = this._makeButton(0, 118, 200, 44, 'КРУТО! 👍', '#2ed573', () => {
-            this._newMobModal.setVisible(false);
-        });
-
-        this._newMobModal.add([overlay, bg, title, this._newMobModalContent, ...closeBtn]);
-    }
-
-    _showNewMobUnlockModal(newMob) {
-        this._newMobModalContent.removeAll(true);
-
-        const nextMob = getMobByLevel(newMob.level + 1);
-
-        // ── 1. Левая карточка: Открытый моб ──
-        const leftX = -130;
-        const leftY = -12;
-        const cardW = 160;
-        const cardH = 175;
-
-        const leftBg = this.add.graphics();
-        drawRoundRect(leftBg, leftX - cardW / 2, leftY - cardH / 2, cardW, cardH, 14, newMob.rarityColor, 0.45, 0x5dff6e, 3);
-
-        // Бейдж "ОТКРЫТ"
-        const badgeG = this.add.graphics();
-        drawRoundRect(badgeG, leftX - 45, leftY - cardH / 2 - 12, 90, 22, 6, 0x2ed573, 1);
-        const badgeTxt = this.add.text(leftX, leftY - cardH / 2 - 1, 'ОТКРЫТ!', {
-            fontSize: '11px', fontFamily: 'monospace', color: '#ffffff', fontStyle: 'bold'
-        }).setOrigin(0.5);
-
-        // Большой эмодзи открытого моба
-        const leftEmoji = this.add.text(leftX, leftY - 22, newMob.emoji, {
-            fontSize: '56px'
-        }).setOrigin(0.5);
-
-        // Пульсация открытого моба
-        this.tweens.add({
-            targets: leftEmoji,
-            scaleX: 1.15,
-            scaleY: 1.15,
-            duration: 500,
-            yoyo: true,
-            repeat: -1,
-            ease: 'Sine.InOut'
-        });
-
-        // Имя и характеристики
-        const leftName = this.add.text(leftX, leftY + 28, newMob.name, {
-            fontSize: '12px', fontFamily: 'monospace', color: '#ffffff',
-            stroke: '#000', strokeThickness: 2, fontStyle: 'bold', wordWrap: { width: cardW - 10 }
-        }).setOrigin(0.5, 0);
-
-        const leftAtk = this.add.text(leftX, leftY + 52, `⚔ ${formatNumber(newMob.atk)}`, {
-            fontSize: '12px', fontFamily: 'monospace', color: '#5dff6e', fontStyle: 'bold'
-        }).setOrigin(0.5, 0);
-
-        const leftLvl = this.add.text(leftX - cardW / 2 + 10, leftY - cardH / 2 + 10, `Lv.${newMob.level}`, {
-            fontSize: '10px', fontFamily: 'monospace', color: '#ffd700', fontStyle: 'bold'
-        });
-
-        // ── 2. Центр: Большая стрелка перехода ──
-        const arrow = this.add.text(0, leftY, '➔', {
-            fontSize: '38px', color: '#ffd700', stroke: '#000', strokeThickness: 2, fontStyle: 'bold'
-        }).setOrigin(0.5);
-
-        this.tweens.add({
-            targets: arrow,
-            x: 8,
-            duration: 400,
-            yoyo: true,
-            repeat: -1,
-            ease: 'Sine.InOut'
-        });
-
-        // ── 3. Правая карточка: Следующий закрытый моб ──
-        const rightX = 130;
-        const rightY = -12;
-
-        const rightBg = this.add.graphics();
-        drawRoundRect(rightBg, rightX - cardW / 2, rightY - cardH / 2, cardW, cardH, 14, 0x111625, 0.9, 0x4a5568, 2);
-
-        // Бейдж "СЛЕДУЮЩИЙ"
-        const nextBadgeG = this.add.graphics();
-        drawRoundRect(nextBadgeG, rightX - 52, rightY - cardH / 2 - 12, 104, 22, 6, 0x4a5568, 1);
-        const nextBadgeTxt = this.add.text(rightX, rightY - cardH / 2 - 1, 'СЛЕДУЮЩИЙ', {
-            fontSize: '10px', fontFamily: 'monospace', color: '#ffd700', fontStyle: 'bold'
-        }).setOrigin(0.5);
-
-        // Очертание с вопросиком
-        const rightEmoji = this.add.text(rightX, rightY - 22, '❓', {
-            fontSize: '52px',
-        }).setOrigin(0.5);
-
-        const rightName = this.add.text(rightX, rightY + 28, nextMob ? nextMob.name : '???', {
-            fontSize: '12px', fontFamily: 'monospace', color: '#8892b0',
-            stroke: '#000', strokeThickness: 1, wordWrap: { width: cardW - 10 }
-        }).setOrigin(0.5, 0);
-
-        const rightLvl = this.add.text(rightX, rightY + 52, nextMob ? `Lv.${nextMob.level}` : 'МАКСИМУМ', {
-            fontSize: '12px', fontFamily: 'monospace', color: '#a0aec0', fontStyle: 'bold'
-        }).setOrigin(0.5, 0);
-
-        const rightLock = this.add.text(rightX + cardW / 2 - 16, rightY - cardH / 2 + 10, '🔒', {
-            fontSize: '12px'
-        }).setOrigin(0.5);
-
-        this._newMobModalContent.add([
-            leftBg, badgeG, badgeTxt, leftEmoji, leftName, leftAtk, leftLvl,
-            arrow,
-            rightBg, nextBadgeG, nextBadgeTxt, rightEmoji, rightName, rightLvl, rightLock
-        ]);
-
-        this._newMobModal.setScale(0.7);
-        this._newMobModal.setVisible(true);
-
-        this.tweens.add({
-            targets: this._newMobModal,
-            scaleX: 1.0,
-            scaleY: 1.0,
-            duration: 220,
-            ease: 'Back.Out'
-        });
-    }
-
-    // ============================================================
     // Вспомогательные методы
     // ============================================================
 
@@ -755,7 +1115,7 @@ class GameScene extends Phaser.Scene {
         drawRoundRect(bg, cx - w / 2, cy - h / 2, w, h, 8, hex, 1);
 
         const txt = this.add.text(cx, cy, label, {
-            fontSize: '13px', fontFamily: 'monospace',
+            fontSize: '12px', fontFamily: 'monospace',
             color: '#ffffff', stroke: '#000000', strokeThickness: 2, fontStyle: 'bold',
         }).setOrigin(0.5).setDepth(1);
 
@@ -770,9 +1130,11 @@ class GameScene extends Phaser.Scene {
 
     _save() {
         const fieldState = this.mergeField.toState();
-        this.state.player     = this.economy.toState();
-        this.state.field      = fieldState.field;
-        this.state.collection = fieldState.collection;
+        this.state.player         = this.economy.toState();
+        this.state.field          = fieldState.field;
+        this.state.collection     = fieldState.collection;
+        this.state.incubatorSlots = this.state.incubatorSlots;
+        this.state.playtime       = this.state.playtime;
         SaveManager.save(this.state);
     }
 

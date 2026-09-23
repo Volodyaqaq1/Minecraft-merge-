@@ -15,7 +15,15 @@ const SaveManager = {
         field: [],          // [{ id, mobLevel, x, y }, ...]
         collection: [1],    // открытые уровни мобов
         freeSpawnTime: 0,   // timestamp когда можно брать бесплатного
-        incubator: null,    // { finishTime, mobLevel } | null
+        incubatorSlots: [
+            { id: 0, unlockLevel: 5, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0 },
+            { id: 1, unlockLevel: 10, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0 },
+            { id: 2, unlockLevel: 15, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0 },
+        ],
+        playtime: {
+            totalSeconds: 0,
+            claimed: {},    // { 0: true, 1: true... }
+        },
     },
 
     /**
@@ -66,6 +74,8 @@ const SaveManager = {
         // Массивы берём из saved если они есть
         if (Array.isArray(saved.field)) def.field = saved.field;
         if (Array.isArray(saved.collection)) def.collection = saved.collection;
+        if (Array.isArray(saved.incubatorSlots)) def.incubatorSlots = saved.incubatorSlots;
+        if (saved.playtime) def.playtime = saved.playtime;
         return def;
     },
 };
