@@ -301,12 +301,13 @@ class MergeField {
         const xpEarned = this.economy.onMerge(newMob);
         spawnFloatingText(this.scene, targetX, targetY - 45, `+${xpEarned} XP ⭐`, '#ffd700');
 
-        // 4. Добавляем в коллекцию
+        // 4. Добавляем в коллекцию (проверяем, открыт ли моб впервые)
+        const isNewUnlock = !this.collection.has(newLevel);
         this.collection.add(newLevel);
 
-        // Оповещаем о слиянии (обновить магазин и левую карточку)
+        // Оповещаем о слиянии (обновить магазин, левую карточку и показать окно открытия)
         if (this.onMergeSuccess) {
-            this.onMergeSuccess(newMob);
+            this.onMergeSuccess(newMob, isNewUnlock);
         }
     }
 

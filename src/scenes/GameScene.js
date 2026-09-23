@@ -27,10 +27,13 @@ class GameScene extends Phaser.Scene {
         // Привязываем кликер по мобу к комбо и наградам
         this.mergeField.onMobClick = (mobItem) => this._onMobClicked(mobItem);
 
-        // При успешном слиянии обновляем магазин (если открылся новый уровень)
-        this.mergeField.onMergeSuccess = () => {
+        // При успешном слиянии обновляем магазин, левую карточку и показываем модалку открытия
+        this.mergeField.onMergeSuccess = (newMob, isNew) => {
             this._updateShopButton();
             this._updateLeftStatusCard();
+            if (isNew) {
+                this._showNewMobUnlockModal(newMob);
+            }
         };
 
         // ─── 3. Верхняя панель (уровень, комбо-шкала x1-x5, монеты) ───
@@ -45,9 +48,10 @@ class GameScene extends Phaser.Scene {
         // ─── 6. Нижняя панель (Коллекция, Инкубатор, Награды, В бой!) ───
         this._buildBottomBar();
 
-        // ─── 7. Модальные окна (вызов на бой и выбор команды) ───
+        // ─── 7. Модальные окна (вызов на бой, выбор команды, открытие нового моба) ───
         this._buildBattleModal();
         this._buildFighterSelectModal();
+        this._buildNewMobModal();
 
         // ─── 8. Привязка событий экономики к UI ───
         this.economy.onCoinsChange = (val) => this._setCoinsText(val);
@@ -591,6 +595,149 @@ class GameScene extends Phaser.Scene {
             botTeam: this._currentBotTeam,
             botName: this._currentBotName,
             economy: this.economy,
+        });
+    }
+
+    // ============================================================
+    // Модальное окно открытия нового моба
+    // ============================================================
+
+    _buildNewMobModal() {
+        const W = CONFIG.WIDTH;
+        const H = CONFIG.HEIGHT;
+
+        this._newMobModal = this.add.container(W / 2, H / 2).setDepth(400).setVisible(false);
+
+        const overlay = this.add.rectangle(0, 0, W, H, 0x000000, 0.72).setInteractive();
+        const bg = this.add.graphics();
+        drawRoundRect(bg, -270, -165, 540, 330, 20, 0x16213e, 0.98, 0xffd700, 3);
+
+        const title = this.add.text(0, -125, '🎉 НОВЫЙ МОБ ОТКРЫТ! 🎉', {
+            fontSize: '22px', fontFamily: 'monospace', color: '#ffd700',
+            stroke: '#000000', strokeThickness: 3, fontStyle: 'bold',
+        }).setOrigin(0.5);
+
+        this._newMobModalContent = this.add.container(0, 0);
+
+        const closeBtn = this._makeButton(0, 118, 200, 44, 'КРУТО! 👍', '#2ed573', () => {
+            this._newMobModal.setVisible(false);
+        });
+
+        this._newMobModal.add([overlay, bg, title, this._newMobModalContent, ...closeBtn]);
+    }
+
+    _showNewMobUnlockModal(newMob) {
+        this._newMobModalContent.removeAll(true);
+
+        const nextMob = getMobByLevel(newMob.level + 1);
+
+        // ── 1. Левая карточка: Открытый моб ──
+        const leftX = -130;
+        const leftY = -12;
+        const cardW = 160;
+        const cardH = 175;
+
+        const leftBg = this.add.graphics();
+        drawRoundRect(leftBg, leftX - cardW / 2, leftY - cardH / 2, cardW, cardH, 14, newMob.rarityColor, 0.45, 0x5dff6e, 3);
+
+        // Бейдж "ОТКРЫТ"
+        const badgeG = this.add.graphics();
+        drawRoundRect(badgeG, leftX - 45, leftY - cardH / 2 - 12, 90, 22, 6, 0x2ed573, 1);
+        const badgeTxt = this.add.text(leftX, leftY - cardH / 2 - 1, 'ОТКРЫТ!', {
+            fontSize: '11px', fontFamily: 'monospace', color: '#ffffff', fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        // Большой эмодзи открытого моба
+        const leftEmoji = this.add.text(leftX, leftY - 22, newMob.emoji, {
+            fontSize: '56px'
+        }).setOrigin(0.5);
+
+        // Пульсация открытого моба
+        this.tweens.add({
+            targets: leftEmoji,
+            scaleX: 1.15,
+            scaleY: 1.15,
+            duration: 500,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.InOut'
+        });
+
+        // Имя и характеристики
+        const leftName = this.add.text(leftX, leftY + 28, newMob.name, {
+            fontSize: '12px', fontFamily: 'monospace', color: '#ffffff',
+            stroke: '#000', strokeThickness: 2, fontStyle: 'bold', wordWrap: { width: cardW - 10 }
+        }).setOrigin(0.5, 0);
+
+        const leftAtk = this.add.text(leftX, leftY + 52, `⚔ ${formatNumber(newMob.atk)}`, {
+            fontSize: '12px', fontFamily: 'monospace', color: '#5dff6e', fontStyle: 'bold'
+        }).setOrigin(0.5, 0);
+
+        const leftLvl = this.add.text(leftX - cardW / 2 + 10, leftY - cardH / 2 + 10, `Lv.${newMob.level}`, {
+            fontSize: '10px', fontFamily: 'monospace', color: '#ffd700', fontStyle: 'bold'
+        });
+
+        // ── 2. Центр: Большая стрелка перехода ──
+        const arrow = this.add.text(0, leftY, '➔', {
+            fontSize: '38px', color: '#ffd700', stroke: '#000', strokeThickness: 2, fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        this.tweens.add({
+            targets: arrow,
+            x: 8,
+            duration: 400,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.InOut'
+        });
+
+        // ── 3. Правая карточка: Следующий закрытый моб ──
+        const rightX = 130;
+        const rightY = -12;
+
+        const rightBg = this.add.graphics();
+        drawRoundRect(rightBg, rightX - cardW / 2, rightY - cardH / 2, cardW, cardH, 14, 0x111625, 0.9, 0x4a5568, 2);
+
+        // Бейдж "СЛЕДУЮЩИЙ"
+        const nextBadgeG = this.add.graphics();
+        drawRoundRect(nextBadgeG, rightX - 52, rightY - cardH / 2 - 12, 104, 22, 6, 0x4a5568, 1);
+        const nextBadgeTxt = this.add.text(rightX, rightY - cardH / 2 - 1, 'СЛЕДУЮЩИЙ', {
+            fontSize: '10px', fontFamily: 'monospace', color: '#ffd700', fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        // Очертание с вопросиком
+        const rightEmoji = this.add.text(rightX, rightY - 22, '❓', {
+            fontSize: '52px',
+        }).setOrigin(0.5);
+
+        const rightName = this.add.text(rightX, rightY + 28, nextMob ? nextMob.name : '???', {
+            fontSize: '12px', fontFamily: 'monospace', color: '#8892b0',
+            stroke: '#000', strokeThickness: 1, wordWrap: { width: cardW - 10 }
+        }).setOrigin(0.5, 0);
+
+        const rightLvl = this.add.text(rightX, rightY + 52, nextMob ? `Lv.${nextMob.level}` : 'МАКСИМУМ', {
+            fontSize: '12px', fontFamily: 'monospace', color: '#a0aec0', fontStyle: 'bold'
+        }).setOrigin(0.5, 0);
+
+        const rightLock = this.add.text(rightX + cardW / 2 - 16, rightY - cardH / 2 + 10, '🔒', {
+            fontSize: '12px'
+        }).setOrigin(0.5);
+
+        this._newMobModalContent.add([
+            leftBg, badgeG, badgeTxt, leftEmoji, leftName, leftAtk, leftLvl,
+            arrow,
+            rightBg, nextBadgeG, nextBadgeTxt, rightEmoji, rightName, rightLvl, rightLock
+        ]);
+
+        this._newMobModal.setScale(0.7);
+        this._newMobModal.setVisible(true);
+
+        this.tweens.add({
+            targets: this._newMobModal,
+            scaleX: 1.0,
+            scaleY: 1.0,
+            duration: 220,
+            ease: 'Back.Out'
         });
     }
 
