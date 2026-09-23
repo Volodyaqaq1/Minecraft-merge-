@@ -306,6 +306,10 @@ class BattleScene extends Phaser.Scene {
 
         const isPlayer = side === 'player';
 
+        if (typeof SoundManager !== 'undefined') {
+            SoundManager.playClink();
+        }
+
         // Крит с шансом 18%
         const isCrit = Math.random() < 0.18;
         const damage = Math.round(mob.atk * (isCrit ? 1.75 : 1.0));
@@ -392,6 +396,9 @@ class BattleScene extends Phaser.Scene {
         }).setOrigin(0.5).setDepth(202);
 
         if (isWin) {
+            if (typeof SoundManager !== 'undefined') {
+                SoundManager.playVictory();
+            }
             this.state.player.coins = (this.state.player.coins || 0) + this.prize;
             this.state.player.xp = (this.state.player.xp || 0) + CONFIG.XP_PER_MERGE * 4;
             this.add.text(W / 2, H / 2 + 5, `+💎 ${formatNumber(this.prize)} изумрудов!`, {
@@ -399,6 +406,9 @@ class BattleScene extends Phaser.Scene {
                 color: '#5dff6e', stroke: '#000', strokeThickness: 2, fontStyle: 'bold',
             }).setOrigin(0.5).setDepth(202);
         } else {
+            if (typeof SoundManager !== 'undefined') {
+                SoundManager.playDefeat();
+            }
             // По требованию: 0.5 (50%) от возможной награды при поражении!
             const halfPrize = Math.floor(this.prize * 0.5);
             this.state.player.coins = (this.state.player.coins || 0) + halfPrize;
@@ -433,7 +443,12 @@ class BattleScene extends Phaser.Scene {
             color: '#fff', stroke: '#000', strokeThickness: 2, fontStyle: 'bold',
         }).setOrigin(0.5);
         const hit = this.add.rectangle(cx, cy, w, h, 0, 0).setInteractive({ cursor: 'pointer' });
-        hit.on('pointerdown', callback);
+        hit.on('pointerdown', () => {
+            if (typeof SoundManager !== 'undefined') {
+                SoundManager.playClick();
+            }
+            callback();
+        });
         return [bg, txt, hit];
     }
 }

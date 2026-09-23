@@ -38,6 +38,11 @@ class MergeField {
         this.onMobClick          = null; // fn(mobData) -> кликер
         this.onMergeSuccess      = null; // fn(newMob, isNew) -> обновить магазин и показать модалку
         this.onNewMobDiscovered  = null; // fn(newMob) -> открытие нового моба из любого источника
+        this.onMergeCombo        = null; // fn(comboCount) -> быстрое комбо слияний
+
+        // Система комбо слияний
+        this.lastMergeTime = 0;
+        this.mergeCombo = 0;
 
         // Загрузить мобов из сохранения без ложных модалок открытия
         this._isLoading = true;
@@ -81,6 +86,9 @@ class MergeField {
         }
 
         // Анимация плавного появления
+        if (!this._isLoading && typeof SoundManager !== 'undefined') {
+            SoundManager.playPop();
+        }
         mobItem.container.setScale(0);
         this.scene.tweens.add({
             targets: mobItem.container,
@@ -213,6 +221,10 @@ class MergeField {
     // ============================================================
 
     _handleMobClick(mobItem, container) {
+        if (typeof SoundManager !== 'undefined') {
+            SoundManager.playClink();
+        }
+
         // Анимация сквоша (сплющивание как в оригинале сквишей)
         this.scene.tweens.add({
             targets: container,
@@ -264,7 +276,11 @@ class MergeField {
             // УСПЕШНОЕ СЛИЯНИЕ!
             this._executeMerge(draggedItem, targetMob);
         } else {
-            // Слияния нет: удерживаем моба в границах поля
+            // Слияния нет: мягкий звук падения и удерживаем моба в границах поля
+            if (typeof SoundManager !== 'undefined') {
+                SoundManager.playPop();
+            }
+
             const clampedX = Phaser.Math.Clamp(curX, this.bounds.minX + 30, this.bounds.maxX - 30);
             const clampedY = Phaser.Math.Clamp(curY, this.bounds.minY + 30, this.bounds.maxY - 30);
 
@@ -288,7 +304,83 @@ class MergeField {
         const targetX = targetItem.container.x;
         const targetY = targetItem.container.y;
 
-        // 1. Анимация: перетаскиваемый моб притягивается к цели и исчезает
+        // 1. Быстрое комбо слияний (в пределах 2.6 сек)
+        const now = Date.now();
+        if (now - this.lastMergeTime < 2600) {
+            this.mergeCombo++;
+        } else {
+            this.mergeCombo = 1;
+        }
+        this.lastMergeTime = now;
+
+        // Звук слияния с повышающейся тональностью
+        if (typeof SoundManager !== 'undefined') {
+            SoundManager.playMerge(this.mergeCombo);
+        }
+
+        // Всплывающее комбо над мобом
+        if (this.mergeCombo >= 2) {
+            let comboText = `COMBO x${this.mergeCombo}!`;
+            let comboColor = '#ffd700';
+            if (this.mergeCombo === 2) {
+                comboText = 'COMBO x2! 🔥';
+                comboColor = '#ffaa00';
+            } else if (this.mergeCombo === 3) {
+                comboText = 'COMBO x3! ⚡';
+                comboColor = '#ff5722';
+            } else {
+                comboText = `MEGA MERGE x${this.mergeCombo}! 💥🔥`;
+                comboColor = '#ff1744';
+            }
+            spawnFloatingText(this.scene, targetX, targetY - 68, comboText, comboColor, 20);
+        }
+
+        if (this.onMergeCombo) {
+            this.onMergeCombo(this.mergeCombo);
+        }
+
+        // 2. Визуальные сочные эффекты (вспышка кольца + частицы + тряска)
+        const ring = this.scene.add.graphics();
+        ring.lineStyle(3.5, newMob.rarityColor || 0xffd700, 0.95);
+        ring.strokeCircle(targetX, targetY, 24);
+        ring.setDepth(150);
+        this.scene.tweens.add({
+            targets: ring,
+            scaleX: 3.2,
+            scaleY: 3.2,
+            alpha: 0,
+            duration: 320,
+            ease: 'Quad.Out',
+            onComplete: () => ring.destroy()
+        });
+
+        // Разлетающиеся частицы искр
+        for (let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI * 2 + Math.random() * 0.3;
+            const dist = randInt(40, 85);
+            const spark = this.scene.add.text(targetX, targetY, Math.random() > 0.5 ? '✨' : '⭐', {
+                fontSize: `${randInt(14, 20)}px`
+            }).setOrigin(0.5).setDepth(160);
+
+            this.scene.tweens.add({
+                targets: spark,
+                x: targetX + Math.cos(angle) * dist,
+                y: targetY + Math.sin(angle) * dist,
+                alpha: 0,
+                scaleX: 0.3,
+                scaleY: 0.3,
+                duration: 420,
+                ease: 'Cubic.Out',
+                onComplete: () => spark.destroy()
+            });
+        }
+
+        // Экранный shake на редком слиянии (редкость >= 2 или комбо >= 3)
+        if (newMob.rarity >= 2 || newMob.level >= 10 || this.mergeCombo >= 3) {
+            this.scene.cameras.main.shake(160, 0.007);
+        }
+
+        // 3. Анимация: перетаскиваемый моб притягивается к цели и исчезает
         this.scene.tweens.add({
             targets: draggedItem.container,
             x: targetX,
@@ -304,7 +396,7 @@ class MergeField {
         // Удаляем draggedItem из массива
         this.mobs = this.mobs.filter(m => m.id !== draggedItem.id);
 
-        // 2. Обновляем уровень целевого моба
+        // 4. Обновляем уровень целевого моба
         targetItem.mobLevel = newLevel;
 
         // Пересоздаём визуализацию целевого моба
@@ -327,11 +419,11 @@ class MergeField {
             }
         });
 
-        // 3. Награда за слияние: ТОЛЬКО ОПЫТ (без монет)
+        // 5. Награда за слияние: ТОЛЬКО ОПЫТ (без монет)
         const xpEarned = this.economy.onMerge(newMob);
         spawnFloatingText(this.scene, targetX, targetY - 45, `+${xpEarned} XP ⭐`, '#ffd700');
 
-        // 4. Добавляем в коллекцию (проверяем, открыт ли моб впервые)
+        // 6. Добавляем в коллекцию (проверяем, открыт ли моб впервые)
         const maxPrevUnlocked = this.collection.size > 0 ? Math.max(...this.collection) : 1;
         const isNewUnlock = (newLevel > maxPrevUnlocked) || !this.shownModals.has(newLevel);
         this.shownModals.add(newLevel);

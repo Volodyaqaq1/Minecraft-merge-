@@ -90,7 +90,12 @@ class CollectionScene extends Phaser.Scene {
             fontSize: '13px', fontFamily: 'monospace', color: '#fff', fontStyle: 'bold',
         }).setOrigin(0.5).setDepth(1);
         const hit = this.add.rectangle(cx, cy, 130, 36, 0, 0).setInteractive({ cursor: 'pointer' });
-        hit.on('pointerdown', cb);
+        hit.on('pointerdown', () => {
+            if (typeof SoundManager !== 'undefined') {
+                SoundManager.playClick();
+            }
+            cb();
+        });
         return [bg, txt, hit];
     }
 }

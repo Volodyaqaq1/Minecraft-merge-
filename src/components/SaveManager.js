@@ -65,21 +65,21 @@ const SaveManager = {
         return JSON.parse(JSON.stringify(obj));
     },
 
-    _merge(def, saved) {
-        for (const key in def) {
-            if (saved[key] === undefined) {
-                saved[key] = def[key];
-            } else if (typeof def[key] === 'object' && !Array.isArray(def[key]) && def[key] !== null) {
-                saved[key] = this._merge(def[key], saved[key]);
+    _merge(target, source) {
+        if (!source || typeof source !== 'object') return target;
+        for (const key in source) {
+            if (source[key] === undefined || source[key] === null) continue;
+            if (Array.isArray(source[key])) {
+                target[key] = source[key];
+            } else if (typeof source[key] === 'object') {
+                if (typeof target[key] !== 'object' || target[key] === null || Array.isArray(target[key])) {
+                    target[key] = {};
+                }
+                this._merge(target[key], source[key]);
+            } else {
+                target[key] = source[key];
             }
         }
-        // Массивы берём из saved если они есть
-        if (Array.isArray(saved.field)) def.field = saved.field;
-        if (Array.isArray(saved.collection)) def.collection = saved.collection;
-        if (Array.isArray(saved.incubatorSlots)) def.incubatorSlots = saved.incubatorSlots;
-        if (Array.isArray(saved.quests)) def.quests = saved.quests;
-        if (Array.isArray(saved.shownModals)) def.shownModals = saved.shownModals;
-        if (saved.playtime) def.playtime = saved.playtime;
-        return def;
+        return target;
     },
 };
