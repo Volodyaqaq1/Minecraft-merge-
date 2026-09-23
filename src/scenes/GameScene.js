@@ -36,10 +36,10 @@ class GameScene extends Phaser.Scene {
         // ─── 3. Верхняя панель (уровень, комбо-шкала x1-x5, монеты) ───
         this._buildTopBar();
 
-        // ─── 4. Правая панель (кнопка покупки моба за монеты и за рекламу) ───
+        // ─── 4. Правая панель (покупка за монеты и моб за рекламу) ───
         this._buildRightShop();
 
-        // ─── 5. Левая карточка статуса (как на скриншоте: лучший моб и счетчик) ───
+        // ─── 5. Левая карточка статуса (лучший моб и счетчик) ───
         this._buildLeftStatusCard();
 
         // ─── 6. Нижняя панель (Коллекция, Инкубатор, Награды, В бой!) ───
@@ -98,7 +98,7 @@ class GameScene extends Phaser.Scene {
         ground.fillGradientStyle(0x56a635, 0x56a635, 0x3d7b23, 0x3d7b23, 1);
         ground.fillRect(0, H / 3, W, H * 2 / 3);
 
-        // Несколько стилизованных деревьев на заднем плане
+        // Стилизованные деревья на заднем плане
         for (let i = 0; i < 7; i++) {
             const x = 70 + i * 140;
             const treeY = H / 3 + 20;
@@ -185,7 +185,6 @@ class GameScene extends Phaser.Scene {
         this.comboFill.clear();
         const fillW = Math.floor((this.comboW - 6) * (this.comboGauge / 100));
         if (fillW > 0) {
-            // Градиентное или сочное заполнение
             this.comboFill.fillStyle(0x5dff6e, 0.95);
             this.comboFill.fillRoundedRect(this.comboX + 3, this.comboY + 3, fillW, this.comboH - 6, 6);
         }
@@ -200,7 +199,7 @@ class GameScene extends Phaser.Scene {
 
         this.currentMultiplier = mul;
 
-        // Подсвечиваем активный текст
+        // Подсвечиваем активный множитель
         this.multiplierTexts.forEach((txt, idx) => {
             if (idx + 1 === mul) {
                 txt.setColor('#ffd700');
@@ -245,7 +244,7 @@ class GameScene extends Phaser.Scene {
     }
 
     // ============================================================
-    // Левая карточка статуса (как на скриншоте сквишей)
+    // Левая карточка статуса
     // ============================================================
 
     _buildLeftStatusCard() {
@@ -254,7 +253,6 @@ class GameScene extends Phaser.Scene {
     }
 
     _updateLeftStatusCard() {
-        // Очистить старые элементы
         this._leftCardGroup.forEach(item => item.destroy && item.destroy());
         this._leftCardGroup = [];
 
@@ -301,7 +299,7 @@ class GameScene extends Phaser.Scene {
         const W = CONFIG.WIDTH;
         const maxUnlocked = Math.max(...this.mergeField.collection, 1);
 
-        // По требованию: объект в магазине на 3 уровня ниже максимального, до которого дошел игрок!
+        // 1. Слот 1: Моб за монеты (на 3 уровня ниже максимального)
         const buyLevel = Math.max(1, maxUnlocked - CONFIG.BUY_LEVEL_OFFSET);
         const buyMob   = getMobByLevel(buyLevel);
         const cost     = getMobCost(buyLevel);
@@ -310,7 +308,6 @@ class GameScene extends Phaser.Scene {
         const cardY = 135;
         const cardSize = 110;
 
-        // ── Слот 1: Покупка за монеты ──
         const bg1 = this.add.graphics();
         drawRoundRect(bg1, cardX - cardSize / 2, cardY - cardSize / 2, cardSize, cardSize, 16, 0xffffff, 0.92, 0x4aa3df, 3);
         this._shopUiGroup.push(bg1);
@@ -339,15 +336,17 @@ class GameScene extends Phaser.Scene {
             this._shopUiGroup.push(mobImg, priceBg, priceText, hitArea1);
         }
 
-        // ── Слот 2: Бесплатный моб за рекламу ──
+        // 2. Слот 2: Моб за рекламу — ПО ТРЕБОВАНИЮ: на 1 уровень ниже максимального!
+        const adMobLevel = Math.max(1, maxUnlocked - CONFIG.AD_LEVEL_OFFSET);
+        const adMob      = getMobByLevel(adMobLevel);
+
         const cardY2 = 265;
         const bg2 = this.add.graphics();
         drawRoundRect(bg2, cardX - cardSize / 2, cardY2 - cardSize / 2, cardSize, cardSize, 16, 0xffffff, 0.92, 0x4aa3df, 3);
         this._shopUiGroup.push(bg2);
 
-        const randomBonusMob = getMobByLevel(Math.max(1, buyLevel));
-        if (randomBonusMob) {
-            const mobImg2 = this.add.text(cardX, cardY2 - 14, randomBonusMob.emoji, {
+        if (adMob) {
+            const mobImg2 = this.add.text(cardX, cardY2 - 14, adMob.emoji, {
                 fontSize: '46px',
             }).setOrigin(0.5);
 
@@ -364,7 +363,7 @@ class GameScene extends Phaser.Scene {
             const hitArea2 = this.add.rectangle(cardX, cardY2, cardSize, cardSize, 0, 0)
                 .setInteractive({ cursor: 'pointer' });
 
-            hitArea2.on('pointerdown', () => this._onAdMob(randomBonusMob));
+            hitArea2.on('pointerdown', () => this._onAdMob(adMob));
 
             this._shopUiGroup.push(mobImg2, adBg, adText, hitArea2);
         }
@@ -376,7 +375,6 @@ class GameScene extends Phaser.Scene {
             return;
         }
 
-        // Спавним моба на свободном поле
         const spawned = this.mergeField.spawnMob(mob.level);
         if (spawned) {
             spawnFloatingText(this, spawned.x, spawned.y - 40, `+${mob.emoji} ${mob.name}`, '#5dff6e');
@@ -386,7 +384,7 @@ class GameScene extends Phaser.Scene {
     }
 
     _onAdMob(mob) {
-        // Награда за просмотр рекламы
+        // Выдаем моба на 1 уровень ниже максимального
         const spawned = this.mergeField.spawnMob(mob.level);
         if (spawned) {
             spawnFloatingText(this, spawned.x, spawned.y - 40, `🎁 +${mob.emoji} ${mob.name}!`, '#ffd700');

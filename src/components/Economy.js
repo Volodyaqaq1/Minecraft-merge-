@@ -7,9 +7,9 @@ class Economy {
         this.coins      = state.player.coins;
         this.xp         = state.player.xp;
         this.level      = state.player.level;
-        this.multiplier = state.player.multiplier;
+        this.multiplier = state.player.multiplier || 1;
 
-        // Коллбеки для обновления UI (GameScene подпишется)
+        // Коллбеки для обновления UI
         this.onCoinsChange      = null;
         this.onLevelChange      = null;
         this.onMultiplierChange = null;
@@ -46,9 +46,6 @@ class Economy {
         }
     }
 
-    /**
-     * Прогресс к следующему уровню [0..1]
-     */
     getLevelProgress() {
         const table = CONFIG.XP_TO_LEVEL;
         const curXP = table[this.level - 1] || 0;
@@ -57,27 +54,22 @@ class Economy {
         return Math.min(1, (this.xp - curXP) / (nextXP - curXP));
     }
 
-    // ---- Мёрдж ----
+    // ---- Мёрдж: ТОЛЬКО ОПЫТ (БЕЗ МОНЕТ) ----
 
     /**
-     * Вызывается при каждом мёрдже. Начисляет монеты + XP.
-     * mob — объект моба из MOBS (тот что получился)
+     * Вызывается при каждом слиянии. Начисляет ТОЛЬКО XP!
      */
     onMerge(mob) {
-        const coins = Math.floor(mob.atk * CONFIG.MERGE_COIN_MULTIPLIER * this.multiplier);
-        this.addCoins(coins);
-        this.addXP(CONFIG.XP_PER_MERGE);
-        return coins; // вернём чтобы показать floating text
+        const xpEarned = Math.round(CONFIG.XP_PER_MERGE * Math.sqrt(mob.level));
+        this.addXP(xpEarned);
+        return xpEarned; // возвращаем количество полученного опыта
     }
 
     // ---- Бои ----
 
-    /**
-     * Начислить приз за победу в бою
-     */
     onBattleWin(prizeAmount) {
         this.addCoins(prizeAmount);
-        this.addXP(CONFIG.XP_PER_MERGE * 5); // бонус xp
+        this.addXP(CONFIG.XP_PER_MERGE * 4);
     }
 
     // ---- Сериализация ----

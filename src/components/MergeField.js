@@ -50,19 +50,23 @@ class MergeField {
         };
 
         mobItem.container = this._buildMobContainer(mobItem);
+        mobItem.container.setScale(1.0);
         this.mobs.push(mobItem);
 
         // Добавляем в коллекцию
         this.collection.add(mob.level);
 
-        // Анимация появления
+        // Анимация плавного появления
         mobItem.container.setScale(0);
         this.scene.tweens.add({
             targets: mobItem.container,
-            scaleX: 1,
-            scaleY: 1,
+            scaleX: 1.0,
+            scaleY: 1.0,
             duration: 220,
             ease: 'Back.Out',
+            onComplete: () => {
+                if (mobItem.container) mobItem.container.setScale(1.0);
+            }
         });
 
         return mobItem;
@@ -74,16 +78,17 @@ class MergeField {
 
         const container = scene.add.container(mobItem.x, mobItem.y);
         container.setDepth(20);
+        container.setScale(1.0);
 
         // 1. Белая мягкая подсветка / контур как в оригинале сквиши
         const glow = scene.add.graphics();
-        glow.fillStyle(0xffffff, 0.4);
+        glow.fillStyle(0xffffff, 0.45);
         glow.fillCircle(0, 0, mobSize / 2 + 5);
         container.add(glow);
 
         // 2. Круглая основа карточки
         const bg = scene.add.graphics();
-        drawRoundRect(bg, -mobSize / 2, -mobSize / 2, mobSize, mobSize, mobSize / 2, mob.rarityColor, 0.5, 0xffffff, 2);
+        drawRoundRect(bg, -mobSize / 2, -mobSize / 2, mobSize, mobSize, mobSize / 2, mob.rarityColor, 0.55, 0xffffff, 2.5);
         container.add(bg);
 
         // 3. Эмодзи / спрайт моба
@@ -118,7 +123,7 @@ class MergeField {
 
         // 6. Интерактивность: Drag & Click
         container.setInteractive(
-            new Phaser.Geom.Circle(0, 0, mobSize / 2 + 4),
+            new Phaser.Geom.Circle(0, 0, mobSize / 2 + 6),
             Phaser.Geom.Circle.Contains
         );
         scene.input.setDraggable(container);
@@ -137,7 +142,7 @@ class MergeField {
                 targets: container,
                 scaleX: 1.15,
                 scaleY: 1.15,
-                duration: 100,
+                duration: 90,
             });
         });
 
@@ -151,11 +156,16 @@ class MergeField {
 
         container.on('dragend', (ptr) => {
             container.setDepth(20);
+
+            // Всегда плавно сбрасываем масштаб ровно в 1.0!
             scene.tweens.add({
                 targets: container,
-                scaleX: 1,
-                scaleY: 1,
-                duration: 100,
+                scaleX: 1.0,
+                scaleY: 1.0,
+                duration: 90,
+                onComplete: () => {
+                    if (container) container.setScale(1.0);
+                }
             });
 
             // Проверка: это был просто клик/тап или полноценное перетаскивание?
@@ -186,6 +196,9 @@ class MergeField {
             duration: 80,
             yoyo: true,
             ease: 'Quad.Out',
+            onComplete: () => {
+                if (container) container.setScale(1.0);
+            }
         });
 
         // Оповещаем GameScene для начисления награды и роста комбо
@@ -252,7 +265,7 @@ class MergeField {
             y: targetY,
             scaleX: 0,
             scaleY: 0,
-            duration: 180,
+            duration: 160,
             onComplete: () => {
                 draggedItem.container.destroy();
             }
@@ -268,25 +281,30 @@ class MergeField {
         targetItem.container.destroy();
         targetItem.container = this._buildMobContainer(targetItem);
 
-        // Всплеск / взрыв при слиянии
-        targetItem.container.setScale(0.3);
+        // Фикс масштаба: устанавливаем масштаб 1.0, пульсируем до 1.28 и возвращаем ровно в 1.0!
+        targetItem.container.setScale(1.0);
         this.scene.tweens.add({
             targets: targetItem.container,
-            scaleX: 1.25,
-            scaleY: 1.25,
-            duration: 150,
+            scaleX: 1.28,
+            scaleY: 1.28,
+            duration: 140,
             yoyo: true,
             ease: 'Back.Out',
+            onComplete: () => {
+                if (targetItem.container) {
+                    targetItem.container.setScale(1.0);
+                }
+            }
         });
 
-        // 3. Экономика и награда за мёрдж
-        const earned = this.economy.onMerge(newMob);
-        spawnFloatingText(this.scene, targetX, targetY - 45, `+${formatNumber(earned)} 💎`, '#5dff6e');
+        // 3. Награда за слияние: ТОЛЬКО ОПЫТ (без монет по требованию пользователя!)
+        const xpEarned = this.economy.onMerge(newMob);
+        spawnFloatingText(this.scene, targetX, targetY - 45, `+${xpEarned} XP ⭐`, '#ffd700');
 
         // 4. Добавляем в коллекцию
         this.collection.add(newLevel);
 
-        // Оповещаем о слиянии (обновить магазин)
+        // Оповещаем о слиянии (обновить магазин и левую карточку)
         if (this.onMergeSuccess) {
             this.onMergeSuccess(newMob);
         }

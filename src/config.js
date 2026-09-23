@@ -26,26 +26,26 @@ const CONFIG = {
     STARTING_COINS: 100,           // ровно на 2 курицы по 50
     BASE_MOB_COST: 50,             // стоимость курицы (уровень 1)
     COST_GROWTH: 2.15,             // множитель цены мобов
-    MERGE_COIN_MULTIPLIER: 100,    // монет за мёрдж = atk × 100 × multiplier
-    XP_PER_MERGE: 50,              // xp за мёрдж
-    XP_TO_LEVEL: [0, 200, 500, 1000, 2000, 4000, 8000, 16000, 32000, 64000, 128000,
-                  256000, 512000, 1000000, 2000000, 4000000],
+    XP_PER_MERGE: 50,              // базовый XP за мёрдж
+    XP_TO_LEVEL: [0, 150, 400, 800, 1500, 3000, 6000, 12000, 24000, 50000, 100000,
+                  200000, 400000, 800000, 1600000, 3200000],
 
     // --- Кликер и Комбо (множитель 1x-5x) ---
-    COMBO_DECAY_PER_SEC: 14,       // % падения шкалы в секунду
-    COMBO_GAIN_PER_CLICK: 9,       // % прироста шкалы за клик
-    CLICK_REWARD_RATIO: 0.15,      // монет за клик = max(1, atk * 0.15 * multiplier)
+    COMBO_DECAY_PER_SEC: 12,       // % падения шкалы в секунду
+    COMBO_GAIN_PER_CLICK: 10,      // % прироста шкалы за клик
+    CLICK_REWARD_RATIO: 0.25,      // монет за клик = max(1, atk * 0.25 * multiplier)
 
     // --- Магазин ---
-    BUY_LEVEL_OFFSET: 3,           // моб в магазине = max(1, maxUnlocked - 3)
+    BUY_LEVEL_OFFSET: 3,           // моб за монеты = max(1, maxUnlocked - 3)
+    AD_LEVEL_OFFSET: 1,            // моб за рекламу = max(1, maxUnlocked - 1)
     FREE_MOB_COOLDOWN: 5 * 60 * 1000, // 5 минут в мс
 
-    // --- Бои ---
+    // --- Бои (Гонка по разрушению стенки) ---
     BATTLE_MAX_FIGHTERS: 3,
-    BATTLE_ROUNDS: 20,             // максимум раундов
-    BATTLE_ROUND_DELAY: 800,       // мс между атаками
-    BATTLE_PRIZE_MULTIPLIER: 50,   // приз = сумма atk всех мобов × 50
-    BOT_CHALLENGE_INTERVAL: 90000, // вызов на бой раз в 90 сек (было 15)
+    BATTLE_WALL_HP_FACTOR: 6.5,    // Здоровье стенки = общий урон команды * 6.5
+    BATTLE_ATTACK_SPEED: 700,      // интервал атак мобов (мс)
+    BATTLE_PRIZE_MULTIPLIER: 60,   // приз = сумма atk всех мобов × 60
+    BOT_CHALLENGE_INTERVAL: 90000, // вызов на бой раз в 90 сек
 
     // --- UI Цвета ---
     COLORS: {
