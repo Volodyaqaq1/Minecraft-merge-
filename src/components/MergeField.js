@@ -1,375 +1,325 @@
 // ============================================================
-// components/MergeField.js — сетка 5×4 и логика мёрджа
+// components/MergeField.js — свободное поле без сетки и логика слияния
 // ============================================================
 
 class MergeField {
     /**
      * @param {Phaser.Scene} scene
      * @param {Economy} economy
-     * @param {object} state  — сохранённое состояние { field:[], queue:[], collection:[] }
+     * @param {object} state  — сохранённое состояние { field:[], collection:[] }
      */
     constructor(scene, economy, state) {
         this.scene    = scene;
         this.economy  = economy;
-        this.cols     = CONFIG.FIELD_COLS;
-        this.rows     = CONFIG.FIELD_ROWS;
-        this.slotSize = CONFIG.FIELD_SLOT_SIZE;
-        this.offX     = CONFIG.FIELD_OFFSET_X;
-        this.offY     = CONFIG.FIELD_OFFSET_Y;
-
-        // slots[i] = { mobLevel: number } | null
-        this.slots = new Array(this.cols * this.rows).fill(null);
-
-        // Очередь следующих мобов (массив уровней)
-        this.queue = state.queue.length >= CONFIG.QUEUE_SIZE
-            ? [...state.queue]
-            : this._fillQueue(state.queue, state.collection);
+        this.bounds   = CONFIG.FIELD_BOUNDS;
+        this.mobSize  = CONFIG.MOB_SIZE;
 
         // Коллекция открытых мобов
-        this.collection = new Set(state.collection);
+        this.collection = new Set(state.collection || [1]);
 
-        // Спрайты мобов на поле
-        this.mobSprites = {};  // slotIndex → Phaser.GameObjects.Container
+        // Список всех активных мобов на поле: [{ id, mobLevel, container, x, y }]
+        this.mobs = [];
+        this._nextId = 1;
 
-        // Контейнер слотов (фоны)
-        this.slotGraphics = [];
+        // Коллбеки наружу (для GameScene)
+        this.onMobClick     = null; // fn(mobData) -> кликер
+        this.onMergeSuccess = null; // fn(newMob) -> обновить магазин
 
-        // Drag state
-        this._drag = null;
-
-        this._buildGrid();
-        this._loadFromState(state.field);
-        this._renderQueue();
+        // Загрузить мобов из сохранения
+        this._loadFromState(state.field || []);
     }
 
     // ============================================================
-    // Grid построение
+    // Создание моба на свободном поле
     // ============================================================
 
-    _buildGrid() {
-        const { scene, cols, rows, slotSize, offX, offY } = this;
-
-        for (let i = 0; i < cols * rows; i++) {
-            const col = i % cols;
-            const row = Math.floor(i / cols);
-            const x = offX + col * (slotSize + 6);
-            const y = offY + row * (slotSize + 6);
-
-            const g = scene.add.graphics();
-            drawRoundRect(g, x, y, slotSize, slotSize, 10, CONFIG.COLORS.SLOT_EMPTY, 0.7, 0x3a5a3a, 2);
-            this.slotGraphics.push({ g, x, y });
-        }
-    }
-
-    slotPos(index) {
-        const col = index % this.cols;
-        const row = Math.floor(index / this.cols);
-        const { offX, offY, slotSize } = this;
-        return {
-            x: offX + col * (slotSize + 6) + slotSize / 2,
-            y: offY + row * (slotSize + 6) + slotSize / 2,
-        };
-    }
-
-    _getSlotAt(worldX, worldY) {
-        const { cols, rows, slotSize, offX, offY } = this;
-        for (let i = 0; i < cols * rows; i++) {
-            const col = i % cols;
-            const row = Math.floor(i / cols);
-            const sx = offX + col * (slotSize + 6);
-            const sy = offY + row * (slotSize + 6);
-            if (worldX >= sx && worldX <= sx + slotSize &&
-                worldY >= sy && worldY <= sy + slotSize) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    // ============================================================
-    // Отрисовка моба в слоте
-    // ============================================================
-
-    _createMobSprite(slotIndex, mobLevel) {
+    spawnMob(mobLevel, targetX, targetY) {
         const mob = getMobByLevel(mobLevel);
-        if (!mob) return;
+        if (!mob) return null;
 
-        const pos = this.slotPos(slotIndex);
-        const { scene, slotSize } = this;
+        // Если координаты не переданы, выбираем случайную позицию на полянке
+        const x = targetX !== undefined ? targetX : randInt(this.bounds.minX + 40, this.bounds.maxX - 40);
+        const y = targetY !== undefined ? targetY : randInt(this.bounds.minY + 40, this.bounds.maxY - 40);
 
-        const container = scene.add.container(pos.x, pos.y);
-        container.setDepth(10);
+        const mobItem = {
+            id: this._nextId++,
+            mobLevel: mob.level,
+            x: x,
+            y: y,
+            container: null,
+        };
 
-        // Фон карточки с цветом редкости
+        mobItem.container = this._buildMobContainer(mobItem);
+        this.mobs.push(mobItem);
+
+        // Добавляем в коллекцию
+        this.collection.add(mob.level);
+
+        // Анимация появления
+        mobItem.container.setScale(0);
+        this.scene.tweens.add({
+            targets: mobItem.container,
+            scaleX: 1,
+            scaleY: 1,
+            duration: 220,
+            ease: 'Back.Out',
+        });
+
+        return mobItem;
+    }
+
+    _buildMobContainer(mobItem) {
+        const { scene, mobSize } = this;
+        const mob = getMobByLevel(mobItem.mobLevel);
+
+        const container = scene.add.container(mobItem.x, mobItem.y);
+        container.setDepth(20);
+
+        // 1. Белая мягкая подсветка / контур как в оригинале сквиши
+        const glow = scene.add.graphics();
+        glow.fillStyle(0xffffff, 0.4);
+        glow.fillCircle(0, 0, mobSize / 2 + 5);
+        container.add(glow);
+
+        // 2. Круглая основа карточки
         const bg = scene.add.graphics();
-        drawRoundRect(bg, -slotSize / 2 + 4, -slotSize / 2 + 4,
-            slotSize - 8, slotSize - 8, 8, mob.rarityColor, 0.35);
+        drawRoundRect(bg, -mobSize / 2, -mobSize / 2, mobSize, mobSize, mobSize / 2, mob.rarityColor, 0.5, 0xffffff, 2);
         container.add(bg);
 
-        // Спрайт или эмодзи-заглушка
-        let mobImg;
-        if (scene.textures.exists(mob.key)) {
-            mobImg = scene.add.image(0, -6, mob.key)
-                .setDisplaySize(slotSize - 20, slotSize - 30);
-        } else {
-            // Эмодзи как текст-заглушка
-            mobImg = scene.add.text(0, -8, mob.emoji, {
-                fontSize: `${slotSize * 0.45}px`
-            }).setOrigin(0.5);
-        }
+        // 3. Эмодзи / спрайт моба
+        const mobImg = scene.add.text(0, -6, mob.emoji, {
+            fontSize: `${mobSize * 0.48}px`,
+        }).setOrigin(0.5);
         container.add(mobImg);
 
-        // Имя
-        const nameText = scene.add.text(0, slotSize / 2 - 16, mob.name, {
+        // 4. Имя моба снизу
+        const nameText = scene.add.text(0, mobSize / 2 - 14, mob.name, {
             fontSize: '9px',
             fontFamily: 'monospace',
             color: '#ffffff',
             stroke: '#000000',
             strokeThickness: 2,
-            wordWrap: { width: slotSize - 8 }
+            wordWrap: { width: mobSize + 10 }
         }).setOrigin(0.5, 0);
         container.add(nameText);
 
-        // Уровень (бейдж)
-        const lvlBg = scene.add.graphics();
-        drawRoundRect(lvlBg, -slotSize / 2 + 4, -slotSize / 2 + 4, 22, 16, 4, 0x000000, 0.7);
-        container.add(lvlBg);
-        const lvlText = scene.add.text(-slotSize / 2 + 15, -slotSize / 2 + 5,
-            `${mobLevel}`, {
-            fontSize: '9px', fontFamily: 'monospace', color: '#ffff00'
+        // 5. Бейдж уровня слева сверху
+        const lvlBadge = scene.add.graphics();
+        drawRoundRect(lvlBadge, -mobSize / 2 + 2, -mobSize / 2 + 2, 22, 16, 5, 0x000000, 0.75);
+        container.add(lvlBadge);
+
+        const lvlText = scene.add.text(-mobSize / 2 + 13, -mobSize / 2 + 3, `${mobItem.mobLevel}`, {
+            fontSize: '9px',
+            fontFamily: 'monospace',
+            color: '#ffd700',
+            fontStyle: 'bold',
         }).setOrigin(0.5, 0);
         container.add(lvlText);
 
-        // Drag
+        // 6. Интерактивность: Drag & Click
         container.setInteractive(
-            new Phaser.Geom.Rectangle(-slotSize / 2, -slotSize / 2, slotSize, slotSize),
-            Phaser.Geom.Rectangle.Contains
+            new Phaser.Geom.Circle(0, 0, mobSize / 2 + 4),
+            Phaser.Geom.Circle.Contains
         );
         scene.input.setDraggable(container);
-        container.on('dragstart', () => {
-            this._drag = { slotIndex, mobLevel };
-            container.setDepth(50);
-        });
-        container.on('drag', (ptr, dx, dy) => {
-            container.x = dx;
-            container.y = dy;
-        });
-        container.on('dragend', (ptr) => {
-            this._onDragEnd(ptr, slotIndex, container);
+
+        let startPointerPos = { x: 0, y: 0 };
+        let hasMoved = false;
+
+        container.on('pointerdown', (ptr) => {
+            startPointerPos = { x: ptr.x, y: ptr.y };
+            hasMoved = false;
         });
 
-        if (this.mobSprites[slotIndex]) {
-            this.mobSprites[slotIndex].destroy();
-        }
-        this.mobSprites[slotIndex] = container;
+        container.on('dragstart', () => {
+            container.setDepth(100);
+            scene.tweens.add({
+                targets: container,
+                scaleX: 1.15,
+                scaleY: 1.15,
+                duration: 100,
+            });
+        });
+
+        container.on('drag', (ptr, dragX, dragY) => {
+            container.x = dragX;
+            container.y = dragY;
+            if (Phaser.Math.Distance.Between(startPointerPos.x, startPointerPos.y, ptr.x, ptr.y) > 10) {
+                hasMoved = true;
+            }
+        });
+
+        container.on('dragend', (ptr) => {
+            container.setDepth(20);
+            scene.tweens.add({
+                targets: container,
+                scaleX: 1,
+                scaleY: 1,
+                duration: 100,
+            });
+
+            // Проверка: это был просто клик/тап или полноценное перетаскивание?
+            const moveDist = Phaser.Math.Distance.Between(startPointerPos.x, startPointerPos.y, ptr.x, ptr.y);
+            if (!hasMoved && moveDist < 12) {
+                // КЛИКЕР — Нажатие на объект
+                this._handleMobClick(mobItem, container);
+                return;
+            }
+
+            // ПЕРЕТАСКИВАНИЕ — Проверяем слияние с другими мобами
+            this._handleMobDrop(mobItem);
+        });
+
         return container;
     }
 
-    _removeMobSprite(slotIndex) {
-        if (this.mobSprites[slotIndex]) {
-            this.mobSprites[slotIndex].destroy();
-            delete this.mobSprites[slotIndex];
-        }
-    }
-
     // ============================================================
-    // Drag & Drop
+    // Кликер по мобу
     // ============================================================
 
-    _onDragEnd(ptr, fromSlot, container) {
-        const toSlot = this._getSlotAt(ptr.x, ptr.y);
-        this._drag = null;
-        container.setDepth(10);
-
-        if (toSlot === -1 || toSlot === fromSlot) {
-            // Вернуть на место
-            const pos = this.slotPos(fromSlot);
-            this.scene.tweens.add({ targets: container, x: pos.x, y: pos.y, duration: 150 });
-            return;
-        }
-
-        const fromMobLevel = this.slots[fromSlot];
-        const toMobLevel   = this.slots[toSlot];
-
-        if (toMobLevel === null) {
-            // Переместить на пустой слот
-            this._moveToSlot(fromSlot, toSlot);
-        } else if (fromMobLevel === toMobLevel && fromMobLevel < CONFIG.MOB_LEVELS) {
-            // Мёрдж!
-            this._doMerge(fromSlot, toSlot, fromMobLevel);
-        } else {
-            // Поменяться местами
-            this._swapSlots(fromSlot, toSlot);
-        }
-    }
-
-    _moveToSlot(from, to) {
-        const level = this.slots[from];
-        this.slots[to]   = level;
-        this.slots[from] = null;
-
-        const pos = this.slotPos(to);
-        const sprite = this.mobSprites[from];
+    _handleMobClick(mobItem, container) {
+        // Анимация сквоша (сплющивание как в оригинале сквишей)
         this.scene.tweens.add({
-            targets: sprite,
-            x: pos.x, y: pos.y,
-            duration: 150,
+            targets: container,
+            scaleX: 1.25,
+            scaleY: 0.8,
+            duration: 80,
+            yoyo: true,
+            ease: 'Quad.Out',
         });
-        this.mobSprites[to] = sprite;
-        delete this.mobSprites[from];
+
+        // Оповещаем GameScene для начисления награды и роста комбо
+        if (this.onMobClick) {
+            this.onMobClick(mobItem);
+        }
     }
 
-    _swapSlots(a, b) {
-        [this.slots[a], this.slots[b]] = [this.slots[b], this.slots[a]];
-        const posA = this.slotPos(a);
-        const posB = this.slotPos(b);
-        const sA = this.mobSprites[a];
-        const sB = this.mobSprites[b];
-        this.scene.tweens.add({ targets: sA, x: posB.x, y: posB.y, duration: 150 });
-        this.scene.tweens.add({ targets: sB, x: posA.x, y: posA.y, duration: 150 });
-        this.mobSprites[a] = sB;
-        this.mobSprites[b] = sA;
+    // ============================================================
+    // Логика слияния (Drag and Drop)
+    // ============================================================
+
+    _handleMobDrop(draggedItem) {
+        const curX = draggedItem.container.x;
+        const curY = draggedItem.container.y;
+
+        // Ищем ближайшего моба того же уровня в радиусе MERGE_RADIUS
+        let targetMob = null;
+        let minDist = CONFIG.MERGE_RADIUS;
+
+        for (const other of this.mobs) {
+            if (other.id === draggedItem.id) continue;
+            if (other.mobLevel !== draggedItem.mobLevel) continue;
+
+            const dist = Phaser.Math.Distance.Between(curX, curY, other.container.x, other.container.y);
+            if (dist < minDist) {
+                minDist = dist;
+                targetMob = other;
+            }
+        }
+
+        if (targetMob && draggedItem.mobLevel < CONFIG.MOB_LEVELS) {
+            // УСПЕШНОЕ СЛИЯНИЕ!
+            this._executeMerge(draggedItem, targetMob);
+        } else {
+            // Слияния нет: удерживаем моба в границах поля
+            const clampedX = Phaser.Math.Clamp(curX, this.bounds.minX + 30, this.bounds.maxX - 30);
+            const clampedY = Phaser.Math.Clamp(curY, this.bounds.minY + 30, this.bounds.maxY - 30);
+
+            this.scene.tweens.add({
+                targets: draggedItem.container,
+                x: clampedX,
+                y: clampedY,
+                duration: 120,
+            });
+
+            draggedItem.x = clampedX;
+            draggedItem.y = clampedY;
+        }
     }
 
-    _doMerge(fromSlot, toSlot, mobLevel) {
-        const newLevel = mobLevel + 1;
-        const newMob = getMobByLevel(newLevel);
+    _executeMerge(draggedItem, targetItem) {
+        const newLevel = targetItem.mobLevel + 1;
+        const newMob   = getMobByLevel(newLevel);
         if (!newMob) return;
 
-        // Анимация слияния: fromSlot летит к toSlot
-        const posTo = this.slotPos(toSlot);
-        const spriteFrom = this.mobSprites[fromSlot];
+        const targetX = targetItem.container.x;
+        const targetY = targetItem.container.y;
+
+        // 1. Анимация: перетаскиваемый моб притягивается к цели и исчезает
         this.scene.tweens.add({
-            targets: spriteFrom,
-            x: posTo.x,
-            y: posTo.y,
+            targets: draggedItem.container,
+            x: targetX,
+            y: targetY,
             scaleX: 0,
             scaleY: 0,
-            duration: 200,
+            duration: 180,
             onComplete: () => {
-                spriteFrom.destroy();
-                delete this.mobSprites[fromSlot];
-
-                // Удалить toSlot
-                this._removeMobSprite(toSlot);
-
-                // Создать новый моб
-                this.slots[fromSlot] = null;
-                this.slots[toSlot] = newLevel;
-                const newSprite = this._createMobSprite(toSlot, newLevel);
-
-                // Анимация появления
-                if (newSprite) {
-                    newSprite.setScale(0);
-                    this.scene.tweens.add({
-                        targets: newSprite,
-                        scaleX: 1, scaleY: 1,
-                        duration: 250,
-                        ease: 'Back.Out',
-                    });
-                }
-
-                // Экономика
-                const earned = this.economy.onMerge(newMob);
-                spawnFloatingText(this.scene, posTo.x, posTo.y - 30,
-                    `+${formatNumber(earned)} 💎`, '#5dff6e');
-
-                // Открыть в коллекцию
-                this.collection.add(newLevel);
-
-                // Выспавнить следующий из очереди
-                this._spawnFromQueue();
+                draggedItem.container.destroy();
             }
         });
-    }
 
-    // ============================================================
-    // Очередь и спавн
-    // ============================================================
+        // Удаляем draggedItem из массива
+        this.mobs = this.mobs.filter(m => m.id !== draggedItem.id);
 
-    _fillQueue(existing, collection) {
-        const q = [...existing];
-        const maxLevel = Math.max(...collection, 1);
-        while (q.length < CONFIG.QUEUE_SIZE) {
-            const lvl = Math.max(1, randInt(1, Math.max(1, maxLevel - CONFIG.QUEUE_MAX_LEVEL_OFFSET)));
-            q.push(lvl);
+        // 2. Обновляем уровень целевого моба
+        targetItem.mobLevel = newLevel;
+
+        // Пересоздаём визуализацию целевого моба
+        targetItem.container.destroy();
+        targetItem.container = this._buildMobContainer(targetItem);
+
+        // Всплеск / взрыв при слиянии
+        targetItem.container.setScale(0.3);
+        this.scene.tweens.add({
+            targets: targetItem.container,
+            scaleX: 1.25,
+            scaleY: 1.25,
+            duration: 150,
+            yoyo: true,
+            ease: 'Back.Out',
+        });
+
+        // 3. Экономика и награда за мёрдж
+        const earned = this.economy.onMerge(newMob);
+        spawnFloatingText(this.scene, targetX, targetY - 45, `+${formatNumber(earned)} 💎`, '#5dff6e');
+
+        // 4. Добавляем в коллекцию
+        this.collection.add(newLevel);
+
+        // Оповещаем о слиянии (обновить магазин)
+        if (this.onMergeSuccess) {
+            this.onMergeSuccess(newMob);
         }
-        return q;
-    }
-
-    _spawnFromQueue() {
-        if (this.queue.length === 0) return;
-        const emptySlot = this._findEmptySlot();
-        if (emptySlot === -1) return; // поле полное
-
-        const nextLevel = this.queue.shift();
-        this.slots[emptySlot] = nextLevel;
-        this._createMobSprite(emptySlot, nextLevel);
-
-        // Добавить новый в конец очереди
-        const maxLevel = Math.max(...this.collection, 1);
-        const lvl = Math.max(1, randInt(1, Math.max(1, maxLevel - CONFIG.QUEUE_MAX_LEVEL_OFFSET)));
-        this.queue.push(lvl);
-
-        this._renderQueue();
-    }
-
-    /**
-     * Добавить моба на поле (из магазина)
-     */
-    addMobToField(mobLevel) {
-        const slot = this._findEmptySlot();
-        if (slot === -1) return false;
-        this.slots[slot] = mobLevel;
-        this._createMobSprite(slot, mobLevel);
-        this.collection.add(mobLevel);
-        return true;
-    }
-
-    _findEmptySlot() {
-        return this.slots.findIndex(s => s === null);
-    }
-
-    _renderQueue() {
-        // GameScene слушает это через коллбек
-        if (this.onQueueUpdate) this.onQueueUpdate([...this.queue]);
     }
 
     // ============================================================
-    // Для выбора бойцов
+    // Для системы боёв и сериализации
     // ============================================================
 
     getMobsOnField() {
-        const result = [];
-        this.slots.forEach((level, idx) => {
-            if (level !== null) {
-                result.push({ slotIndex: idx, mob: getMobByLevel(level) });
-            }
-        });
-        return result;
+        return this.mobs.map(m => ({
+            id: m.id,
+            mob: getMobByLevel(m.mobLevel),
+        }));
     }
 
-    // ============================================================
-    // Загрузка / сохранение
-    // ============================================================
-
     _loadFromState(fieldState) {
-        fieldState.forEach(({ slot, mobLevel }) => {
-            if (slot >= 0 && slot < this.slots.length && getMobByLevel(mobLevel)) {
-                this.slots[slot] = mobLevel;
-                this._createMobSprite(slot, mobLevel);
+        if (!Array.isArray(fieldState)) return;
+        fieldState.forEach(item => {
+            if (item && item.mobLevel && getMobByLevel(item.mobLevel)) {
+                this.spawnMob(item.mobLevel, item.x, item.y);
             }
         });
     }
 
     toState() {
-        const field = [];
-        this.slots.forEach((level, idx) => {
-            if (level !== null) field.push({ slot: idx, mobLevel: level });
-        });
         return {
-            field,
-            queue:      [...this.queue],
+            field: this.mobs.map(m => ({
+                id: m.id,
+                mobLevel: m.mobLevel,
+                x: Math.round(m.container ? m.container.x : m.x),
+                y: Math.round(m.container ? m.container.y : m.y),
+            })),
             collection: [...this.collection],
         };
     }

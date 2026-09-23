@@ -3,20 +3,18 @@
 // ============================================================
 
 const SaveManager = {
-    KEY: 'mc_merge_save',
+    KEY: 'mc_merge_save_v2',
 
     DEFAULT_STATE: {
         player: {
             level: 1,
             xp: 0,
-            coins: 500,
+            coins: CONFIG.STARTING_COINS, // 100 монет (ровно на 2 курицы)
             multiplier: 1,
         },
-        field: [],          // [{ slot: 0, mobLevel: 3 }, ...]
-        queue: [],          // [3, 1, 2, 4] — уровни мобов в очереди
+        field: [],          // [{ id, mobLevel, x, y }, ...]
         collection: [1],    // открытые уровни мобов
-        shopSlots: [null, null], // [mobLevel|null, mobLevel|null]
-        freeSpawnTime: 0,   // timestamp когда можно брать следующего
+        freeSpawnTime: 0,   // timestamp когда можно брать бесплатного
         incubator: null,    // { finishTime, mobLevel } | null
     },
 
@@ -28,7 +26,6 @@ const SaveManager = {
             const raw = localStorage.getItem(this.KEY);
             if (!raw) return this._deepClone(this.DEFAULT_STATE);
             const saved = JSON.parse(raw);
-            // Мержим с дефолтом чтобы новые поля появлялись
             return this._merge(this._deepClone(this.DEFAULT_STATE), saved);
         } catch (e) {
             console.warn('SaveManager: ошибка загрузки, сброс', e);
@@ -66,6 +63,9 @@ const SaveManager = {
                 saved[key] = this._merge(def[key], saved[key]);
             }
         }
-        return saved;
+        // Массивы берём из saved если они есть
+        if (Array.isArray(saved.field)) def.field = saved.field;
+        if (Array.isArray(saved.collection)) def.collection = saved.collection;
+        return def;
     },
 };
