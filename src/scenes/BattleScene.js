@@ -82,10 +82,11 @@ class BattleScene extends Phaser.Scene {
         const cx = W / 2;
         const cy = H / 2 - 10;
 
-        // Лучи сияния за сундуком
+        // Лучи сияния за сундуком (позиционируем в центре, рисуем в 0, 0)
         this.rays = this.add.graphics();
+        this.rays.setPosition(cx, cy);
         this.rays.fillStyle(0xffd700, 0.15);
-        this.rays.fillCircle(cx, cy, 110);
+        this.rays.fillCircle(0, 0, 110);
 
         // Иконка сундука
         this.chestIcon = this.add.text(cx, cy - 20, '🎁', { fontSize: '64px' }).setOrigin(0.5);
@@ -109,11 +110,12 @@ class BattleScene extends Phaser.Scene {
         const wallH = 260;
         const wallY = H / 2 - 20;
 
-        // ── 1. Стенка Игрока (слева) ──
-        this.pWallX = 260;
+        // ── 1. Стенка Игрока (слева, ровно посередине между мобами 90 и центром 450) ──
+        this.pWallX = 270;
         this.pWallY = wallY;
         this.pWallGraphics = this.add.graphics();
-        this._drawWoodenWall(this.pWallGraphics, this.pWallX - wallW / 2, this.pWallY - wallH / 2, wallW, wallH);
+        this.pWallGraphics.setPosition(this.pWallX, this.pWallY);
+        this._drawWoodenWall(this.pWallGraphics, -wallW / 2, -wallH / 2, wallW, wallH);
 
         const pTotalAtk = this.playerTeam.reduce((s, m) => s + m.atk, 0);
         const bTotalAtk = this.botTeam.reduce((s, m) => s + m.atk, 0);
@@ -139,11 +141,12 @@ class BattleScene extends Phaser.Scene {
         }).setOrigin(0.5);
         this._updateWallHPBar('player');
 
-        // ── 2. Стенка Бота (справа) ──
-        this.bWallX = W - 260;
+        // ── 2. Стенка Бота (справа, ровно посередине между ботом 810 и центром 450) ──
+        this.bWallX = W - 270;
         this.bWallY = wallY;
         this.bWallGraphics = this.add.graphics();
-        this._drawWoodenWall(this.bWallGraphics, this.bWallX - wallW / 2, this.bWallY - wallH / 2, wallW, wallH);
+        this.bWallGraphics.setPosition(this.bWallX, this.bWallY);
+        this._drawWoodenWall(this.bWallGraphics, -wallW / 2, -wallH / 2, wallW, wallH);
 
         this.bWallMaxHP = matchWallHP;
         this.bWallHP    = matchWallHP;

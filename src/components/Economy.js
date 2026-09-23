@@ -34,20 +34,19 @@ class Economy {
         return this.coins >= amount;
     }
 
-    // ---- Опыт и уровень ----
-
-    addXP(amount) {
-        this.xp += amount;
-        const newLevel = getLevelFromXP(this.xp);
+    setLevel(newLevel) {
+        if (!newLevel || newLevel < 1) newLevel = 1;
         const levelChanged = (newLevel !== this.level);
-
         if (levelChanged) {
             this.level = newLevel;
             this.multiplier = getMultiplier(this.level);
             if (this.onLevelChange) this.onLevelChange(this.level);
             if (this.onMultiplierChange) this.onMultiplierChange(this.multiplier);
         }
+    }
 
+    addXP(amount) {
+        this.xp += amount;
         if (this.onXPChange) {
             this.onXPChange(this.getXPDetails());
         }

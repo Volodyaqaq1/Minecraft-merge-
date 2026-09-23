@@ -17,8 +17,8 @@ const SaveManager = {
         freeSpawnTime: 0,   // timestamp когда можно брать бесплатного
         incubatorSlots: [
             { id: 0, unlockLevel: 5, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0 },
-            { id: 1, unlockLevel: 10, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0 },
-            { id: 2, unlockLevel: 15, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0 },
+            { id: 1, unlockLevel: 15, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0 },
+            { id: 2, unlockLevel: 25, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0 },
         ],
         playtime: {
             totalSeconds: 0,

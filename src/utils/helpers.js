@@ -90,17 +90,28 @@ function spawnFloatingText(scene, x, y, text, color = '#ffffff') {
 
 /**
  * Shake-анимация объекта (при получении урона)
+ * Предотвращает накопление сдвига координат при частых ударах
  */
-function shakeObject(scene, obj) {
-    const startX = obj.x;
+function shakeObject(scene, obj, offset = 6) {
+    if (!obj || !scene) return;
+    if (obj._shakeBaseX === undefined) {
+        obj._shakeBaseX = obj.x;
+    }
+    scene.tweens.killTweensOf(obj);
+    obj.x = obj._shakeBaseX;
+
     scene.tweens.add({
         targets: obj,
-        x: startX + 8,
-        duration: 60,
+        x: obj._shakeBaseX + offset,
+        duration: 50,
         yoyo: true,
-        repeat: 3,
-        ease: 'Linear',
-        onComplete: () => { obj.x = startX; }
+        repeat: 2,
+        ease: 'Sine.InOut',
+        onComplete: () => {
+            if (obj && obj._shakeBaseX !== undefined) {
+                obj.x = obj._shakeBaseX;
+            }
+        }
     });
 }
 

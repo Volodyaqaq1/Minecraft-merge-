@@ -10,12 +10,17 @@ class GameScene extends Phaser.Scene {
         this.economy  = new Economy(this.state);
 
         // Гарантируем структуру инкубатора и наград за онлайн
+        const targetUnlocks = [5, 15, 25];
         if (!Array.isArray(this.state.incubatorSlots)) {
             this.state.incubatorSlots = [
                 { id: 0, unlockLevel: 5, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0 },
-                { id: 1, unlockLevel: 10, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0 },
-                { id: 2, unlockLevel: 15, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0 },
+                { id: 1, unlockLevel: 15, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0 },
+                { id: 2, unlockLevel: 25, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0 },
             ];
+        } else {
+            this.state.incubatorSlots.forEach((slot, i) => {
+                slot.unlockLevel = targetUnlocks[i] || 5;
+            });
         }
         if (!this.state.playtime) {
             this.state.playtime = { totalSeconds: 0, claimed: {} };
@@ -84,14 +89,19 @@ class GameScene extends Phaser.Scene {
         this._buildNewMobModal();
         this._buildPlaytimeModal();
         this._buildIncubatorModal();
+        this._buildSettingsModal();
 
         // ─── 8. Привязка событий экономики к UI ───
         this.economy.onCoinsChange = (val) => this._setCoinsText(val);
-        this.economy.onXPChange = (details) => this._updateLevelWidget(details);
         this.economy.onLevelChange = (lvl) => {
             this._updateLevelWidget();
             spawnFloatingText(this, 84, 65, `НОВЫЙ УРОВЕНЬ ${lvl}! 🌟`, '#ffd700');
         };
+
+        // Синхронизируем уровень с максимальным открытым мобом
+        const maxUnlocked = Math.max(...this.mergeField.collection, 1);
+        this.economy.setLevel(maxUnlocked);
+        this._updateLevelWidget();
 
         // ─── 9. Таймер секунд (для онлайна и инкубатора) ───
         this.time.addEvent({
@@ -165,17 +175,17 @@ class GameScene extends Phaser.Scene {
     _buildTopBar() {
         const W = CONFIG.WIDTH;
 
-        // 1. Кнопка уровня с прогресс-баром опыта (слева)
-        this._buildLevelWidget(12, 10, 150, 44);
+        // 1. Кнопка шестерёнки настроек + бейдж "Уровень X" (как на скриншотах 4 и 5)
+        this._buildSettingsAndLevelWidget(12, 10);
 
         // 2. Кнопка "🎁 Подарки" (открывает меню наград за время в игре)
-        const [fBg, fTxt, fHit] = this._makeButton(236, 32, 132, 44, '🎁 Подарки', '#27ae60', () => {
+        const [fBg, fTxt, fHit] = this._makeButton(246, 32, 124, 44, '🎁 Подарки', '#27ae60', () => {
             this._openPlaytimeModal();
         }, '14px');
         this._giftBtnText = fTxt;
 
         // 3. Комбо-шкала множителя (шкала вверху, числа x1-x5 строго снизу под шкалой)
-        this._buildComboBar(320, 12, 230, 16);
+        this._buildComboBar(328, 12, 222, 16);
 
         // 4. Баланс изумрудов (справа)
         const coinBg = this.add.graphics();
@@ -190,58 +200,48 @@ class GameScene extends Phaser.Scene {
         }).setOrigin(1, 0.5);
     }
 
-    _buildLevelWidget(x, y, w, h) {
-        this.levelWidgetX = x;
-        this.levelWidgetY = y;
-        this.levelWidgetW = w;
-        this.levelWidgetH = h;
+    _buildSettingsAndLevelWidget(x, y) {
+        // Кнопка настроек с шестерёнкой (слева, квадрат со скруглёнными углами как на скриншоте 4)
+        const gearSize = 44;
+        const gearBg = this.add.graphics();
+        drawRoundRect(gearBg, x, y, gearSize, gearSize, 12, 0x81d4fa, 1, 0xb3e5fc, 2.5);
 
-        this.levelWidgetBg = this.add.graphics();
-        this.levelWidgetFill = this.add.graphics();
+        const gearTxt = this.add.text(x + gearSize / 2, y + gearSize / 2, '⚙', {
+            fontSize: '24px',
+            color: '#ffffff',
+            stroke: '#0288d1',
+            strokeThickness: 1,
+        }).setOrigin(0.5);
 
-        this.levelWidgetTitle = this.add.text(x + w / 2, y + 14, '', {
-            fontSize: '13px',
+        const gearHit = this.add.rectangle(x + gearSize / 2, y + gearSize / 2, gearSize, gearSize, 0, 0)
+            .setInteractive({ cursor: 'pointer' });
+        gearHit.on('pointerdown', () => {
+            if (typeof SoundManager !== 'undefined') SoundManager.playClick();
+            this._openSettingsModal();
+        });
+
+        // Бейдж уровня (соединён справа, оранжево-золотой фон без полоски XP)
+        const lvlX = x + gearSize + 4;
+        const lvlW = 118;
+        const lvlH = 44;
+
+        this.levelBadgeBg = this.add.graphics();
+        drawRoundRect(this.levelBadgeBg, lvlX, y, lvlW, lvlH, 12, 0xf39c12, 1, 0xd35400, 2);
+
+        this.levelWidgetTitle = this.add.text(lvlX + lvlW / 2, y + lvlH / 2, `Уровень ${this.economy.level}`, {
+            fontSize: '15px',
             fontFamily: 'monospace',
             color: '#ffffff',
-            stroke: '#000000',
-            strokeThickness: 2,
+            stroke: '#7f4f18',
+            strokeThickness: 3,
             fontStyle: 'bold',
         }).setOrigin(0.5);
-
-        this.levelWidgetSub = this.add.text(x + w / 2, y + 30, '', {
-            fontSize: '11px',
-            fontFamily: 'monospace',
-            color: '#ffd700',
-            stroke: '#000000',
-            strokeThickness: 1,
-            fontStyle: 'bold',
-        }).setOrigin(0.5);
-
-        this._updateLevelWidget();
     }
 
-    _updateLevelWidget(details) {
-        if (!details) {
-            details = this.economy.getXPDetails();
+    _updateLevelWidget() {
+        if (this.levelWidgetTitle) {
+            this.levelWidgetTitle.setText(`Уровень ${this.economy.level}`);
         }
-
-        const { levelWidgetX: x, levelWidgetY: y, levelWidgetW: w, levelWidgetH: h } = this;
-        if (!this.levelWidgetBg) return;
-
-        // Фон виджета уровня
-        this.levelWidgetBg.clear();
-        drawRoundRect(this.levelWidgetBg, x, y, w, h, 8, 0x16213e, 0.95, 0x3d5a80, 2);
-
-        // Полоска опыта
-        this.levelWidgetFill.clear();
-        const fillW = Math.floor((w - 4) * Math.max(0, Math.min(1, details.progress)));
-        if (fillW > 0) {
-            this.levelWidgetFill.fillStyle(0x00c9ff, 0.85);
-            this.levelWidgetFill.fillRoundedRect(x + 2, y + 2, fillW, h - 4, 6);
-        }
-
-        this.levelWidgetTitle.setText(`⛏ Уровень ${details.level}`);
-        this.levelWidgetSub.setText(`${formatNumber(details.curInLevel)} / ${formatNumber(details.neededInLevel)} XP`);
     }
 
     _buildComboBar(x, y, w, h) {
@@ -512,8 +512,8 @@ class GameScene extends Phaser.Scene {
                 }).setOrigin(0.5);
                 rewardOrClaim = [claimBg, claimTxt];
             } else {
-                const rewText = this.add.text(cx + 14, cy + 25, `💎 ${formatNumber(quest.rewardCoins)}  +${quest.rewardXP}XP`, {
-                    fontSize: '9px',
+                const rewText = this.add.text(cx + 14, cy + 25, `💎 ${formatNumber(quest.rewardCoins)}`, {
+                    fontSize: '11px',
                     fontFamily: 'monospace',
                     color: '#5dff6e',
                     fontStyle: 'bold',
@@ -544,11 +544,10 @@ class GameScene extends Phaser.Scene {
         const quest = this.quests[idx];
         if (!quest) return;
 
-        // Начисляем монеты и опыт
+        // Начисляем монеты
         this.economy.addCoins(quest.rewardCoins);
-        this.economy.addXP(quest.rewardXP);
 
-        spawnFloatingText(this, x, y - 20, `+💎 ${formatNumber(quest.rewardCoins)}  +${quest.rewardXP} XP!`, '#5dff6e');
+        spawnFloatingText(this, x, y - 20, `+💎 ${formatNumber(quest.rewardCoins)}`, '#5dff6e');
 
         // Удаляем выполненное задание
         this.quests.splice(idx, 1);
@@ -566,6 +565,10 @@ class GameScene extends Phaser.Scene {
     _onFieldChanged() {
         const maxUnlocked = Math.max(...this.mergeField.collection, 1);
         const shopMobLevel = Math.max(1, maxUnlocked - CONFIG.BUY_LEVEL_OFFSET);
+
+        // Уровень игрока теперь строго равен максимальному открытому уровню моба
+        this.economy.setLevel(maxUnlocked);
+        this._updateLevelWidget();
 
         // Очищаем устаревших мобов, которые больше не смогут объединиться
         if (this.mergeField && this.mergeField.cleanupUnmergeableOldMobs) {
@@ -1720,6 +1723,154 @@ class GameScene extends Phaser.Scene {
                 }
             });
         }
+    }
+
+    // ============================================================
+    // Модальное окно "Настройки"
+    // ============================================================
+
+    _buildSettingsModal() {
+        const W = CONFIG.WIDTH;
+        const H = CONFIG.HEIGHT;
+
+        this._settingsModal = this.add.container(W / 2, H / 2).setDepth(500).setVisible(false);
+
+        const overlay = this.add.rectangle(0, 0, W, H, 0x000000, 0.65).setInteractive();
+        overlay.on('pointerdown', () => this._settingsModal.setVisible(false));
+
+        const cardW = 340;
+        const cardH = 260;
+
+        // Фон карточки настроек (кремовый с двойной декоративной рамкой как на скриншоте 5)
+        const bg = this.add.graphics();
+        drawRoundRect(bg, -cardW / 2, -cardH / 2, cardW, cardH, 20, 0xfffcf0, 0.98, 0xdfcfb4, 3.5);
+        bg.lineStyle(1.5, 0xd4bfa0, 0.7);
+        bg.strokeRoundedRect(-cardW / 2 + 8, -cardH / 2 + 8, cardW - 16, cardH - 16, 14);
+
+        // Заголовок "Настройки"
+        const title = this.add.text(0, -cardH / 2 + 38, 'Настройки', {
+            fontSize: '24px',
+            fontFamily: 'monospace',
+            color: '#3d312a',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        // Красный круглый крестик закрытия в правом верхнем углу
+        const closeX = cardW / 2 - 4;
+        const closeY = -cardH / 2 + 4;
+        const closeBtnG = this.add.graphics();
+        closeBtnG.fillStyle(0xe74c3c, 1);
+        closeBtnG.fillCircle(closeX, closeY, 17);
+        closeBtnG.lineStyle(2.5, 0xffffff, 1);
+        closeBtnG.strokeCircle(closeX, closeY, 17);
+
+        const closeBtnTxt = this.add.text(closeX, closeY, '✖', {
+            fontSize: '18px',
+            color: '#ffffff',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        const closeBtnHit = this.add.circle(closeX, closeY, 22, 0, 0).setInteractive({ cursor: 'pointer' });
+        closeBtnHit.on('pointerdown', () => {
+            if (typeof SoundManager !== 'undefined') SoundManager.playClick();
+            this._settingsModal.setVisible(false);
+        });
+
+        // Контейнер для кнопок аудио (Музыка и Звук)
+        this._settingsAudioContainer = this.add.container(0, 0);
+
+        // Кнопка "Сброс прогресса"
+        const [resetBg, resetTxt, resetHit] = this._makeButton(0, 70, 170, 48, 'Сброс\nпрогресса', '#c0392b', () => {
+            this._onResetProgress();
+        }, '14px');
+
+        this._settingsModal.add([
+            overlay, bg, title,
+            closeBtnG, closeBtnTxt, closeBtnHit,
+            this._settingsAudioContainer,
+            resetBg, resetTxt, resetHit
+        ]);
+    }
+
+    _openSettingsModal() {
+        this._renderSettingsButtons();
+        this._settingsModal.setScale(0.7);
+        this._settingsModal.setVisible(true);
+        this.tweens.add({
+            targets: this._settingsModal,
+            scaleX: 1,
+            scaleY: 1,
+            duration: 200,
+            ease: 'Back.Out'
+        });
+    }
+
+    _renderSettingsButtons() {
+        this._settingsAudioContainer.removeAll(true);
+
+        const soundOn = (typeof SoundManager === 'undefined') || SoundManager.isEnabled();
+        const musicOn = (this.state.musicEnabled !== false);
+
+        const btnW = 96;
+        const btnH = 76;
+        const mX = -62;
+        const sX = 62;
+        const y = -14;
+
+        // 1. Кнопка "Музыка"
+        const mBg = this.add.graphics();
+        drawRoundRect(mBg, mX - btnW / 2, y - btnH / 2, btnW, btnH, 12,
+            musicOn ? 0xa8d8f8 : 0xd8dde2, 1,
+            musicOn ? 0x64b5f6 : 0xb0bec5, 2.5);
+
+        const mIcon = this.add.text(mX, y - 14, '🎵', { fontSize: '26px' }).setOrigin(0.5);
+        const mLabel = this.add.text(mX, y + 16, 'Музыка', {
+            fontSize: '12px',
+            fontFamily: 'monospace',
+            color: musicOn ? '#0277bd' : '#78909c',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        const mHit = this.add.rectangle(mX, y, btnW, btnH, 0, 0).setInteractive({ cursor: 'pointer' });
+        mHit.on('pointerdown', () => {
+            this.state.musicEnabled = !musicOn;
+            this._save();
+            if (typeof SoundManager !== 'undefined') SoundManager.playClick();
+            this._renderSettingsButtons();
+        });
+
+        // 2. Кнопка "Звук"
+        const sBg = this.add.graphics();
+        drawRoundRect(sBg, sX - btnW / 2, y - btnH / 2, btnW, btnH, 12,
+            soundOn ? 0xa8d8f8 : 0xd8dde2, 1,
+            soundOn ? 0x64b5f6 : 0xb0bec5, 2.5);
+
+        const sIcon = this.add.text(sX, y - 14, soundOn ? '🔊' : '🔇', { fontSize: '26px' }).setOrigin(0.5);
+        const sLabel = this.add.text(sX, y + 16, 'Звук', {
+            fontSize: '12px',
+            fontFamily: 'monospace',
+            color: soundOn ? '#0277bd' : '#78909c',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        const sHit = this.add.rectangle(sX, y, btnW, btnH, 0, 0).setInteractive({ cursor: 'pointer' });
+        sHit.on('pointerdown', () => {
+            if (typeof SoundManager !== 'undefined') {
+                SoundManager.setEnabled(!soundOn);
+                if (!soundOn) SoundManager.playClick();
+            }
+            this._renderSettingsButtons();
+        });
+
+        this._settingsAudioContainer.add([mBg, mIcon, mLabel, mHit, sBg, sIcon, sLabel, sHit]);
+    }
+
+    _onResetProgress() {
+        SaveManager.reset();
+        if (typeof SoundManager !== 'undefined') {
+            SoundManager.playPop();
+        }
+        this.scene.restart();
     }
 
     _makeButton(cx, cy, w, h, label, color, callback, fontSize = '13px') {
