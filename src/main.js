@@ -55,19 +55,32 @@ async function startGame() {
 
     window.game = new Phaser.Game(config);
 
-    // Автоматическое мгновенное обновление масштаба при повороте устройства и изменении окна
-    window.addEventListener('resize', () => {
+    // Автоматическое обновление масштаба при повороте устройства и изменении окна
+    function refreshScale() {
         if (window.game && window.game.scale) {
             window.game.scale.refresh();
         }
+    }
+
+    window.addEventListener('resize', () => {
+        refreshScale();
+        setTimeout(refreshScale, 150);
+        setTimeout(refreshScale, 400);
     });
+
     window.addEventListener('orientationchange', () => {
-        setTimeout(() => {
-            if (window.game && window.game.scale) {
-                window.game.scale.refresh();
-            }
-        }, 150);
+        setTimeout(refreshScale, 150);
+        setTimeout(refreshScale, 400);
+        setTimeout(refreshScale, 800);
     });
+
+    if (window.screen && window.screen.orientation) {
+        window.screen.orientation.addEventListener('change', () => {
+            setTimeout(refreshScale, 150);
+            setTimeout(refreshScale, 400);
+            setTimeout(refreshScale, 800);
+        });
+    }
 }
 
 startGame();

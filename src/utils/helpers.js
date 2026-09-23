@@ -54,7 +54,7 @@ function getLevelFromXP(xp) {
  * Получить множитель монет по уровню игрока
  */
 function getMultiplier(playerLevel) {
-    const levels = CONFIG.MULTIPLIER_LEVELS; // [1, 5, 10, 15, 20]
+    const levels = (typeof CONFIG !== 'undefined' && CONFIG.MULTIPLIER_LEVELS) || [1, 5, 10, 15, 20];
     let mul = 1;
     for (let i = 0; i < levels.length; i++) {
         if (playerLevel >= levels[i]) mul = i + 1;
