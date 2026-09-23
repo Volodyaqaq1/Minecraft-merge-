@@ -69,11 +69,12 @@ function getMultiplier(playerLevel) {
 function spawnFloatingText(scene, x, y, text, color = '#ffffff') {
     const t = scene.add.text(x, y, text, {
         fontSize: '22px',
-        fontFamily: 'monospace',
+        fontFamily: (typeof CONFIG !== 'undefined' && CONFIG.FONT_FAMILY) || "'Nunito', sans-serif",
+        fontStyle: '900',
         color: color,
-        stroke: '#000000',
-        strokeThickness: 3,
-        shadow: { blur: 4, color: '#000', fill: true }
+        stroke: '#111625',
+        strokeThickness: 3.5,
+        shadow: { blur: 6, color: '#000', fill: true }
     }).setOrigin(0.5, 1).setDepth(100);
 
     scene.tweens.add({

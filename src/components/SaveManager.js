@@ -3,13 +3,13 @@
 // ============================================================
 
 const SaveManager = {
-    KEY: 'mc_merge_save_v2',
+    KEY: 'bestiary_squishy_save_v1',
 
     DEFAULT_STATE: {
         player: {
             level: 1,
             xp: 0,
-            coins: CONFIG.STARTING_COINS, // 100 монет (ровно на 2 курицы)
+            coins: CONFIG.STARTING_COINS, // 100 монет (ровно на 2 цыпы)
             multiplier: 1,
         },
         field: [],          // [{ id, mobLevel, x, y }, ...]
@@ -59,6 +59,10 @@ const SaveManager = {
      */
     reset() {
         localStorage.removeItem(this.KEY);
+        try {
+            localStorage.removeItem('mc_merge_save_v2');
+            localStorage.removeItem('mc_merge_save_v1');
+        } catch (e) {}
     },
 
     _deepClone(obj) {

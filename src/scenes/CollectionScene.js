@@ -14,27 +14,28 @@ class CollectionScene extends Phaser.Scene {
         const H = CONFIG.HEIGHT;
 
         // Фон
-        this.add.rectangle(W / 2, H / 2, W, H, 0x0f1a10);
+        this.add.rectangle(W / 2, H / 2, W, H, 0x090d16, 0.92);
 
         // Панель
         const g = this.add.graphics();
-        drawRoundRect(g, 20, 10, W - 40, H - 20, 16, CONFIG.COLORS.PANEL, 0.95, 0xffd700, 2);
+        drawRoundRect(g, 20, 10, W - 40, H - 20, 16, 0x162032, 0.98, 0x38bdf8, 2);
 
         // Заголовок
-        this.add.text(W / 2, 28, '📖 Бестиарий Майнкрафт', {
-            fontSize: '20px', fontFamily: 'monospace',
-            color: '#ffd700', stroke: '#000', strokeThickness: 2,
+        this.add.text(W / 2, 26, '📖 Кубический Бестиарий', {
+            fontSize: '22px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#ffd700', stroke: '#111625', strokeThickness: 3, fontStyle: '900',
         }).setOrigin(0.5, 0);
 
         // Счётчик
         const unlocked = this.unlockedSet.size;
         this.add.text(W / 2, 54, `Открыто: ${unlocked} / ${CONFIG.MOB_LEVELS}`, {
-            fontSize: '13px', fontFamily: 'monospace', color: '#aaa',
+            fontSize: '13px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#94a3b8', fontStyle: '800',
         }).setOrigin(0.5, 0);
 
         // Контейнер с маской для плавной вертикальной прокрутки
-        const viewY = 80;
-        const viewH = H - 95;
+        const viewY = 82;
+        const viewH = H - 98;
         const viewW = W - 40;
 
         const maskShape = this.make.graphics();
@@ -60,27 +61,27 @@ class CollectionScene extends Phaser.Scene {
             const isUnlocked = this.unlockedSet.has(mob.level);
 
             const bg = this.add.graphics();
-            drawRoundRect(bg, x, y, cardW, cardH, 10,
-                isUnlocked ? mob.rarityColor : 0x222222, isUnlocked ? 0.35 : 0.6,
-                isUnlocked ? mob.rarityColor : 0x444444, 1.5);
+            drawRoundRect(bg, x, y, cardW, cardH, 12,
+                isUnlocked ? mob.rarityColor : 0x1e293b, isUnlocked ? 0.35 : 0.6,
+                isUnlocked ? mob.rarityColor : 0x334155, 1.5);
 
             if (isUnlocked) {
                 const emoji = this.add.text(x + cardW / 2, y + 26, mob.emoji, { fontSize: '32px' }).setOrigin(0.5);
                 const name = this.add.text(x + cardW / 2, y + 54, mob.name, {
-                    fontSize: '11px', fontFamily: 'monospace', color: '#fff',
-                    stroke: '#000', strokeThickness: 2, fontStyle: 'bold', wordWrap: { width: cardW - 8 }
+                    fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#fff',
+                    stroke: '#111625', strokeThickness: 2, fontStyle: '800', wordWrap: { width: cardW - 8 }
                 }).setOrigin(0.5, 0);
                 const atk = this.add.text(x + cardW / 2, y + 72, `⚔ ${formatNumber(mob.atk)}`, {
-                    fontSize: '11px', fontFamily: 'monospace', color: '#5dff6e', fontStyle: 'bold'
+                    fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#4ade80', fontStyle: '800'
                 }).setOrigin(0.5, 0);
                 const lvl = this.add.text(x + 8, y + 6, `Lv.${mob.level}`, {
-                    fontSize: '10px', fontFamily: 'monospace', color: '#ffd700', fontStyle: 'bold'
+                    fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#facc15', fontStyle: '900'
                 });
                 this.cardsContainer.add([bg, emoji, name, atk, lvl]);
             } else {
-                const lock = this.add.text(x + cardW / 2, y + cardH / 2 - 10, '🔒', { fontSize: '30px' }).setOrigin(0.5);
+                const lock = this.add.text(x + cardW / 2, y + cardH / 2 - 10, '🔒', { fontSize: '28px' }).setOrigin(0.5);
                 const lvl = this.add.text(x + cardW / 2, y + cardH / 2 + 18, `Lv.${mob.level}`, {
-                    fontSize: '11px', fontFamily: 'monospace', color: '#777', fontStyle: 'bold'
+                    fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#64748b', fontStyle: '800'
                 }).setOrigin(0.5);
                 this.cardsContainer.add([bg, lock, lvl]);
             }
@@ -131,11 +132,20 @@ class CollectionScene extends Phaser.Scene {
 
     _makeBtn(cx, cy, label, cb) {
         const bg = this.add.graphics();
-        drawRoundRect(bg, cx - 65, cy - 18, 130, 36, 8, 0x636e72, 1);
-        const txt = this.add.text(cx, cy, label, {
-            fontSize: '13px', fontFamily: 'monospace', color: '#fff', fontStyle: 'bold',
+        // 3D bottom shadow
+        drawRoundRect(bg, cx - 60, cy - 16 + 3, 120, 32, 10, 0x334155, 1);
+        // Face
+        drawRoundRect(bg, cx - 60, cy - 16, 120, 30, 10, 0x64748b, 1);
+        // Gloss
+        bg.fillStyle(0xffffff, 0.2);
+        bg.fillRoundedRect(cx - 56, cy - 14, 112, 12, 4);
+
+        const txt = this.add.text(cx, cy - 1, label, {
+            fontSize: '13px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#fff', stroke: '#111625', strokeThickness: 2, fontStyle: '800',
         }).setOrigin(0.5).setDepth(1);
-        const hit = this.add.rectangle(cx, cy, 130, 36, 0, 0).setInteractive({ cursor: 'pointer' });
+
+        const hit = this.add.rectangle(cx, cy, 120, 32, 0, 0).setInteractive({ cursor: 'pointer' });
         hit.on('pointerdown', () => {
             if (typeof SoundManager !== 'undefined') {
                 SoundManager.playClick();

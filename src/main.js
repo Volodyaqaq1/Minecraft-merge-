@@ -35,10 +35,14 @@ async function startGame() {
 
         backgroundColor: '#111625',
 
-        // Антиалиасинг выключен для пиксель-арта
+        // HiDPI четкость и сглаживание для ПК и мобильных (устранение размытости)
+        resolution: Math.min(window.devicePixelRatio || 1, 2),
         render: {
             pixelArt: false,
             antialias: true,
+            antialiasGL: true,
+            roundPixels: true,
+            powerPreference: 'high-performance',
         },
 
         input: {

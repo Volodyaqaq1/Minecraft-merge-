@@ -85,7 +85,7 @@ class MergeField {
             }
         }
 
-        // Анимация плавного появления
+        // Анимация плавного появления с последующим покачиванием (idle wobble)
         if (!this._isLoading && typeof SoundManager !== 'undefined') {
             SoundManager.playPop();
         }
@@ -97,11 +97,37 @@ class MergeField {
             duration: 220,
             ease: 'Back.Out',
             onComplete: () => {
-                if (mobItem.container) mobItem.container.setScale(1.0);
+                if (mobItem.container) {
+                    mobItem.container.setScale(1.0);
+                    this._startMobWobble(mobItem);
+                }
             }
         });
 
         return mobItem;
+    }
+
+    /**
+     * Плавная анимация покачивания/дыхания (idle wobble) для сквишей
+     */
+    _startMobWobble(mobItem) {
+        if (!mobItem || !mobItem.container) return;
+        this.scene.tweens.killTweensOf(mobItem.container);
+        mobItem.container.setScale(1.0);
+        const baseY = mobItem.y;
+        mobItem.container.y = baseY;
+
+        mobItem._wobbleTween = this.scene.tweens.add({
+            targets: mobItem.container,
+            scaleY: 1.035,
+            scaleX: 0.985,
+            y: baseY - 3,
+            duration: 1200 + randInt(0, 400),
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut',
+            delay: randInt(20, 500),
+        });
     }
 
     _buildMobContainer(mobItem) {
@@ -112,51 +138,67 @@ class MergeField {
         container.setDepth(20);
         container.setScale(1.0);
 
-        // 1. Белая мягкая подсветка / контур как в оригинале сквиши
+        // 1. Мягкая радиальная тень на газоне (drop shadow)
+        const shadow = scene.add.graphics();
+        shadow.fillStyle(0x1e4912, 0.24);
+        shadow.fillEllipse(0, mobSize / 2 - 4, mobSize * 0.74, 18);
+        shadow.fillStyle(0x1e4912, 0.12);
+        shadow.fillEllipse(0, mobSize / 2 - 4, mobSize * 0.88, 24);
+        container.add(shadow);
+
+        // 2. Внешнее свечение / белый контур для сквиши-эффекта
         const glow = scene.add.graphics();
-        glow.fillStyle(0xffffff, 0.45);
-        glow.fillCircle(0, 0, mobSize / 2 + 5);
+        glow.fillStyle(0xffffff, 0.85);
+        glow.fillCircle(0, -6, mobSize / 2 + 3);
         container.add(glow);
 
-        // 2. Круглая основа карточки
+        // 3. Круглое тело персонажа с приятным градиентным/пастельным цветом
         const bg = scene.add.graphics();
-        drawRoundRect(bg, -mobSize / 2, -mobSize / 2, mobSize, mobSize, mobSize / 2, mob.rarityColor, 0.55, 0xffffff, 2.5);
+        drawRoundRect(bg, -mobSize / 2, -mobSize / 2 - 6, mobSize, mobSize, mobSize / 2, mob.rarityColor, 0.65, 0xffffff, 3);
         container.add(bg);
 
-        // 3. Эмодзи / спрайт моба (крупный и сочный)
-        const mobImg = scene.add.text(0, -8, mob.emoji, {
-            fontSize: `${Math.round(mobSize * 0.52)}px`,
+        // 4. Глянцевый блик сверху (эффект мягкого сквиши-дамплинга)
+        const highlight = scene.add.graphics();
+        highlight.fillStyle(0xffffff, 0.35);
+        highlight.fillEllipse(0, -mobSize / 2 + 10, mobSize * 0.52, 12);
+        container.add(highlight);
+
+        // 5. Эмодзи / спрайт моба (крупный и сочный)
+        const mobImg = scene.add.text(0, -10, mob.emoji, {
+            fontSize: `${Math.round(mobSize * 0.54)}px`,
         }).setOrigin(0.5);
         container.add(mobImg);
 
-        // 4. Имя моба снизу (крупное и читаемое)
-        const nameText = scene.add.text(0, mobSize / 2 - 16, mob.name, {
+        // 6. Имя моба снизу в бейдже
+        const nameBadge = scene.add.graphics();
+        const badgeW = Math.min(mobSize + 18, 120);
+        drawRoundRect(nameBadge, -badgeW / 2, mobSize / 2 - 19, badgeW, 20, 10, 0x000000, 0.72);
+        container.add(nameBadge);
+
+        const nameText = scene.add.text(0, mobSize / 2 - 9, mob.name, {
             fontSize: '11px',
-            fontFamily: 'monospace',
+            fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
             color: '#ffffff',
-            stroke: '#000000',
-            strokeThickness: 3,
             fontStyle: 'bold',
-            wordWrap: { width: mobSize + 14 }
-        }).setOrigin(0.5, 0);
+        }).setOrigin(0.5);
         container.add(nameText);
 
-        // 5. Бейдж уровня слева сверху (увеличенный)
+        // 7. Бейдж уровня слева сверху
         const lvlBadge = scene.add.graphics();
-        drawRoundRect(lvlBadge, -mobSize / 2 + 2, -mobSize / 2 + 2, 28, 20, 6, 0x000000, 0.85);
+        drawRoundRect(lvlBadge, -mobSize / 2 + 2, -mobSize / 2 - 4, 30, 22, 8, 0x111625, 0.9, 0xffd700, 1.5);
         container.add(lvlBadge);
 
-        const lvlText = scene.add.text(-mobSize / 2 + 16, -mobSize / 2 + 4, `${mobItem.mobLevel}`, {
-            fontSize: '11px',
-            fontFamily: 'monospace',
+        const lvlText = scene.add.text(-mobSize / 2 + 17, -mobSize / 2 + 7, `${mobItem.mobLevel}`, {
+            fontSize: '12px',
+            fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
             color: '#ffd700',
-            fontStyle: 'bold',
-        }).setOrigin(0.5, 0);
+            fontStyle: '900',
+        }).setOrigin(0.5);
         container.add(lvlText);
 
-        // 6. Интерактивность: Drag & Click
+        // 8. Интерактивность: Drag & Click
         container.setInteractive(
-            new Phaser.Geom.Circle(0, 0, mobSize / 2 + 6),
+            new Phaser.Geom.Circle(0, -6, mobSize / 2 + 8),
             Phaser.Geom.Circle.Contains
         );
         scene.input.setDraggable(container);
@@ -170,6 +212,7 @@ class MergeField {
         });
 
         container.on('dragstart', () => {
+            scene.tweens.killTweensOf(container);
             container.setDepth(100);
             scene.tweens.add({
                 targets: container,
@@ -190,21 +233,10 @@ class MergeField {
         container.on('dragend', (ptr) => {
             container.setDepth(20);
 
-            // Всегда плавно сбрасываем масштаб ровно в 1.0
-            scene.tweens.add({
-                targets: container,
-                scaleX: 1.0,
-                scaleY: 1.0,
-                duration: 90,
-                onComplete: () => {
-                    if (container) container.setScale(1.0);
-                }
-            });
-
             // Проверка: это был просто клик/тап или полноценное перетаскивание?
             const moveDist = Phaser.Math.Distance.Between(startPointerPos.x, startPointerPos.y, ptr.x, ptr.y);
             if (!hasMoved && moveDist < 12) {
-                // КЛИКЕР — Нажатие на объект
+                // КЛИКЕР — Нажатие на объект с упругим сквошем
                 this._handleMobClick(mobItem, container);
                 return;
             }
@@ -217,7 +249,7 @@ class MergeField {
     }
 
     // ============================================================
-    // Кликер по мобу
+    // Кликер по мобу (Squash & Stretch физика)
     // ============================================================
 
     _handleMobClick(mobItem, container) {
@@ -225,16 +257,37 @@ class MergeField {
             SoundManager.playClink();
         }
 
-        // Анимация сквоша (сплющивание как в оригинале сквишей)
+        // Анимация упругого сквоша и стретча (быстрое сплющивание и эластичный отскок)
+        this.scene.tweens.killTweensOf(container);
         this.scene.tweens.add({
             targets: container,
-            scaleX: 1.25,
-            scaleY: 0.8,
-            duration: 80,
-            yoyo: true,
+            scaleX: 1.22,
+            scaleY: 0.80,
+            duration: 70,
             ease: 'Quad.Out',
             onComplete: () => {
-                if (container) container.setScale(1.0);
+                this.scene.tweens.add({
+                    targets: container,
+                    scaleX: 0.94,
+                    scaleY: 1.10,
+                    duration: 90,
+                    ease: 'Quad.Out',
+                    onComplete: () => {
+                        this.scene.tweens.add({
+                            targets: container,
+                            scaleX: 1.0,
+                            scaleY: 1.0,
+                            duration: 110,
+                            ease: 'Back.Out',
+                            onComplete: () => {
+                                if (container) {
+                                    container.setScale(1.0);
+                                    this._startMobWobble(mobItem);
+                                }
+                            }
+                        });
+                    }
+                });
             }
         });
 
@@ -284,15 +337,22 @@ class MergeField {
             const clampedX = Phaser.Math.Clamp(curX, this.bounds.minX + 30, this.bounds.maxX - 30);
             const clampedY = Phaser.Math.Clamp(curY, this.bounds.minY + 30, this.bounds.maxY - 30);
 
+            draggedItem.x = clampedX;
+            draggedItem.y = clampedY;
+
+            this.scene.tweens.killTweensOf(draggedItem.container);
             this.scene.tweens.add({
                 targets: draggedItem.container,
                 x: clampedX,
                 y: clampedY,
+                scaleX: 1.0,
+                scaleY: 1.0,
                 duration: 120,
+                ease: 'Quad.Out',
+                onComplete: () => {
+                    this._startMobWobble(draggedItem);
+                }
             });
-
-            draggedItem.x = clampedX;
-            draggedItem.y = clampedY;
         }
     }
 
@@ -303,6 +363,8 @@ class MergeField {
 
         const targetX = targetItem.container.x;
         const targetY = targetItem.container.y;
+        targetItem.x  = targetX;
+        targetItem.y  = targetY;
 
         // 1. Быстрое комбо слияний (в пределах 2.6 сек)
         const now = Date.now();
@@ -339,55 +401,55 @@ class MergeField {
             this.onMergeCombo(this.mergeCombo);
         }
 
-        // 2. Визуальные сочные эффекты (вспышка кольца + частицы + тряска)
-        const ring = this.scene.add.graphics();
-        ring.lineStyle(3.5, newMob.rarityColor || 0xffd700, 0.95);
-        ring.strokeCircle(targetX, targetY, 24);
-        ring.setDepth(150);
+        // 2. Визуальные сочные эффекты (вспышка + веер пастельных конфетти и звездочек)
+        const flash = this.scene.add.graphics().setDepth(180);
+        flash.fillStyle(0xffffff, 0.95);
+        flash.fillCircle(targetX, targetY, 60);
         this.scene.tweens.add({
-            targets: ring,
-            scaleX: 3.2,
-            scaleY: 3.2,
+            targets: flash,
+            scaleX: 2.2,
+            scaleY: 2.2,
             alpha: 0,
-            duration: 320,
+            duration: 260,
             ease: 'Quad.Out',
-            onComplete: () => ring.destroy()
+            onComplete: () => flash.destroy()
         });
 
-        // Разлетающиеся частицы искр
-        for (let i = 0; i < 8; i++) {
-            const angle = (i / 8) * Math.PI * 2 + Math.random() * 0.3;
-            const dist = randInt(40, 85);
-            const spark = this.scene.add.text(targetX, targetY, Math.random() > 0.5 ? '✨' : '⭐', {
-                fontSize: `${randInt(14, 20)}px`
-            }).setOrigin(0.5).setDepth(160);
+        const burstIcons = ['⭐', '✨', '🌸', '💫', '🌟'];
+        for (let i = 0; i < 16; i++) {
+            const angle = (i / 16) * Math.PI * 2 + Math.random() * 0.2;
+            const dist = randInt(45, 110);
+            const icon = burstIcons[i % burstIcons.length];
+            const p = this.scene.add.text(targetX, targetY, icon, {
+                fontSize: `${randInt(14, 22)}px`
+            }).setOrigin(0.5).setDepth(170);
 
             this.scene.tweens.add({
-                targets: spark,
+                targets: p,
                 x: targetX + Math.cos(angle) * dist,
                 y: targetY + Math.sin(angle) * dist,
                 alpha: 0,
-                scaleX: 0.3,
-                scaleY: 0.3,
-                duration: 420,
+                scaleX: 0.2,
+                scaleY: 0.2,
+                duration: randInt(380, 560),
                 ease: 'Cubic.Out',
-                onComplete: () => spark.destroy()
+                onComplete: () => p.destroy()
             });
         }
 
-        // Экранный shake на редком слиянии (редкость >= 2 или комбо >= 3)
-        if (newMob.rarity >= 2 || newMob.level >= 10 || this.mergeCombo >= 3) {
-            this.scene.cameras.main.shake(160, 0.007);
-        }
+        // Экранный shake для сочности
+        this.scene.cameras.main.shake(140, 0.006);
 
         // 3. Анимация: перетаскиваемый моб притягивается к цели и исчезает
+        this.scene.tweens.killTweensOf(draggedItem.container);
         this.scene.tweens.add({
             targets: draggedItem.container,
             x: targetX,
             y: targetY,
             scaleX: 0,
             scaleY: 0,
-            duration: 160,
+            duration: 140,
+            ease: 'Cubic.In',
             onComplete: () => {
                 draggedItem.container.destroy();
             }
@@ -400,22 +462,32 @@ class MergeField {
         targetItem.mobLevel = newLevel;
 
         // Пересоздаём визуализацию целевого моба
+        this.scene.tweens.killTweensOf(targetItem.container);
         targetItem.container.destroy();
         targetItem.container = this._buildMobContainer(targetItem);
 
-        // Фикс масштаба: устанавливаем масштаб 1.0, пульсируем до 1.28 и возвращаем ровно в 1.0!
-        targetItem.container.setScale(1.0);
+        // Пружинистое сочное появление (Squash-pop)
+        targetItem.container.setScale(0.35);
         this.scene.tweens.add({
             targets: targetItem.container,
-            scaleX: 1.28,
-            scaleY: 1.28,
-            duration: 140,
-            yoyo: true,
+            scaleX: 1.32,
+            scaleY: 1.32,
+            duration: 150,
             ease: 'Back.Out',
             onComplete: () => {
-                if (targetItem.container) {
-                    targetItem.container.setScale(1.0);
-                }
+                this.scene.tweens.add({
+                    targets: targetItem.container,
+                    scaleX: 1.0,
+                    scaleY: 1.0,
+                    duration: 130,
+                    ease: 'Back.Out',
+                    onComplete: () => {
+                        if (targetItem.container) {
+                            targetItem.container.setScale(1.0);
+                            this._startMobWobble(targetItem);
+                        }
+                    }
+                });
             }
         });
 
@@ -424,8 +496,7 @@ class MergeField {
         spawnFloatingText(this.scene, targetX, targetY - 45, `+${xpEarned} XP ⭐`, '#ffd700');
 
         // 6. Добавляем в коллекцию (проверяем, открыт ли моб впервые)
-        const maxPrevUnlocked = this.collection.size > 0 ? Math.max(...this.collection) : 1;
-        const isNewUnlock = (newLevel > maxPrevUnlocked) || !this.shownModals.has(newLevel);
+        const isNewUnlock = !this.shownModals.has(newLevel);
         this.shownModals.add(newLevel);
         this.collection.add(newLevel);
 

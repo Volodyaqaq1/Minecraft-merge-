@@ -144,28 +144,90 @@ class GameScene extends Phaser.Scene {
     // Фоновая полянка
     // ============================================================
 
+    // ============================================================
+    // Фоновая полянка (Пастельный казуальный стиль как в "Сквиши Мерж")
+    // ============================================================
+
     _buildBackground() {
         const W = CONFIG.WIDTH;
         const H = CONFIG.HEIGHT;
 
+        // 1. Нежное градиентное небо
         const sky = this.add.graphics();
-        sky.fillGradientStyle(0x73c9f7, 0x73c9f7, 0xb8e3fa, 0xb8e3fa, 1);
-        sky.fillRect(0, 0, W, H / 2);
+        sky.fillGradientStyle(0x5cbcf6, 0x5cbcf6, 0xc8eeff, 0xc8eeff, 1);
+        sky.fillRect(0, 0, W, H * 0.44);
 
-        const ground = this.add.graphics();
-        ground.fillGradientStyle(0x56a635, 0x56a635, 0x3d7b23, 0x3d7b23, 1);
-        ground.fillRect(0, H / 3, W, H * 2 / 3);
+        // 2. Пушистые процедурные облака (медленно плывут)
+        this._clouds = [];
+        const cloudData = [
+            { x: 120, y: 38, s: 1.0, speed: 0.12 },
+            { x: 420, y: 56, s: 0.8, speed: 0.17 },
+            { x: 740, y: 34, s: 1.15, speed: 0.13 },
+            { x: 920, y: 62, s: 0.7, speed: 0.19 },
+        ];
+        cloudData.forEach(c => {
+            const cg = this.add.graphics();
+            cg.fillStyle(0xffffff, 0.85);
+            cg.fillCircle(0, 0, 22 * c.s);
+            cg.fillCircle(-16 * c.s, 4 * c.s, 16 * c.s);
+            cg.fillCircle(16 * c.s, 4 * c.s, 16 * c.s);
+            cg.fillRoundedRect(-30 * c.s, 4 * c.s, 60 * c.s, 14 * c.s, 7 * c.s);
+            cg.x = c.x;
+            cg.y = c.y;
+            this._clouds.push({ g: cg, speed: c.speed, s: c.s });
+        });
 
-        for (let i = 0; i < 7; i++) {
-            const x = 70 + i * 140;
-            const treeY = H / 3 + 20;
+        // 3. Дальние мягкие холмы
+        const hills = this.add.graphics();
+        hills.fillStyle(0x82ce42, 1);
+        hills.beginPath();
+        hills.arc(150, H * 0.43 + 60, 210, Math.PI, 0, false);
+        hills.arc(520, H * 0.43 + 80, 280, Math.PI, 0, false);
+        hills.arc(840, H * 0.43 + 60, 240, Math.PI, 0, false);
+        hills.fillPath();
 
+        // 4. Деревья на горизонте
+        for (let i = 0; i < 9; i++) {
+            const tx = 40 + i * 115 + (i % 2 === 0 ? 15 : -10);
+            const ty = H * 0.34 + (i % 3) * 6;
             const tree = this.add.graphics();
-            tree.fillStyle(0x4a7c29, 0.9);
-            tree.fillCircle(x, treeY - 30, 45);
-            tree.fillStyle(0x3e6822, 0.9);
-            tree.fillCircle(x + 20, treeY - 20, 35);
+            tree.fillStyle(0x785332, 0.9);
+            tree.fillRect(tx - 4, ty, 8, 22);
+            tree.fillStyle(0x4e9c2b, 0.95);
+            tree.fillCircle(tx, ty - 12, 28);
+            tree.fillStyle(0x62b738, 0.95);
+            tree.fillCircle(tx - 6, ty - 16, 20);
+            tree.fillStyle(0x3d8220, 0.95);
+            tree.fillCircle(tx + 8, ty - 10, 18);
         }
+
+        // 5. Тёплый фисташковый луг (основная поляна без ядовитых полос)
+        const lawn = this.add.graphics();
+        lawn.fillGradientStyle(0x9ee54f, 0x9ee54f, 0x6dbf2b, 0x6dbf2b, 1);
+        lawn.fillRect(0, H * 0.36, W, H * 0.64);
+
+        // 6. Мягкое солнечное пятно в центре
+        const sunbeam = this.add.graphics();
+        sunbeam.fillStyle(0xffffff, 0.10);
+        sunbeam.fillEllipse(W / 2, H * 0.58, 520, 230);
+        sunbeam.fillStyle(0xffffff, 0.05);
+        sunbeam.fillEllipse(W / 2, H * 0.58, 680, 310);
+
+        // 7. Декоративная листва по верхним углам
+        const foliage = this.add.graphics();
+        foliage.fillStyle(0x438622, 0.85);
+        foliage.fillCircle(0, 0, 75);
+        foliage.fillCircle(65, 0, 55);
+        foliage.fillCircle(0, 55, 50);
+        foliage.fillStyle(0x56a62f, 0.9);
+        foliage.fillCircle(30, 25, 45);
+
+        foliage.fillStyle(0x438622, 0.85);
+        foliage.fillCircle(W, 0, 85);
+        foliage.fillCircle(W - 70, 0, 60);
+        foliage.fillCircle(W, 60, 55);
+        foliage.fillStyle(0x56a62f, 0.9);
+        foliage.fillCircle(W - 35, 30, 50);
     }
 
     // ============================================================
@@ -175,66 +237,79 @@ class GameScene extends Phaser.Scene {
     _buildTopBar() {
         const W = CONFIG.WIDTH;
 
-        // 1. Кнопка шестерёнки настроек + бейдж "Уровень X" (как на скриншотах 4 и 5)
+        // 1. Кнопка шестерёнки настроек + бейдж "Уровень X"
         this._buildSettingsAndLevelWidget(12, 10);
 
-        // 2. Кнопка "🎁 Подарки" (открывает меню наград за время в игре)
-        const [fBg, fTxt, fHit] = this._makeButton(246, 32, 124, 44, '🎁 Подарки', '#27ae60', () => {
+        // 2. Кнопка "🎁 Подарки" (3D казуальная зеленая кнопка)
+        const [fBg, fTxt, fHit] = this._makeButton(246, 32, 120, 44, 'Подарки 🎁', '#22c55e', () => {
             this._openPlaytimeModal();
-        }, '14px');
+        }, '13px');
         this._giftBtnText = fTxt;
 
         // 3. Комбо-шкала множителя (шкала вверху, числа x1-x5 строго снизу под шкалой)
-        this._buildComboBar(328, 12, 222, 16);
+        this._buildComboBar(324, 12, 226, 16);
 
-        // 4. Баланс изумрудов (справа)
-        const coinBg = this.add.graphics();
-        drawRoundRect(coinBg, W - 190, 10, 175, 44, 10, 0xffffff, 0.95, 0xdddddd, 2);
+        // 4. Баланс изумрудов (справа, белая карточка со скругленными краями)
+        const coinCard = this.add.graphics();
+        drawRoundRect(coinCard, W - 180, 10, 168, 44, 12, 0xffffff, 0.96, 0xe2e8f0, 2.5);
 
-        this.add.text(W - 173, 32, '💎', { fontSize: '22px' }).setOrigin(0.5);
-        this._coinsText = this.add.text(W - 22, 32, `${formatNumber(this.economy.coins)}`, {
-            fontSize: '19px',
-            fontFamily: 'monospace',
-            color: '#2e7d32',
-            fontStyle: 'bold',
+        this.add.text(W - 164, 32, '💎', { fontSize: '22px' }).setOrigin(0.5);
+        this._coinsText = this.add.text(W - 20, 32, `${formatNumber(this.economy.coins)}`, {
+            fontSize: '18px',
+            fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#1e293b',
+            fontStyle: '800',
         }).setOrigin(1, 0.5);
     }
 
     _buildSettingsAndLevelWidget(x, y) {
-        // Кнопка настроек с шестерёнкой (слева, квадрат со скруглёнными углами как на скриншоте 4)
+        // Кнопка настроек с шестерёнкой (голубой скругленный квадрат с объемом)
         const gearSize = 44;
         const gearBg = this.add.graphics();
-        drawRoundRect(gearBg, x, y, gearSize, gearSize, 12, 0x81d4fa, 1, 0xb3e5fc, 2.5);
+        drawRoundRect(gearBg, x, y + 4, gearSize, gearSize, 12, 0x1d4ed8, 1);
+        drawRoundRect(gearBg, x, y, gearSize, gearSize, 12, 0x60a5fa, 1, 0xffffff, 1.8);
+        gearBg.fillStyle(0xffffff, 0.28);
+        gearBg.fillRoundedRect(x + 3, y + 2, gearSize - 6, 18, 10);
 
         const gearTxt = this.add.text(x + gearSize / 2, y + gearSize / 2, '⚙', {
             fontSize: '24px',
             color: '#ffffff',
-            stroke: '#0288d1',
-            strokeThickness: 1,
+            stroke: '#1e3a8a',
+            strokeThickness: 2,
         }).setOrigin(0.5);
 
-        const gearHit = this.add.rectangle(x + gearSize / 2, y + gearSize / 2, gearSize, gearSize, 0, 0)
+        const gearHit = this.add.rectangle(x + gearSize / 2, y + gearSize / 2 + 2, gearSize, gearSize + 4, 0, 0)
             .setInteractive({ cursor: 'pointer' });
         gearHit.on('pointerdown', () => {
             if (typeof SoundManager !== 'undefined') SoundManager.playClick();
+            gearTxt.y = y + gearSize / 2 + 2;
+        });
+        gearHit.on('pointerup', () => {
+            gearTxt.y = y + gearSize / 2;
             this._openSettingsModal();
         });
+        gearHit.on('pointerout', () => {
+            gearTxt.y = y + gearSize / 2;
+        });
 
-        // Бейдж уровня (соединён справа, оранжево-золотой фон без полоски XP)
-        const lvlX = x + gearSize + 4;
+        // Бейдж уровня (соединён справа, тёплый персиково-золотой фон)
+        const lvlX = x + gearSize + 5;
         const lvlW = 118;
         const lvlH = 44;
 
         this.levelBadgeBg = this.add.graphics();
-        drawRoundRect(this.levelBadgeBg, lvlX, y, lvlW, lvlH, 12, 0xf39c12, 1, 0xd35400, 2);
+        drawRoundRect(this.levelBadgeBg, lvlX, y + 4, lvlW, lvlH, 12, 0xd97706, 1);
+        drawRoundRect(this.levelBadgeBg, lvlX, y, lvlW, lvlH, 12, 0xfef3c7, 1, 0xf59e0b, 2.5);
+        this.levelBadgeBg.fillStyle(0xffffff, 0.4);
+        this.levelBadgeBg.fillRoundedRect(lvlX + 3, y + 2, lvlW - 6, 18, 10);
 
         this.levelWidgetTitle = this.add.text(lvlX + lvlW / 2, y + lvlH / 2, `Уровень ${this.economy.level}`, {
             fontSize: '15px',
-            fontFamily: 'monospace',
-            color: '#ffffff',
-            stroke: '#7f4f18',
-            strokeThickness: 3,
-            fontStyle: 'bold',
+            fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#92400e',
+            stroke: '#ffffff',
+            strokeThickness: 2,
+            fontStyle: '800',
         }).setOrigin(0.5);
     }
 
@@ -250,14 +325,14 @@ class GameScene extends Phaser.Scene {
         this.comboW = w;
         this.comboH = h;
 
-        // Фон шкалы комбо
+        // Фон шкалы комбо (деревянно-золотой багет как в референсе)
         this.comboBg = this.add.graphics();
-        drawRoundRect(this.comboBg, x, y, w, h, 6, 0x2c1a0e, 0.92, 0x8b5a2b, 2);
+        drawRoundRect(this.comboBg, x, y, w, h, 8, 0x3d2714, 0.95, 0x8b5a2b, 2);
 
-        // Разделительные насечки на 5 равных зон внутри полосы
+        // Разделительные насечки
         const step = w / 5;
         this.comboTicks = this.add.graphics();
-        this.comboTicks.lineStyle(1.5, 0x8b5a2b, 0.6);
+        this.comboTicks.lineStyle(1.5, 0x8b5a2b, 0.7);
         for (let i = 1; i < 5; i++) {
             this.comboTicks.lineBetween(x + step * i, y + 1, x + step * i, y + h - 1);
         }
@@ -265,15 +340,16 @@ class GameScene extends Phaser.Scene {
         this.comboFill = this.add.graphics();
         this.multiplierTexts = [];
         const mults = [1, 2, 3, 4, 5];
+        const candyColors = ['#ffffff', '#38bdf8', '#60a5fa', '#c084fc', '#ef4444'];
 
-        // Числа x1 x2 x3 x4 x5 расположены СНИЗУ под шкалой (y + h + 11)
+        // Числа x1 x2 x3 x4 x5 расположены СНИЗУ под шкалой
         mults.forEach((m, idx) => {
             const tx = x + step * idx + step / 2;
             const txt = this.add.text(tx, y + h + 11, `x${m}`, {
                 fontSize: '13px',
-                fontFamily: 'monospace',
-                color: idx === 0 ? '#5dff6e' : '#a4b0be',
-                fontStyle: 'bold',
+                fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+                color: candyColors[idx],
+                fontStyle: '800',
             }).setOrigin(0.5);
             this.multiplierTexts.push(txt);
         });
@@ -285,7 +361,7 @@ class GameScene extends Phaser.Scene {
         this.comboFill.clear();
         const fillW = Math.floor((this.comboW - 4) * (this.comboGauge / 100));
         if (fillW > 0) {
-            this.comboFill.fillStyle(0x5dff6e, 0.95);
+            this.comboFill.fillStyle(0x2ed573, 0.95);
             this.comboFill.fillRoundedRect(this.comboX + 2, this.comboY + 2, fillW, this.comboH - 4, 4);
         }
 
@@ -302,11 +378,10 @@ class GameScene extends Phaser.Scene {
             if (idx + 1 === mul) {
                 txt.setColor('#ffd700');
                 txt.setFontSize('15px');
-                txt.setStroke('#000000', 2);
+                txt.setStroke('#111625', 3);
             } else {
-                txt.setColor('#a0aec0');
                 txt.setFontSize('12px');
-                txt.setStroke('#000000', 0);
+                txt.setStroke('#111625', 1);
             }
         });
     }
@@ -338,6 +413,16 @@ class GameScene extends Phaser.Scene {
             const decay = (CONFIG.COMBO_DECAY_PER_SEC * delta) / 1000;
             this.comboGauge = Math.max(0, this.comboGauge - decay);
             this._redrawComboBar();
+        }
+
+        // Плавное движение процедурных облаков
+        if (this._clouds) {
+            this._clouds.forEach(c => {
+                c.g.x += c.speed * (delta / 16);
+                if (c.g.x > CONFIG.WIDTH + 70) {
+                    c.g.x = -70;
+                }
+            });
         }
     }
 
@@ -437,10 +522,11 @@ class GameScene extends Phaser.Scene {
         this._questUiGroup.forEach(item => item && item.destroy && item.destroy());
         this._questUiGroup = [];
 
-        const startX = 76;
-        const startY = 105;
-        const cardH  = 72;
-        const spacing = 82;
+        const startX = 64;
+        const startY = 110;
+        const cardW  = 96;
+        const cardH  = 90;
+        const spacing = 98;
 
         this.quests.forEach((quest, idx) => {
             const mob = getMobByLevel(quest.mobLevel);
@@ -456,69 +542,55 @@ class GameScene extends Phaser.Scene {
 
             const cx = startX;
             const cy = startY + idx * spacing;
-            const cardW = 134;
 
-            // Фон карточки задания
+            // 1. Белая карточка-стикер (как в референсе "Сквиши Мерж")
             const bg = this.add.graphics();
-            drawRoundRect(bg, cx - cardW / 2, cy - cardH / 2, cardW, cardH, 12,
-                isReady ? 0x1b4332 : 0x16213e, 0.95,
-                isReady ? 0x2ed573 : 0x3d5a80, isReady ? 2.5 : 1.5);
+            // Мягкая тень под карточкой
+            drawRoundRect(bg, cx - cardW / 2, cy - cardH / 2 + 3, cardW, cardH, 12, 0x000000, 0.16);
+            // Белая бумага с золотистой/зелёной рамкой
+            drawRoundRect(bg, cx - cardW / 2, cy - cardH / 2, cardW, cardH, 12, 0xffffff, 0.98, isReady ? 0x22c55e : 0xf6ad55, isReady ? 2.5 : 1.8);
+            // Верхняя скрепка/булавка
+            bg.fillStyle(0x718096, 0.9);
+            bg.fillRoundedRect(cx - 7, cy - cardH / 2 - 3, 14, 5, 2);
             this._questUiGroup.push(bg);
 
-            // Эмодзи моба слева (крупный и отцентрированный по вертикали)
-            const emoji = this.add.text(cx - 38, cy, mob.emoji, {
-                fontSize: '38px',
-            }).setOrigin(0.5);
-
-            // Название моба
-            const nameText = this.add.text(cx + 14, cy - 20, mob.name, {
+            // 2. Имя моба вверху карточки
+            const nameText = this.add.text(cx, cy - cardH / 2 + 13, mob.name, {
                 fontSize: '11px',
-                fontFamily: 'monospace',
-                color: '#ffffff',
-                fontStyle: 'bold',
-                wordWrap: { width: 78 }
+                fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+                color: '#475569',
+                fontStyle: '800',
             }).setOrigin(0.5);
 
-            // Прогресс (например, 1/4 или 3/3 ГОТОВО!)
-            const countText = this.add.text(cx + 14, cy - 4,
-                isReady ? `🎉 ${displayCount}/${quest.targetCount} ГОТОВО!` : `${displayCount} / ${quest.targetCount}`, {
-                fontSize: isReady ? '10px' : '12px',
-                fontFamily: 'monospace',
-                color: isReady ? '#5dff6e' : '#ffd700',
-                fontStyle: 'bold',
+            // 3. Эмодзи моба в центре (крупный и сочный)
+            const emoji = this.add.text(cx, cy + 2, mob.emoji, {
+                fontSize: '44px',
             }).setOrigin(0.5);
 
-            // Полоска прогресса
-            const barBg = this.add.graphics();
-            drawRoundRect(barBg, cx - 22, cy + 9, 72, 6, 3, 0x222222, 0.85);
-
-            const barFill = this.add.graphics();
-            const ratio = isReady ? 1.0 : Math.min(1, displayCount / quest.targetCount);
-            if (ratio > 0) {
-                barFill.fillStyle(isReady ? 0x2ed573 : 0x00c9ff, 1);
-                barFill.fillRoundedRect(cx - 22, cy + 9, Math.floor(72 * ratio), 6, 3);
-            }
-
-            // Нижняя строка: награда или кнопка "ЗАБРАТЬ"
-            let rewardOrClaim;
+            // 4. Статус / бейдж в правом нижнем углу
+            let statusElements = [];
             if (isReady) {
                 const claimBg = this.add.graphics();
-                drawRoundRect(claimBg, cx - 18, cy + 18, 64, 18, 5, 0x2ed573, 1);
-                const claimTxt = this.add.text(cx + 14, cy + 27, 'ЗАБРАТЬ 🎁', {
+                drawRoundRect(claimBg, cx - cardW / 2 + 4, cy + cardH / 2 - 24, cardW - 8, 22, 11, 0x22c55e, 1, 0xffffff, 1.8);
+                const claimTxt = this.add.text(cx, cy + cardH / 2 - 13, 'ЗАБРАТЬ 🎁', {
                     fontSize: '10px',
-                    fontFamily: 'monospace',
+                    fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
                     color: '#ffffff',
-                    fontStyle: 'bold',
+                    fontStyle: '900',
                 }).setOrigin(0.5);
-                rewardOrClaim = [claimBg, claimTxt];
+                statusElements = [claimBg, claimTxt];
             } else {
-                const rewText = this.add.text(cx + 14, cy + 25, `💎 ${formatNumber(quest.rewardCoins)}`, {
+                const pillBg = this.add.graphics();
+                const pillW = 44;
+                const pillH = 20;
+                drawRoundRect(pillBg, cx + cardW / 2 - pillW - 4, cy + cardH / 2 - pillH - 4, pillW, pillH, 10, 0xfef3c7, 1, 0xf59e0b, 1.5);
+                const countText = this.add.text(cx + cardW / 2 - pillW / 2 - 4, cy + cardH / 2 - pillH / 2 - 4, `${displayCount}/${quest.targetCount}`, {
                     fontSize: '11px',
-                    fontFamily: 'monospace',
-                    color: '#5dff6e',
-                    fontStyle: 'bold',
+                    fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+                    color: '#b45309',
+                    fontStyle: '800',
                 }).setOrigin(0.5);
-                rewardOrClaim = [rewText];
+                statusElements = [pillBg, countText];
             }
 
             // Интерактивная зона
@@ -529,14 +601,11 @@ class GameScene extends Phaser.Scene {
                 if (isReady) {
                     this._claimQuest(idx, cx, cy);
                 } else {
-                    spawnFloatingText(this, cx + 50, cy - 20, `Соберите ${quest.targetCount}x ${mob.name}!`, '#ffd700');
+                    spawnFloatingText(this, cx + 60, cy - 20, `Соберите ${quest.targetCount}x ${mob.name}!`, '#ffd700');
                 }
             });
 
-            this._questUiGroup.push(
-                emoji, nameText, countText,
-                barBg, barFill, ...rewardOrClaim, hitArea
-            );
+            this._questUiGroup.push(nameText, emoji, ...statusElements, hitArea);
         });
     }
 
@@ -605,32 +674,42 @@ class GameScene extends Phaser.Scene {
         const W = CONFIG.WIDTH;
         const maxUnlocked = Math.max(...this.mergeField.collection, 1);
 
-        // 1. Слот 1: Моб за монеты (на 3 уровня ниже максимального)
+        // 1. Слот 1: Моб за монеты (глянцевая карточка как в референсе)
         const buyLevel = Math.max(1, maxUnlocked - CONFIG.BUY_LEVEL_OFFSET);
         const buyMob   = getMobByLevel(buyLevel);
         const cost     = getMobCost(buyLevel);
 
-        const cardX = W - 78;
-        const cardY = 135;
-        const cardSize = 122;
+        const cardX = W - 72;
+        const cardY = 130;
+        const cardSize = 112;
 
         const bg1 = this.add.graphics();
-        drawRoundRect(bg1, cardX - cardSize / 2, cardY - cardSize / 2, cardSize, cardSize, 18, 0xffffff, 0.94, 0x4aa3df, 3);
+        // 3D тень под карточкой
+        drawRoundRect(bg1, cardX - cardSize / 2, cardY - cardSize / 2 + 4, cardSize, cardSize, 18, 0x1d4ed8, 0.4);
+        // Лицевая нежно-голубая основа карточки
+        drawRoundRect(bg1, cardX - cardSize / 2, cardY - cardSize / 2, cardSize, cardSize, 18, 0xdbeafe, 1, 0x3b82f6, 2.5);
+        // Белая внутренняя тарелочка под персонажа
+        bg1.fillStyle(0xffffff, 0.95);
+        bg1.fillCircle(cardX, cardY - 10, 34);
+
         this._shopUiGroup.push(bg1);
 
         if (buyMob) {
-            const mobImg = this.add.text(cardX, cardY - 14, buyMob.emoji, {
-                fontSize: '52px',
+            const mobImg = this.add.text(cardX, cardY - 10, buyMob.emoji, {
+                fontSize: '48px',
             }).setOrigin(0.5);
 
+            // Кнопка-пилюля стоимости
             const priceBg = this.add.graphics();
-            drawRoundRect(priceBg, cardX - cardSize / 2 + 6, cardY + cardSize / 2 - 32, cardSize - 12, 26, 8, 0xffd700, 1);
+            const pillW = cardSize - 14;
+            drawRoundRect(priceBg, cardX - pillW / 2, cardY + cardSize / 2 - 28, pillW, 24, 12, 0xd97706, 1);
+            drawRoundRect(priceBg, cardX - pillW / 2, cardY + cardSize / 2 - 30, pillW, 24, 12, 0xfbbf24, 1, 0xffffff, 1.5);
 
-            const priceText = this.add.text(cardX, cardY + cardSize / 2 - 19, `💎 ${formatNumber(cost)}`, {
-                fontSize: '13px',
-                fontFamily: 'monospace',
-                color: '#222222',
-                fontStyle: 'bold',
+            const priceText = this.add.text(cardX, cardY + cardSize / 2 - 18, `💎 ${formatNumber(cost)}`, {
+                fontSize: '12px',
+                fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+                color: '#78350f',
+                fontStyle: '900',
             }).setOrigin(0.5);
 
             const hitArea1 = this.add.rectangle(cardX, cardY, cardSize, cardSize, 0, 0)
@@ -645,24 +724,30 @@ class GameScene extends Phaser.Scene {
         const adMobLevel = Math.max(1, maxUnlocked - CONFIG.AD_LEVEL_OFFSET);
         const adMob      = getMobByLevel(adMobLevel);
 
-        const cardY2 = 275;
+        const cardY2 = 255;
         const bg2 = this.add.graphics();
-        drawRoundRect(bg2, cardX - cardSize / 2, cardY2 - cardSize / 2, cardSize, cardSize, 18, 0xffffff, 0.94, 0x4aa3df, 3);
+        drawRoundRect(bg2, cardX - cardSize / 2, cardY2 - cardSize / 2 + 4, cardSize, cardSize, 18, 0x1d4ed8, 0.4);
+        drawRoundRect(bg2, cardX - cardSize / 2, cardY2 - cardSize / 2, cardSize, cardSize, 18, 0xdbeafe, 1, 0x3b82f6, 2.5);
+        bg2.fillStyle(0xffffff, 0.95);
+        bg2.fillCircle(cardX, cardY2 - 10, 34);
+
         this._shopUiGroup.push(bg2);
 
         if (adMob) {
-            const mobImg2 = this.add.text(cardX, cardY2 - 14, adMob.emoji, {
-                fontSize: '52px',
+            const mobImg2 = this.add.text(cardX, cardY2 - 10, adMob.emoji, {
+                fontSize: '48px',
             }).setOrigin(0.5);
 
             const adBg = this.add.graphics();
-            drawRoundRect(adBg, cardX - cardSize / 2 + 6, cardY2 + cardSize / 2 - 32, cardSize - 12, 26, 8, 0x8e44ad, 1);
+            const pillW = cardSize - 14;
+            drawRoundRect(adBg, cardX - pillW / 2, cardY2 + cardSize / 2 - 28, pillW, 24, 12, 0x7e22ce, 1);
+            drawRoundRect(adBg, cardX - pillW / 2, cardY2 + cardSize / 2 - 30, pillW, 24, 12, 0xa855f7, 1, 0xffffff, 1.5);
 
-            const adText = this.add.text(cardX, cardY2 + cardSize / 2 - 19, '📺 Реклама', {
-                fontSize: '13px',
-                fontFamily: 'monospace',
+            const adText = this.add.text(cardX, cardY2 + cardSize / 2 - 18, 'Реклама 🎬', {
+                fontSize: '11px',
+                fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
                 color: '#ffffff',
-                fontStyle: 'bold',
+                fontStyle: '900',
             }).setOrigin(0.5);
 
             const hitArea2 = this.add.rectangle(cardX, cardY2, cardSize, cardSize, 0, 0)
@@ -697,28 +782,29 @@ class GameScene extends Phaser.Scene {
     }
 
     // ============================================================
-    // Нижняя панель
+    // Нижняя панель (3D казуальные кнопки на газоне)
     // ============================================================
 
     _buildBottomBar() {
         const W = CONFIG.WIDTH;
         const H = CONFIG.HEIGHT;
 
+        // Полупрозрачная подложка, чтобы газон просвечивал
         const g = this.add.graphics();
-        drawRoundRect(g, 0, H - 64, W, 64, 0, 0x16213e, 0.96);
+        drawRoundRect(g, 10, H - 62, W - 20, 56, 16, 0x111625, 0.40);
 
-        this._makeButton(110, H - 32, 150, 48, '📖 Коллекция', '#34495e',
+        this._makeButton(105, H - 34, 150, 46, 'Коллекция 🗂️', '#3b82f6',
             () => this.scene.launch('CollectionScene', { collection: [...this.mergeField.collection] }), '14px');
 
         // Кнопка Инкубатора
-        this._makeButton(275, H - 32, 150, 48, '🥚 Инкубатор', '#8e44ad',
+        this._makeButton(268, H - 34, 150, 46, 'Инкубатор 🥚', '#3b82f6',
             () => this._openIncubatorModal(), '14px');
 
-        this._makeButton(440, H - 32, 150, 48, '🏆 Награды', '#34495e',
-            () => spawnFloatingText(this, 440, H - 80, 'Скоро!', '#ffd700'), '14px');
+        this._makeButton(430, H - 34, 145, 46, 'Награды 📦', '#3b82f6',
+            () => spawnFloatingText(this, 430, H - 80, 'Скоро!', '#ffd700'), '14px');
 
-        // Большая красная кнопка В БОЙ
-        this._makeButton(W - 120, H - 32, 190, 50, '⚔ В БОЙ!', '#c0392b', () => {
+        // Большая сочная красная кнопка В БОЙ
+        this._makeButton(W - 120, H - 34, 195, 48, 'В бой! ⚔️', '#dc2626', () => {
             if (this.mergeField.mobs.length === 0) {
                 spawnFloatingText(this, W - 120, H - 80, 'Купите бойцов!', '#ff4444');
                 return;
@@ -1268,14 +1354,18 @@ class GameScene extends Phaser.Scene {
             repeat: -1
         });
 
-        const title = this.add.text(0, -170, '✨ NEW! ✨', {
-            fontSize: '32px', fontFamily: 'monospace', color: '#ffd700',
-            stroke: '#000000', strokeThickness: 5, fontStyle: 'bold',
+        const title = this.add.text(0, -170, '✨ НОВЫЙ СКВИШ! ✨', {
+            fontSize: '30px',
+            fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#ffd700',
+            stroke: '#111625',
+            strokeThickness: 5,
+            fontStyle: '900',
         }).setOrigin(0.5);
 
         this._newMobModalContent = this.add.container(0, 0);
 
-        const closeBtn = this._makeButton(0, 168, 220, 46, 'КРУТО! 👍', '#2ed573', () => {
+        const closeBtn = this._makeButton(0, 168, 220, 46, 'КРУТО! 👍', '#22c55e', () => {
             this._newMobModal.setVisible(false);
         }, '16px');
 
@@ -1355,14 +1445,22 @@ class GameScene extends Phaser.Scene {
 
             // Название моба
             const nameText = this.add.text(0, 14, newMob.name.toUpperCase(), {
-                fontSize: '22px', fontFamily: 'monospace', color: '#ffffff',
-                stroke: '#000000', strokeThickness: 3, fontStyle: 'bold'
+                fontSize: '24px',
+                fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+                color: '#ffffff',
+                stroke: '#111625',
+                strokeThickness: 4,
+                fontStyle: '900'
             }).setOrigin(0.5).setAlpha(0);
 
             // Уровень и АТК
-            const statsText = this.add.text(0, 42, `LV.${newMob.level}   ⚔ ${formatNumber(newMob.atk)}`, {
-                fontSize: '16px', fontFamily: 'monospace', color: '#5dff6e',
-                stroke: '#000000', strokeThickness: 2, fontStyle: 'bold'
+            const statsText = this.add.text(0, 44, `LV.${newMob.level}   ⚔ ${formatNumber(newMob.atk)}`, {
+                fontSize: '17px',
+                fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+                color: '#5dff6e',
+                stroke: '#111625',
+                strokeThickness: 3,
+                fontStyle: '800'
             }).setOrigin(0.5).setAlpha(0);
 
             // Прирост урона к предыдущему (+X%)
@@ -1370,18 +1468,25 @@ class GameScene extends Phaser.Scene {
             if (prevMob && prevMob.atk > 0) {
                 diffPct = Math.round(((newMob.atk - prevMob.atk) / prevMob.atk) * 100);
             }
-            const bumpText = this.add.text(0, 68, `+${diffPct}% к предыдущему! 🔥`, {
-                fontSize: '13px', fontFamily: 'monospace', color: '#ff9f43',
-                stroke: '#000000', strokeThickness: 2, fontStyle: 'bold'
+            const bumpText = this.add.text(0, 70, `+${diffPct}% к предыдущему! 🔥`, {
+                fontSize: '14px',
+                fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+                color: '#ff9f43',
+                stroke: '#111625',
+                strokeThickness: 3,
+                fontStyle: '800'
             }).setOrigin(0.5).setAlpha(0);
 
             // Следующий моб: стрелка и ??? с силуэтом
             const nextBg = this.add.graphics();
-            drawRoundRect(nextBg, -150, 94, 300, 42, 8, 0x111625, 0.95, 0xffd700, 1.5);
+            drawRoundRect(nextBg, -150, 94, 300, 42, 12, 0x111625, 0.95, 0xf59e0b, 1.8);
             nextBg.setAlpha(0);
 
             const nextTxt = this.add.text(0, 115, `➔ Следующий: ??? 🔒 (Lv.${newMob.level + 1})`, {
-                fontSize: '12px', fontFamily: 'monospace', color: '#ffd700', fontStyle: 'bold'
+                fontSize: '13px',
+                fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+                color: '#ffd700',
+                fontStyle: '800'
             }).setOrigin(0.5).setAlpha(0);
 
             this._newMobModalContent.add([
@@ -1401,7 +1506,12 @@ class GameScene extends Phaser.Scene {
             const leftMob = this.add.text(-150, -50, prevMob.emoji, { fontSize: '52px' }).setOrigin(0.5);
             const rightMob = this.add.text(150, -50, prevMob.emoji, { fontSize: '52px' }).setOrigin(0.5);
             const mergeLabel = this.add.text(0, -115, 'СЛИЯНИЕ... ⚡', {
-                fontSize: '17px', fontFamily: 'monospace', color: '#ffd700', fontStyle: 'bold'
+                fontSize: '18px',
+                fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+                color: '#ffd700',
+                stroke: '#111625',
+                strokeThickness: 3,
+                fontStyle: '900'
             }).setOrigin(0.5);
 
             this._newMobModalContent.add([leftMob, rightMob, mergeLabel]);
@@ -1866,6 +1976,7 @@ class GameScene extends Phaser.Scene {
     }
 
     _onResetProgress() {
+        this._isResetting = true;
         SaveManager.reset();
         if (typeof SoundManager !== 'undefined') {
             SoundManager.playPop();
@@ -1875,27 +1986,65 @@ class GameScene extends Phaser.Scene {
 
     _makeButton(cx, cy, w, h, label, color, callback, fontSize = '13px') {
         const hex = parseInt(color.replace('#', ''), 16);
+        const r = Math.max(0, ((hex >> 16) & 0xff) - 55);
+        const g = Math.max(0, ((hex >> 8) & 0xff) - 55);
+        const b = Math.max(0, (hex & 0xff) - 55);
+        const shadowColor = (r << 16) | (g << 8) | b;
+        const depth = 4;
+        const radius = 12;
+
         const bg = this.add.graphics();
-        drawRoundRect(bg, cx - w / 2, cy - h / 2, w, h, 8, hex, 1);
+        const drawBtn = (pressed = false) => {
+            bg.clear();
+            const yOffset = pressed ? depth : 0;
+            // Теневая 3D основа
+            drawRoundRect(bg, cx - w / 2, cy - h / 2 + depth, w, h, radius, shadowColor, 1);
+            // Верхняя часть кнопки
+            drawRoundRect(bg, cx - w / 2, cy - h / 2 + yOffset, w, h, radius, hex, 1, 0xffffff, 1.8);
+            // Блик сверху
+            bg.fillStyle(0xffffff, 0.28);
+            bg.fillRoundedRect(cx - w / 2 + 3, cy - h / 2 + yOffset + 2, w - 6, Math.floor(h * 0.42), radius - 2);
+        };
+
+        drawBtn(false);
 
         const txt = this.add.text(cx, cy, label, {
-            fontSize, fontFamily: 'monospace',
-            color: '#ffffff', stroke: '#000000', strokeThickness: 2, fontStyle: 'bold',
+            fontSize,
+            fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#ffffff',
+            stroke: '#111625',
+            strokeThickness: 3,
+            fontStyle: '800',
+            align: 'center',
         }).setOrigin(0.5).setDepth(1);
 
-        const hitArea = this.add.rectangle(cx, cy, w, h, 0, 0).setInteractive({ cursor: 'pointer' });
+        const hitArea = this.add.rectangle(cx, cy + depth / 2, w, h + depth, 0, 0)
+            .setInteractive({ cursor: 'pointer' });
+
         hitArea.on('pointerdown', () => {
             if (typeof SoundManager !== 'undefined') {
                 SoundManager.playClick();
             }
-            this.tweens.add({ targets: [bg, txt], scaleX: 0.95, scaleY: 0.95, duration: 60, yoyo: true });
-            callback();
+            drawBtn(true);
+            txt.y = cy + depth;
         });
+
+        const release = () => {
+            drawBtn(false);
+            txt.y = cy;
+        };
+
+        hitArea.on('pointerup', () => {
+            release();
+            if (callback) callback();
+        });
+        hitArea.on('pointerout', release);
 
         return [bg, txt, hitArea];
     }
 
     _save() {
+        if (this._isResetting) return;
         const fieldState = this.mergeField.toState();
         this.state.player         = this.economy.toState();
         this.state.field          = fieldState.field;
@@ -1908,6 +2057,8 @@ class GameScene extends Phaser.Scene {
     }
 
     shutdown() {
-        this._save();
+        if (!this._isResetting) {
+            this._save();
+        }
     }
 }

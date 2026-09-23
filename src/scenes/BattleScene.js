@@ -48,23 +48,44 @@ class BattleScene extends Phaser.Scene {
         const W = CONFIG.WIDTH;
         const H = CONFIG.HEIGHT;
 
-        // Небо
+        // 1. Нежно-голубое градиентное небо
         const sky = this.add.graphics();
-        sky.fillGradientStyle(0x56a635, 0x56a635, 0x2d5a27, 0x2d5a27, 1);
-        sky.fillRect(0, 0, W, H);
+        sky.fillGradientStyle(0x5cbcf6, 0x5cbcf6, 0xc8eeff, 0xc8eeff, 1);
+        sky.fillRect(0, 0, W, H * 0.44);
 
-        // Деревья по бокам
-        for (let i = 0; i < 6; i++) {
-            const tx = 60 + i * 165;
-            const tree = this.add.graphics();
-            tree.fillStyle(0x1e3f18, 0.7);
-            tree.fillRect(tx - 25, 0, 50, H);
+        // 2. Пушистые облака на горизонте
+        for (let i = 0; i < 4; i++) {
+            const cx = 120 + i * 235;
+            const cy = 35 + (i % 2) * 18;
+            const cg = this.add.graphics();
+            cg.fillStyle(0xffffff, 0.85);
+            cg.fillCircle(cx, cy, 20);
+            cg.fillCircle(cx - 14, cy + 4, 14);
+            cg.fillCircle(cx + 14, cy + 4, 14);
+            cg.fillRoundedRect(cx - 26, cy + 4, 52, 12, 6);
         }
 
-        // Тропинка по центру
+        // 3. Мягкие зеленые холмы
+        const hills = this.add.graphics();
+        hills.fillStyle(0x7ecb3e, 1);
+        hills.beginPath();
+        hills.arc(220, H * 0.43 + 60, 240, Math.PI, 0, false);
+        hills.arc(720, H * 0.43 + 60, 260, Math.PI, 0, false);
+        hills.fillPath();
+
+        // 4. Тёплый фисташковый луг без резких полос
+        const ground = this.add.graphics();
+        ground.fillGradientStyle(0x9ee54f, 0x9ee54f, 0x6bbd29, 0x6bbd29, 1);
+        ground.fillRect(0, H * 0.36, W, H * 0.64);
+
+        // 5. Песчаная мягкая дорожка между мобами и сундуком
         const path = this.add.graphics();
-        path.fillStyle(0xa47c48, 0.85);
-        path.fillRect(0, H - 120, W, 120);
+        drawRoundRect(path, 40, H / 2 - 40, W - 80, 80, 20, 0xf6d59b, 0.55);
+
+        // 6. Мягкое солнечное пятно в центре
+        const centerSun = this.add.graphics();
+        centerSun.fillStyle(0xffffff, 0.12);
+        centerSun.fillEllipse(W / 2, H / 2, 420, 180);
     }
 
     // ============================================================
@@ -164,7 +185,7 @@ class BattleScene extends Phaser.Scene {
 
     _drawWoodenWall(g, x, y, w, h) {
         g.clear();
-        // Деревянная текстура (доски как в Minecraft)
+        // Деревянная текстура (доски)
         g.fillStyle(0xb27848, 1);
         g.fillRoundedRect(x, y, w, h, 8);
 
@@ -216,13 +237,13 @@ class BattleScene extends Phaser.Scene {
             const emoji = this.add.text(cx, y - 6, mob.emoji, { fontSize: '42px' }).setOrigin(0.5);
 
             const nameT = this.add.text(cx, y + 26, mob.name, {
-                fontSize: '10px', fontFamily: 'monospace', color: '#ffffff',
-                stroke: '#000', strokeThickness: 2, fontStyle: 'bold',
+                fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#ffffff',
+                stroke: '#111625', strokeThickness: 2, fontStyle: '800',
             }).setOrigin(0.5, 0);
 
-            const atkT = this.add.text(cx, y + 38, `⚔${formatNumber(mob.atk)}`, {
-                fontSize: '11px', fontFamily: 'monospace', color: isPlayer ? '#5dff6e' : '#ff7979',
-                fontStyle: 'bold',
+            const atkT = this.add.text(cx, y + 39, `⚔${formatNumber(mob.atk)}`, {
+                fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: isPlayer ? '#4ade80' : '#f87171',
+                stroke: '#111625', strokeThickness: 2, fontStyle: '800',
             }).setOrigin(0.5, 0);
 
             sprites.push({ bg, emoji, nameT, atkT, mob, x: cx, y });
@@ -321,12 +342,8 @@ class BattleScene extends Phaser.Scene {
         const wallG = isPlayer ? this.pWallGraphics : this.bWallGraphics;
         shakeObject(this, wallG);
 
-        // Всплывающий урон на стенке
-        const hitWords = isPlayer ? ['БАМ!', 'КРИТ!', 'УДАР!', 'POW!'] : ['ТУК!', 'ХРЯСЬ!', 'THUMP!'];
-        const word = hitWords[Math.floor(Math.random() * hitWords.length)];
-        const textColor = isCrit ? '#ff3838' : (isPlayer ? '#ffd700' : '#ff9f43');
-
-        spawnFloatingText(this, hitX + (isPlayer ? 10 : -10), hitY, `${word} ${formatNumber(damage)}`, textColor);
+        // Всплывающий урон на стенке (аккуратный цветной бейдж с округлыми краями)
+        this._spawnDamageBadge(hitX + (isPlayer ? 10 : -10), hitY, damage, isCrit, isPlayer);
 
         // Уменьшение HP
         if (isPlayer) {
@@ -425,11 +442,11 @@ class BattleScene extends Phaser.Scene {
 
         // Метки множителей над шкалой
         const labelY = trackY - 18;
-        const lX2Left  = this.add.text(-trackW / 2 + 10, labelY, 'x2', { fontSize: '11px', fontFamily: 'monospace', color: '#888', fontStyle: 'bold' }).setOrigin(0.5);
-        const lX3Left  = this.add.text(-trackW / 4, labelY, 'x3', { fontSize: '12px', fontFamily: 'monospace', color: '#888', fontStyle: 'bold' }).setOrigin(0.5);
-        const lX5Mid   = this.add.text(0, labelY, 'x5 🔥', { fontSize: '16px', fontFamily: 'monospace', color: '#d35400', fontStyle: 'bold' }).setOrigin(0.5);
-        const lX3Right = this.add.text(trackW / 4, labelY, 'x3', { fontSize: '12px', fontFamily: 'monospace', color: '#888', fontStyle: 'bold' }).setOrigin(0.5);
-        const lX2Right = this.add.text(trackW / 2 - 10, labelY, 'x2', { fontSize: '11px', fontFamily: 'monospace', color: '#888', fontStyle: 'bold' }).setOrigin(0.5);
+        const lX2Left  = this.add.text(-trackW / 2 + 10, labelY, 'x2', { fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#888', fontStyle: '800' }).setOrigin(0.5);
+        const lX3Left  = this.add.text(-trackW / 4, labelY, 'x3', { fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#888', fontStyle: '800' }).setOrigin(0.5);
+        const lX5Mid   = this.add.text(0, labelY, 'x5 🔥', { fontSize: '16px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#e11d48', fontStyle: '900' }).setOrigin(0.5);
+        const lX3Right = this.add.text(trackW / 4, labelY, 'x3', { fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#888', fontStyle: '800' }).setOrigin(0.5);
+        const lX2Right = this.add.text(trackW / 2 - 10, labelY, 'x2', { fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#888', fontStyle: '800' }).setOrigin(0.5);
 
         // Бегающий ползунок
         const knobContainer = this.add.container(0, trackY);
@@ -463,7 +480,7 @@ class BattleScene extends Phaser.Scene {
 
         // Текстовая кнопка "НЕ НАДО" (забрать 1x без рекламы)
         const skipTxt = this.add.text(0, 124, 'НЕ НАДО', {
-            fontSize: '13px', fontFamily: 'monospace', color: '#7f8c8d', fontStyle: 'bold'
+            fontSize: '13px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#7f8c8d', fontStyle: '800'
         }).setOrigin(0.5).setInteractive({ cursor: 'pointer' });
 
         skipTxt.on('pointerdown', () => {
@@ -524,20 +541,81 @@ class BattleScene extends Phaser.Scene {
     }
 
     _makeButton(cx, cy, w, h, label, color, callback, fontSize = '15px') {
-        const hex = parseInt(color.replace('#', ''), 16);
+        const hex = typeof color === 'string' ? parseInt(color.replace('#', ''), 16) : color;
         const bg = this.add.graphics();
-        drawRoundRect(bg, cx - w / 2, cy - h / 2, w, h, 8, hex, 1);
-        const txt = this.add.text(cx, cy, label, {
-            fontSize, fontFamily: 'monospace',
-            color: '#fff', stroke: '#000', strokeThickness: 2, fontStyle: 'bold',
+        const shadowHex = typeof darkenColor === 'function' ? darkenColor(hex, 0.42) : 0x111625;
+        // 3D bottom base shadow
+        drawRoundRect(bg, cx - w / 2, cy - h / 2 + 3, w, h, 10, shadowHex, 1);
+        // Face button
+        drawRoundRect(bg, cx - w / 2, cy - h / 2, w, h - 2, 10, hex, 1);
+        // Top highlight
+        bg.fillStyle(0xffffff, 0.25);
+        bg.fillRoundedRect(cx - w / 2 + 4, cy - h / 2 + 2, w - 8, Math.floor((h - 2) * 0.42), 5);
+
+        const txt = this.add.text(cx, cy - 1, label, {
+            fontSize,
+            fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#fff',
+            stroke: '#111625',
+            strokeThickness: 2.5,
+            fontStyle: '800',
         }).setOrigin(0.5);
+
         const hit = this.add.rectangle(cx, cy, w, h, 0, 0).setInteractive({ cursor: 'pointer' });
         hit.on('pointerdown', () => {
             if (typeof SoundManager !== 'undefined') {
                 SoundManager.playClick();
             }
-            callback();
+            bg.y += 2;
+            txt.y += 2;
+            this.time.delayedCall(90, () => {
+                bg.y -= 2;
+                txt.y -= 2;
+                callback();
+            });
         });
         return [bg, txt, hit];
+    }
+
+    _spawnDamageBadge(x, y, damage, isCrit, isPlayer) {
+        const container = this.add.container(x, y).setDepth(200);
+        const badgeBg = this.add.graphics();
+        const icon = isCrit ? '⚡' : '💥';
+        const label = isCrit ? `КРИТ -${formatNumber(damage)}` : `-${formatNumber(damage)}`;
+        // If isPlayer wall was hit, show orange/red. If bot wall was hit, show emerald/cyan.
+        const bgHex = isCrit ? 0xdc2626 : (isPlayer ? 0xef4444 : 0x10b981);
+        const txt = this.add.text(0, 0, `${icon} ${label}`, {
+            fontSize: isCrit ? '14px' : '12px',
+            fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#ffffff',
+            stroke: '#111625',
+            strokeThickness: 2.5,
+            fontStyle: '900',
+        }).setOrigin(0.5);
+
+        const badgeW = txt.width + 16;
+        const badgeH = isCrit ? 26 : 22;
+        drawRoundRect(badgeBg, -badgeW / 2, -badgeH / 2, badgeW, badgeH, badgeH / 2, bgHex, 0.95, 0xffffff, 1.5);
+        container.add([badgeBg, txt]);
+        container.setScale(0.4);
+
+        this.tweens.add({
+            targets: container,
+            y: y - 36,
+            scaleX: isCrit ? 1.25 : 1.0,
+            scaleY: isCrit ? 1.25 : 1.0,
+            duration: 180,
+            ease: 'Back.Out',
+            onComplete: () => {
+                this.tweens.add({
+                    targets: container,
+                    y: y - 64,
+                    alpha: 0,
+                    duration: 380,
+                    ease: 'Quad.In',
+                    onComplete: () => container.destroy()
+                });
+            }
+        });
     }
 }

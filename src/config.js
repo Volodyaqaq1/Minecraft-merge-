@@ -49,14 +49,21 @@ const CONFIG = {
     BATTLE_PRIZE_MULTIPLIER: 2.0,  // базовый приз = сумма atk всех мобов × 2.0
     BOT_CHALLENGE_INTERVAL: 90000, // вызов на бой раз в 90 сек
 
-    // --- UI Цвета ---
+    // --- Шрифты и UI ---
+    FONT_FAMILY: "'Nunito', sans-serif",
+
+    // --- UI Цвета (Пастельная казуальная палитра) ---
     COLORS: {
-        BG:           0x2d5a27,
+        BG:           0x7bc638,
+        BG_LIGHT:     0x9de64e,
+        SKY_TOP:      0x64b8f5,
+        SKY_BOTTOM:   0xc0e8ff,
         PANEL:        0x16213e,
+        PANEL_LIGHT:  0x3b82f6,
         PANEL_DARK:   0x0f3460,
         GOLD:         0xffd700,
-        EMERALD:      0x5dff6e,
-        RED:          0xff4444,
+        EMERALD:      0x2ed573,
+        RED:          0xef4444,
         WHITE:        0xffffff,
     },
 };
