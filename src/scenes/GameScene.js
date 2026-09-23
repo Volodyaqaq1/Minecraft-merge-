@@ -48,6 +48,13 @@ class GameScene extends Phaser.Scene {
             }
         };
 
+        // Открытие нового моба из любого источника (магазин, реклама, инкубатор)
+        this.mergeField.onNewMobDiscovered = (newMob) => {
+            this._updateShopButton();
+            this._updateLeftStatusCard();
+            this._showNewMobUnlockModal(newMob);
+        };
+
         // ─── 3. Верхняя панель (уровень, комбо-шкала x1-x5, монеты, подарки) ───
         this._buildTopBar();
 
@@ -69,8 +76,10 @@ class GameScene extends Phaser.Scene {
 
         // ─── 8. Привязка событий экономики к UI ───
         this.economy.onCoinsChange = (val) => this._setCoinsText(val);
+        this.economy.onXPChange = (details) => this._updateLevelWidget(details);
         this.economy.onLevelChange = (lvl) => {
-            if (this._levelText) this._levelText.setText(`Уровень ${lvl}`);
+            this._updateLevelWidget();
+            spawnFloatingText(this, 84, 65, `НОВЫЙ УРОВЕНЬ ${lvl}! 🌟`, '#ffd700');
         };
 
         // ─── 9. Таймер секунд (для онлайна и инкубатора) ───
@@ -145,24 +154,17 @@ class GameScene extends Phaser.Scene {
     _buildTopBar() {
         const W = CONFIG.WIDTH;
 
-        // 1. Уровень игрока (слева)
-        const lvlBg = this.add.graphics();
-        drawRoundRect(lvlBg, 16, 12, 130, 42, 10, 0xffffff, 0.9, 0xdddddd, 2);
-        this._levelText = this.add.text(81, 33, `Уровень ${this.economy.level}`, {
-            fontSize: '14px',
-            fontFamily: 'monospace',
-            color: '#333333',
-            fontStyle: 'bold',
-        }).setOrigin(0.5);
+        // 1. Кнопка уровня с прогресс-баром опыта (слева)
+        this._buildLevelWidget(14, 12, 142, 42);
 
         // 2. Кнопка "🎁 Подарки" (открывает меню наград за время в игре)
-        const [fBg, fTxt, fHit] = this._makeButton(225, 33, 130, 42, '🎁 Подарки', '#27ae60', () => {
+        const [fBg, fTxt, fHit] = this._makeButton(228, 33, 126, 42, '🎁 Подарки', '#27ae60', () => {
             this._openPlaytimeModal();
         });
         this._giftBtnText = fTxt;
 
         // 3. Комбо-шкала множителя (центр: x1 x2 x3 x4 x5)
-        this._buildComboBar(310, 18, 240, 30);
+        this._buildComboBar(306, 18, 240, 30);
 
         // 4. Баланс изумрудов (справа)
         const coinBg = this.add.graphics();
@@ -175,6 +177,60 @@ class GameScene extends Phaser.Scene {
             color: '#2e7d32',
             fontStyle: 'bold',
         }).setOrigin(1, 0.5);
+    }
+
+    _buildLevelWidget(x, y, w, h) {
+        this.levelWidgetX = x;
+        this.levelWidgetY = y;
+        this.levelWidgetW = w;
+        this.levelWidgetH = h;
+
+        this.levelWidgetBg = this.add.graphics();
+        this.levelWidgetFill = this.add.graphics();
+
+        this.levelWidgetTitle = this.add.text(x + w / 2, y + 13, '', {
+            fontSize: '12px',
+            fontFamily: 'monospace',
+            color: '#ffffff',
+            stroke: '#000000',
+            strokeThickness: 2,
+            fontStyle: 'bold',
+        }).setOrigin(0.5);
+
+        this.levelWidgetSub = this.add.text(x + w / 2, y + 28, '', {
+            fontSize: '9px',
+            fontFamily: 'monospace',
+            color: '#ffd700',
+            stroke: '#000000',
+            strokeThickness: 1,
+            fontStyle: 'bold',
+        }).setOrigin(0.5);
+
+        this._updateLevelWidget();
+    }
+
+    _updateLevelWidget(details) {
+        if (!details) {
+            details = this.economy.getXPDetails();
+        }
+
+        const { levelWidgetX: x, levelWidgetY: y, levelWidgetW: w, levelWidgetH: h } = this;
+        if (!this.levelWidgetBg) return;
+
+        // Фон виджета уровня
+        this.levelWidgetBg.clear();
+        drawRoundRect(this.levelWidgetBg, x, y, w, h, 8, 0x16213e, 0.95, 0x3d5a80, 2);
+
+        // Полоска опыта
+        this.levelWidgetFill.clear();
+        const fillW = Math.floor((w - 4) * Math.max(0, Math.min(1, details.progress)));
+        if (fillW > 0) {
+            this.levelWidgetFill.fillStyle(0x00c9ff, 0.85);
+            this.levelWidgetFill.fillRoundedRect(x + 2, y + 2, fillW, h - 4, 6);
+        }
+
+        this.levelWidgetTitle.setText(`⛏ Уровень ${details.level}`);
+        this.levelWidgetSub.setText(`${formatNumber(details.curInLevel)} / ${formatNumber(details.neededInLevel)} XP`);
     }
 
     _buildComboBar(x, y, w, h) {
@@ -1093,9 +1149,12 @@ class GameScene extends Phaser.Scene {
         const playerTeam = [...this._selectedFighters].map(i => this._fighterMobsRef[i].mob);
         this._fighterModal.setVisible(false);
 
+        // Случайный подбор команды бота: слабее, равный (50 на 50), или сильнее
+        const botTeam = generateBotTeam(playerTeam);
+
         this.scene.start('BattleScene', {
             playerTeam,
-            botTeam: this._currentBotTeam,
+            botTeam,
             botName: this._currentBotName,
             economy: this.economy,
         });

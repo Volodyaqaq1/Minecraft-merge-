@@ -115,10 +115,19 @@ class BattleScene extends Phaser.Scene {
         this.pWallGraphics = this.add.graphics();
         this._drawWoodenWall(this.pWallGraphics, this.pWallX - wallW / 2, this.pWallY - wallH / 2, wallW, wallH);
 
-        // Суммарный урон игрока и начальное HP стенки
         const pTotalAtk = this.playerTeam.reduce((s, m) => s + m.atk, 0);
-        this.pWallMaxHP = Math.max(100, Math.round(pTotalAtk * CONFIG.BATTLE_WALL_HP_FACTOR));
-        this.pWallHP    = this.pWallMaxHP;
+        const bTotalAtk = this.botTeam.reduce((s, m) => s + m.atk, 0);
+
+        // ОБЕ СТЕНКИ ИМЕЮТ ОДИНАКОВОЕ ЗДОРОВЬЕ:
+        // Рассчитывается от среднего урона матча.
+        // - Если мобы одинаковые: честный шанс 50 на 50 (решают криты)!
+        // - Если мобы игрока сильнее: игрок сносит стенку быстрее и побеждает!
+        // - Если мобы бота сильнее: бот побеждает!
+        const avgAtk = Math.max(10, (pTotalAtk + bTotalAtk) / 2);
+        const matchWallHP = Math.max(80, Math.round(avgAtk * CONFIG.BATTLE_WALL_HP_FACTOR));
+
+        this.pWallMaxHP = matchWallHP;
+        this.pWallHP    = matchWallHP;
 
         // HP бар стенки игрока (зеленый снизу)
         const pBarBg = this.add.graphics();
@@ -136,11 +145,8 @@ class BattleScene extends Phaser.Scene {
         this.bWallGraphics = this.add.graphics();
         this._drawWoodenWall(this.bWallGraphics, this.bWallX - wallW / 2, this.bWallY - wallH / 2, wallW, wallH);
 
-        const bTotalAtk = this.botTeam.reduce((s, m) => s + m.atk, 0);
-        // Небольшой случайный фактор (0.95 - 1.15) для драматичных концовок
-        const botFactor = 0.95 + Math.random() * 0.18;
-        this.bWallMaxHP = Math.max(100, Math.round(bTotalAtk * CONFIG.BATTLE_WALL_HP_FACTOR * botFactor));
-        this.bWallHP    = this.bWallMaxHP;
+        this.bWallMaxHP = matchWallHP;
+        this.bWallHP    = matchWallHP;
 
         // HP бар стенки бота (красный снизу)
         const bBarBg = this.add.graphics();
@@ -242,7 +248,7 @@ class BattleScene extends Phaser.Scene {
 
         // Каждый моб бота периодически атакует СВОЮ стенку
         this.botTeam.forEach((mob, i) => {
-            const stagger = 120 + i * 220;
+            const stagger = i * 220;
             this.time.addEvent({
                 delay: CONFIG.BATTLE_ATTACK_SPEED,
                 startAt: stagger,
@@ -321,7 +327,6 @@ class BattleScene extends Phaser.Scene {
             this._updateWallHPBar('player');
 
             if (this.pWallHP <= 0) {
-                // ИГРОК ПЕРВЫМ СЛОМАЛ СТЕНКУ!
                 this.pWallHP = 0;
                 this._endBattle('player');
             }
@@ -330,7 +335,6 @@ class BattleScene extends Phaser.Scene {
             this._updateWallHPBar('bot');
 
             if (this.bWallHP <= 0) {
-                // БОТ ПЕРВЫМ СЛОМАЛ СТЕНКУ!
                 this.bWallHP = 0;
                 this._endBattle('bot');
             }
@@ -377,12 +381,13 @@ class BattleScene extends Phaser.Scene {
             isWin ? 0xffd700 : 0xff4757, 3);
 
         const emoji = isWin ? '🏆' : '💀';
-        const title = isWin ? 'СОКРОВИЩЕ ВАШЕ!' : 'БОТ ПРОРВАЛСЯ ПЕРВЫМ!';
+        // По требованию: пишем «ник бота вас опередил» при поражении
+        const title = isWin ? 'СОКРОВИЩЕ ВАШЕ!' : `${this.botName} вас опередил!`;
         const color = isWin ? '#ffd700' : '#ff6b81';
 
         this.add.text(W / 2, H / 2 - 95, emoji, { fontSize: '48px' }).setOrigin(0.5).setDepth(202);
         this.add.text(W / 2, H / 2 - 45, title, {
-            fontSize: '20px', fontFamily: 'monospace',
+            fontSize: '18px', fontFamily: 'monospace',
             color, stroke: '#000', strokeThickness: 3, fontStyle: 'bold',
         }).setOrigin(0.5).setDepth(202);
 
@@ -393,8 +398,17 @@ class BattleScene extends Phaser.Scene {
                 color: '#5dff6e', stroke: '#000', strokeThickness: 2, fontStyle: 'bold',
             }).setOrigin(0.5).setDepth(202);
         } else {
-            this.add.text(W / 2, H / 2 + 5, 'Объединяйте мобов и попробуйте снова!', {
-                fontSize: '12px', fontFamily: 'monospace', color: '#dddddd',
+            // По требованию: 0.5 (50%) от возможной награды при поражении!
+            const halfPrize = Math.floor(this.prize * 0.5);
+            this.economy.addCoins(halfPrize);
+
+            this.add.text(W / 2, H / 2 - 2, `+💎 ${formatNumber(halfPrize)} изумрудов`, {
+                fontSize: '17px', fontFamily: 'monospace',
+                color: '#5dff6e', stroke: '#000', strokeThickness: 2, fontStyle: 'bold',
+            }).setOrigin(0.5).setDepth(202);
+
+            this.add.text(W / 2, H / 2 + 25, '(Утешительная награда 50%)', {
+                fontSize: '12px', fontFamily: 'monospace', color: '#ffd700',
             }).setOrigin(0.5).setDepth(202);
         }
 

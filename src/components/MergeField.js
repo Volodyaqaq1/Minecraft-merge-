@@ -14,19 +14,27 @@ class MergeField {
         this.bounds   = CONFIG.FIELD_BOUNDS;
         this.mobSize  = CONFIG.MOB_SIZE;
 
-        // Коллекция открытых мобов
-        this.collection = new Set(state.collection || [1]);
+        // Коллекция открытых мобов (числа уровней)
+        this.collection = new Set();
+        if (Array.isArray(state.collection) && state.collection.length > 0) {
+            state.collection.forEach(lvl => this.collection.add(Number(lvl)));
+        } else {
+            this.collection.add(1);
+        }
 
         // Список всех активных мобов на поле: [{ id, mobLevel, container, x, y }]
         this.mobs = [];
         this._nextId = 1;
 
         // Коллбеки наружу (для GameScene)
-        this.onMobClick     = null; // fn(mobData) -> кликер
-        this.onMergeSuccess = null; // fn(newMob) -> обновить магазин
+        this.onMobClick          = null; // fn(mobData) -> кликер
+        this.onMergeSuccess      = null; // fn(newMob, isNew) -> обновить магазин и показать модалку
+        this.onNewMobDiscovered  = null; // fn(newMob) -> открытие нового моба из любого источника
 
-        // Загрузить мобов из сохранения
+        // Загрузить мобов из сохранения без ложных модалок открытия
+        this._isLoading = true;
         this._loadFromState(state.field || []);
+        this._isLoading = false;
     }
 
     // ============================================================
@@ -53,8 +61,15 @@ class MergeField {
         mobItem.container.setScale(1.0);
         this.mobs.push(mobItem);
 
-        // Добавляем в коллекцию
+        // Проверяем, открыт ли этот уровень впервые
+        const isNew = !this.collection.has(mob.level);
         this.collection.add(mob.level);
+
+        if (isNew && !this._isLoading) {
+            if (this.onNewMobDiscovered) {
+                this.onNewMobDiscovered(mob);
+            }
+        }
 
         // Анимация плавного появления
         mobItem.container.setScale(0);
@@ -157,7 +172,7 @@ class MergeField {
         container.on('dragend', (ptr) => {
             container.setDepth(20);
 
-            // Всегда плавно сбрасываем масштаб ровно в 1.0!
+            // Всегда плавно сбрасываем масштаб ровно в 1.0
             scene.tweens.add({
                 targets: container,
                 scaleX: 1.0,
@@ -200,6 +215,11 @@ class MergeField {
                 if (container) container.setScale(1.0);
             }
         });
+
+        // Начисляем немного опыта за клик
+        if (CONFIG.XP_PER_CLICK) {
+            this.economy.addXP(CONFIG.XP_PER_CLICK);
+        }
 
         // Оповещаем GameScene для начисления награды и роста комбо
         if (this.onMobClick) {
@@ -297,7 +317,7 @@ class MergeField {
             }
         });
 
-        // 3. Награда за слияние: ТОЛЬКО ОПЫТ (без монет по требованию пользователя!)
+        // 3. Награда за слияние: ТОЛЬКО ОПЫТ (без монет)
         const xpEarned = this.economy.onMerge(newMob);
         spawnFloatingText(this.scene, targetX, targetY - 45, `+${xpEarned} XP ⭐`, '#ffd700');
 
@@ -339,7 +359,7 @@ class MergeField {
                 x: Math.round(m.container ? m.container.x : m.x),
                 y: Math.round(m.container ? m.container.y : m.y),
             })),
-            collection: [...this.collection],
+            collection: Array.from(this.collection),
         };
     }
 }
