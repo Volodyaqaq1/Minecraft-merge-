@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+</head>
+<body>
+<div id="game-container"></div>
+<script>
+function start() {
+    new Phaser.Game({
+        type: Phaser.HEADLESS,
+        width: 1920,
+        height: 1080,
+        scene: {
+            create() {
+                const cam = this.cameras.main;
+                cam.setZoom(2);
+                cam.centerOn(480, 270);
+                cam.preRender();
+
+                const item = this.add.rectangle(480, 270, 80, 80, 0x00ff88).setInteractive();
+
+                const rawX = 960;
+                const rawY = 540;
+                const wp = cam.getWorldPoint(rawX, rawY);
+
+                const isCandidate = this.input.manager.inputCandidate(item, cam);
+                
+                // Let's test pointWithinHitArea
+                const isWithin = this.input.manager.pointWithinHitArea(item, wp.x - (item.x - item.width/2), wp.y - (item.y - item.height/2));
+
+                const hitRes = this.input.manager.hitTest({ x: rawX, y: rawY }, [item], cam);
+
+                document.title = 'RESULTS_JSON:' + encodeURIComponent(JSON.stringify({
+                    wp,
+                    isCandidate,
+                    hitCount: hitRes.length,
+                    hitItem: hitRes[0] === item,
+                    itemBounds: { x: item.x, y: item.y, w: item.width, h: item.height },
+                    inputHitArea: item.input ? item.input.hitArea : null
+                }));
+                this.game.destroy(true);
+            }
+        }
+    });
+}
+start();
+</script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+</head>
+<body>
+<div id="game-container"></div>
+<script>
+function start() {
+    new Phaser.Game({
+        type: Phaser.HEADLESS,
+        width: 100,
+        height: 100,
+        scene: {
+            create() {
+                const ipProto = this.input.constructor.prototype;
+                const methods = {};
+                for (const k of Object.getOwnPropertyNames(ipProto)) {
+                    if (k.toLowerCase().includes('drag')) {
+                        methods[k] = ipProto[k].toString();
+                    }
+                }
+                // Also inspect processDragDown, processDragMove, etc.
+                const ipKeys = Object.keys(this.input).filter(k => k.toLowerCase().includes('drag'));
+                document.title = 'RESULTS_JSON:' + encodeURIComponent(JSON.stringify({ methods, ipKeys }));
+                this.game.destroy(true);
+            }
+        }
+    });
+}
+start();
+</script>
+</body>
+</html>

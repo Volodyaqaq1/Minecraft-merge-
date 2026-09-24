@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html, body { width:100%; height:100%; overflow:hidden; background:#111625; }
+        #game-container { position:fixed; top:0; left:0; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+    </style>
+</head>
+<body>
+<div id="game-container"></div>
+<script>
+const LOGICAL_WIDTH = 960;
+const LOGICAL_HEIGHT = 540;
+const RENDER_SCALE = 2; // Full HD backing buffer
+
+function setupHiDPICamera(camera, renderScale) {
+    camera.setZoom(renderScale);
+    camera.centerOn(LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2);
+    // Pre-calculate camera matrices immediately so frame 0 doesn't have uninitialized midPoint
+    camera.preRender();
+}
+
+function getLogicalCoords(pointer, camera) {
+    if (camera) {
+        return camera.getWorldPoint(pointer.x, pointer.y);
+    }
+    return { x: pointer.worldX, y: pointer.worldY };
+}
+
+function start() {
+    const config = {
+        type: Phaser.WEBGL,
+        width: LOGICAL_WIDTH * RENDER_SCALE,   // 1920 physical
+        height: LOGICAL_HEIGHT * RENDER_SCALE, // 1080 physical
+        parent: 'game-container',
+        scale: {
+            mode: Phaser.Scale.FIT,
+            autoCenter: Phaser.Scale.CENTER_BOTH,
+        },
+        scene: {
+            create() {
+                const cam = this.cameras.main;
+                setupHiDPICamera(cam, RENDER_SCALE);
+
+                // Add center item at logical (480, 270)
+                const item = this.add.rectangle(480, 270, 80, 80, 0x00ff88).setInteractive();
+                this.input.setDraggable(item);
+
+                let clicked = false;
+                let draggedTo = null;
+
+                item.on('pointerdown', (ptr) => {
+                    clicked = true;
+                });
+
+                item.on('drag', (ptr, dragX, dragY) => {
+                    item.x = dragX;
+                    item.y = dragY;
+                    draggedTo = { x: dragX, y: dragY };
+                });
+
+                // Test simulating pointer click at screen center
+                const canvas = this.scale.canvas;
+                const rect = canvas.getBoundingClientRect();
+                const screenCenterX = rect.left + rect.width / 2;
+                const screenCenterY = rect.top + rect.height / 2;
+
+                const rawX = this.scale.transformX(screenCenterX);
+                const rawY = this.scale.transformY(screenCenterY);
+                const worldP = cam.getWorldPoint(rawX, rawY);
+
+                // Hit test
+                const hits = this.input.hitTestPointer({
+                    x: rawX,
+                    y: rawY,
+                    camera: cam
+                });
+
+                // Test drag calculation: if pointer moves +50 physical pixels (= +25 logical)
+                const movedRawX = rawX + 50;
+                const movedRawY = rawY + 50;
+                const movedWorldP = cam.getWorldPoint(movedRawX, movedRawY);
+
+                const data = {
+                    backingBuffer: { w: canvas.width, h: canvas.height },
+                    cssDisplay: { w: Math.round(rect.width), h: Math.round(rect.height) },
+                    renderScale: RENDER_SCALE,
+                    rawCenter: { x: rawX, y: rawY },
+                    logicalCenter: { x: worldP.x, y: worldP.y },
+                    isLogicalCenterCorrect: Math.abs(worldP.x - 480) < 0.01 && Math.abs(worldP.y - 270) < 0.01,
+                    hitItem: hits.length > 0 && hits[0] === item,
+                    logicalMoveDelta: {
+                        dx: movedWorldP.x - worldP.x,
+                        dy: movedWorldP.y - worldP.y
+                    },
+                    expectedMoveDelta: { dx: 25, dy: 25 }
+                };
+
+                document.title = 'RESULTS_JSON:' + encodeURIComponent(JSON.stringify(data));
+                this.game.destroy(true);
+            }
+        }
+    };
+
+    new Phaser.Game(config);
+}
+
+start();
+</script>
+</body>
+</html>

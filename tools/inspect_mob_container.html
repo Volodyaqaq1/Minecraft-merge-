@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+    <script src="../src/config.js"></script>
+    <script src="../src/data/mobs.js"></script>
+    <script src="../src/data/bot_names.js"></script>
+    <script src="../src/utils/helpers.js"></script>
+    <script src="../src/utils/SoundManager.js"></script>
+    <script src="../src/components/SaveManager.js"></script>
+    <script src="../src/components/Economy.js"></script>
+    <script src="../src/components/MergeField.js"></script>
+    <script src="../src/components/BattleSystem.js"></script>
+    <script src="../src/scenes/BootScene.js"></script>
+    <script src="../src/scenes/GameScene.js"></script>
+</head>
+<body>
+<div id="game-container"></div>
+<script>
+const config = {
+    type: Phaser.HEADLESS,
+    width: 1920,
+    height: 1080,
+    scene: [BootScene, GameScene]
+};
+const game = new Phaser.Game(config);
+
+function check() {
+    const scene = game.scene.getScene('GameScene');
+    if (scene && scene.scene.isActive()) {
+        const mob = scene.mergeField.spawnMob(1, 300, 240);
+        const data = {
+            mobLevel: mob.mobLevel,
+            containerX: mob.container.x,
+            containerY: mob.container.y,
+            containerScale: mob.container.scaleX,
+            containerVisible: mob.container.visible,
+            containerChildren: mob.container.list.length,
+            childrenDetails: mob.container.list.map(c => ({
+                type: c.type,
+                texture: c.texture ? c.texture.key : null,
+                visible: c.visible,
+                alpha: c.alpha,
+                scaleX: c.scaleX,
+                scaleY: c.scaleY,
+                displayWidth: c.displayWidth,
+                displayHeight: c.displayHeight
+            })),
+            camZoom: scene.cameras.main.zoom,
+            camMid: { x: scene.cameras.main.midPoint.x, y: scene.cameras.main.midPoint.y }
+        };
+        const jsonStr = JSON.stringify(data);
+        console.log('RESULTS_JSON:' + jsonStr);
+        document.body.innerHTML += '<div id="res">' + jsonStr + '</div>';
+        game.destroy(true);
+        return;
+    }
+    requestAnimationFrame(check);
+}
+requestAnimationFrame(check);
+</script>
+</body>
+</html>

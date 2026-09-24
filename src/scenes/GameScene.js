@@ -241,73 +241,169 @@ class GameScene extends Phaser.Scene {
     _buildTopBar() {
         const W = CONFIG.WIDTH;
 
-        // 1. Кнопка шестерёнки настроек + бейдж "Уровень X"
-        this._buildSettingsAndLevelWidget(12, 10);
+        // 1. Кнопка настроек + тактильный бейдж "Уровень X"
+        this._buildSettingsAndLevelWidget(14, 10);
 
-        // 2. Кнопка "🎁 Подарки" (3D казуальная зеленая кнопка)
-        const [fBg, fTxt, fHit] = this._makeButton(246, 32, 120, 44, 'Подарки 🎁', '#22c55e', () => {
+        // 2. Кнопка "🎁 Подарки" (объемная 3D казуальная зеленая кнопка)
+        this._giftBtn = createCasualButton(this, 252, 32, 126, 44, 'Подарки 🎁', {
+            topColor: 0x22c55e,
+            bottomColor: 0x15803d,
+            strokeColor: 0x86efac,
+            fontSize: '13px',
+            radius: 13,
+            lip: 4,
+        }, () => {
             this._openPlaytimeModal();
-        }, '13px');
-        this._giftBtnText = fTxt;
+        });
+
+        // Пульсирующий индикатор уведомления о готовой награде
+        this._giftBadge = this.add.graphics();
+        this._giftBadge.fillStyle(0xef4444, 1);
+        this._giftBadge.fillCircle(252 + 50, 32 - 14, 6.5);
+        this._giftBadge.lineStyle(1.8, 0xffffff, 1);
+        this._giftBadge.strokeCircle(252 + 50, 32 - 14, 6.5);
+        this._giftBadge.setVisible(false);
+        this._giftBadge.setDepth(25);
+
+        this.tweens.add({
+            targets: this._giftBadge,
+            scaleX: 1.25,
+            scaleY: 1.25,
+            duration: 600,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
 
         // 3. Комбо-шкала множителя (шкала вверху, числа x1-x5 строго снизу под шкалой)
-        this._buildComboBar(324, 12, 226, 16);
+        this._buildComboBar(328, 12, 226, 17);
 
-        // 4. Баланс изумрудов (справа, белая карточка со скругленными краями)
+        // 4. Баланс изумрудов (справа, элегантная белая карточка со скругленными краями)
         const coinCard = this.add.graphics();
-        drawRoundRect(coinCard, W - 180, 10, 168, 44, 12, 0xffffff, 0.96, 0xe2e8f0, 2.5);
+        drawCasualCard(coinCard, W - 184, 10, 172, 44, 13, 0xffffff, 0x10b981, 0.9);
 
-        this.add.image(W - 156, 32, 'icon_gem').setDisplaySize(28, 28);
+        const gemIcon = this.add.image(W - 160, 32, 'icon_gem').setDisplaySize(28, 28);
+        this.tweens.add({
+            targets: gemIcon,
+            scaleX: 1.08,
+            scaleY: 1.08,
+            duration: 1200,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+
         this._coinsText = createHDText(this, W - 20, 32, `${formatNumber(this.economy.coins)}`, {
             fontSize: '18px',
-            color: '#1e293b',
-            fontStyle: '800',
+            color: '#0f172a',
+            fontStyle: '900',
         }).setOrigin(1, 0.5);
     }
 
     _buildSettingsAndLevelWidget(x, y) {
-        // Кнопка настроек с шестерёнкой (голубой скругленный квадрат с объемом)
+        // Кнопка настроек с шестерёнкой (голубой тактильный скругленный куб)
         const gearSize = 44;
-        const gearBg = this.add.graphics();
-        drawRoundRect(gearBg, x, y + 4, gearSize, gearSize, 12, 0x1d4ed8, 1);
-        drawRoundRect(gearBg, x, y, gearSize, gearSize, 12, 0x60a5fa, 1, 0xffffff, 1.8);
-        gearBg.fillStyle(0xffffff, 0.28);
-        gearBg.fillRoundedRect(x + 3, y + 2, gearSize - 6, 18, 10);
+        const gearContainer = this.add.container(x + gearSize / 2, y + gearSize / 2);
 
-        const gearIcon = this.add.image(x + gearSize / 2, y + gearSize / 2, 'icon_gear').setDisplaySize(24, 24);
+        const gearShadow = this.add.graphics();
+        gearShadow.fillStyle(0x1d4ed8, 1);
+        gearShadow.fillRoundedRect(-gearSize / 2, -gearSize / 2 + 4, gearSize, gearSize, 12);
+        gearContainer.add(gearShadow);
 
-        const gearHit = this.add.rectangle(x + gearSize / 2, y + gearSize / 2 + 2, gearSize, gearSize + 4, 0, 0)
+        const gearFace = this.add.container(0, 0);
+        const gearG = this.add.graphics();
+        gearG.fillStyle(0x3b82f6, 1);
+        gearG.fillRoundedRect(-gearSize / 2, -gearSize / 2, gearSize, gearSize, 12);
+        gearG.fillStyle(0xffffff, 0.25);
+        gearG.fillRoundedRect(-gearSize / 2 + 2, -gearSize / 2 + 2, gearSize - 4, 16, { tl: 10, tr: 10, bl: 2, br: 2 });
+        gearG.lineStyle(1.5, 0x93c5fd, 0.6);
+        gearG.strokeRoundedRect(-gearSize / 2, -gearSize / 2, gearSize, gearSize, 12);
+        gearFace.add(gearG);
+
+        const gearIcon = this.add.image(0, 0, 'icon_gear').setDisplaySize(24, 24);
+        gearFace.add(gearIcon);
+        gearContainer.add(gearFace);
+
+        const gearHit = this.add.rectangle(0, 2, gearSize, gearSize + 4, 0, 0)
             .setInteractive({ cursor: 'pointer' });
-        gearHit.on('pointerdown', () => {
-            if (typeof SoundManager !== 'undefined') SoundManager.playClick();
-            gearIcon.y = y + gearSize / 2 + 2;
-        });
-        gearHit.on('pointerup', () => {
-            gearIcon.y = y + gearSize / 2;
-            this._openSettingsModal();
-        });
-        gearHit.on('pointerout', () => {
-            gearIcon.y = y + gearSize / 2;
-        });
+        gearContainer.add(gearHit);
 
-        // Бейдж уровня (соединён справа, тёплый персиково-золотой фон)
-        const lvlX = x + gearSize + 5;
-        const lvlW = 118;
+        let gearDown = false;
+        gearHit.on('pointerdown', () => {
+            gearDown = true;
+            gearFace.y = 3;
+            if (typeof SoundManager !== 'undefined') SoundManager.playClick();
+        });
+        const releaseGear = () => {
+            if (!gearDown) return;
+            gearDown = false;
+            gearFace.y = 0;
+        };
+        gearHit.on('pointerup', () => {
+            if (gearDown) {
+                releaseGear();
+                this._openSettingsModal();
+            }
+        });
+        gearHit.on('pointerout', releaseGear);
+
+        // Бейдж уровня (тактильная 3D-кнопка с золотым сиянием и звездой)
+        const lvlX = x + gearSize + 6;
+        const lvlW = 120;
         const lvlH = 44;
 
-        this.levelBadgeBg = this.add.graphics();
-        drawRoundRect(this.levelBadgeBg, lvlX, y + 4, lvlW, lvlH, 12, 0xd97706, 1);
-        drawRoundRect(this.levelBadgeBg, lvlX, y, lvlW, lvlH, 12, 0xfef3c7, 1, 0xf59e0b, 2.5);
-        this.levelBadgeBg.fillStyle(0xffffff, 0.4);
-        this.levelBadgeBg.fillRoundedRect(lvlX + 3, y + 2, lvlW - 6, 18, 10);
+        const lvlContainer = this.add.container(lvlX + lvlW / 2, y + lvlH / 2);
 
-        this.levelWidgetTitle = createHDText(this, lvlX + lvlW / 2, y + lvlH / 2, `Уровень ${this.economy.level}`, {
-            fontSize: '15px',
+        const lvlShadow = this.add.graphics();
+        lvlShadow.fillStyle(0xb45309, 1);
+        lvlShadow.fillRoundedRect(-lvlW / 2, -lvlH / 2 + 4, lvlW, lvlH, 12);
+        lvlContainer.add(lvlShadow);
+
+        const lvlFace = this.add.container(0, 0);
+        const lvlG = this.add.graphics();
+        lvlG.fillStyle(0xfef3c7, 1);
+        lvlG.fillRoundedRect(-lvlW / 2, -lvlH / 2, lvlW, lvlH, 12);
+        lvlG.fillStyle(0xffffff, 0.45);
+        lvlG.fillRoundedRect(-lvlW / 2 + 3, -lvlH / 2 + 2, lvlW - 6, 17, { tl: 10, tr: 10, bl: 2, br: 2 });
+        lvlG.lineStyle(1.8, 0xf59e0b, 0.95);
+        lvlG.strokeRoundedRect(-lvlW / 2, -lvlH / 2, lvlW, lvlH, 12);
+        lvlFace.add(lvlG);
+
+        const starIcon = createHDText(this, -lvlW / 2 + 16, 0, '⭐', { fontSize: '15px' }).setOrigin(0.5);
+        lvlFace.add(starIcon);
+
+        this.levelWidgetTitle = createHDText(this, 8, 0, `Уровень ${this.economy.level}`, {
+            fontSize: '14px',
             color: '#92400e',
             stroke: '#ffffff',
             strokeThickness: 2,
-            fontStyle: '800',
+            fontStyle: '900',
         }).setOrigin(0.5);
+        lvlFace.add(this.levelWidgetTitle);
+        lvlContainer.add(lvlFace);
+
+        const lvlHit = this.add.rectangle(0, 2, lvlW, lvlH + 4, 0, 0)
+            .setInteractive({ cursor: 'pointer' });
+        lvlContainer.add(lvlHit);
+
+        let lvlDown = false;
+        lvlHit.on('pointerdown', () => {
+            lvlDown = true;
+            lvlFace.y = 3;
+            if (typeof SoundManager !== 'undefined') SoundManager.playPop();
+        });
+        const releaseLvl = () => {
+            if (!lvlDown) return;
+            lvlDown = false;
+            lvlFace.y = 0;
+        };
+        lvlHit.on('pointerup', () => {
+            if (lvlDown) {
+                releaseLvl();
+                spawnFloatingText(this, lvlX + lvlW / 2, y + lvlH + 20, `🌟 Уровень ${this.economy.level} (макс. сквиш)!`, '#ffd700');
+            }
+        });
+        lvlHit.on('pointerout', releaseLvl);
     }
 
     _updateLevelWidget() {
@@ -322,14 +418,14 @@ class GameScene extends Phaser.Scene {
         this.comboW = w;
         this.comboH = h;
 
-        // Фон шкалы комбо (деревянно-золотой багет как в референсе)
+        // Фон шкалы комбо (глубокий казуальный желоб)
         this.comboBg = this.add.graphics();
-        drawRoundRect(this.comboBg, x, y, w, h, 8, 0x3d2714, 0.95, 0x8b5a2b, 2);
+        drawRoundRect(this.comboBg, x, y, w, h, 8, 0x0f172a, 0.95, 0x334155, 1.8);
 
         // Разделительные насечки
         const step = w / 5;
         this.comboTicks = this.add.graphics();
-        this.comboTicks.lineStyle(1.5, 0x8b5a2b, 0.7);
+        this.comboTicks.lineStyle(1.5, 0x334155, 0.8);
         for (let i = 1; i < 5; i++) {
             this.comboTicks.lineBetween(x + step * i, y + 1, x + step * i, y + h - 1);
         }
@@ -337,13 +433,13 @@ class GameScene extends Phaser.Scene {
         this.comboFill = this.add.graphics();
         this.multiplierTexts = [];
         const mults = [1, 2, 3, 4, 5];
-        const candyColors = ['#ffffff', '#38bdf8', '#60a5fa', '#c084fc', '#ef4444'];
+        const candyColors = ['#94a3b8', '#38bdf8', '#60a5fa', '#c084fc', '#f87171'];
 
         // Числа x1 x2 x3 x4 x5 расположены СНИЗУ под шкалой
         mults.forEach((m, idx) => {
             const tx = x + step * idx + step / 2;
             const txt = this.add.text(tx, y + h + 11, `x${m}`, {
-                fontSize: '13px',
+                fontSize: '12px',
                 fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
                 color: candyColors[idx],
                 fontStyle: '800',
@@ -356,11 +452,6 @@ class GameScene extends Phaser.Scene {
 
     _redrawComboBar() {
         this.comboFill.clear();
-        const fillW = Math.floor((this.comboW - 4) * (this.comboGauge / 100));
-        if (fillW > 0) {
-            this.comboFill.fillStyle(0x2ed573, 0.95);
-            this.comboFill.fillRoundedRect(this.comboX + 2, this.comboY + 2, fillW, this.comboH - 4, 4);
-        }
 
         let mul = 1;
         if (this.comboGauge >= 80) mul = 5;
@@ -371,14 +462,27 @@ class GameScene extends Phaser.Scene {
 
         this.currentMultiplier = mul;
 
+        const tierColors = [0x22c55e, 0x06b6d4, 0x3b82f6, 0xa855f7, 0xef4444];
+        const fillColor = tierColors[mul - 1] || 0x22c55e;
+
+        const fillW = Math.floor((this.comboW - 4) * (this.comboGauge / 100));
+        if (fillW > 0) {
+            this.comboFill.fillStyle(fillColor, 1);
+            this.comboFill.fillRoundedRect(this.comboX + 2, this.comboY + 2, fillW, this.comboH - 4, 4);
+
+            // Верхний световой блик на заполненной части
+            this.comboFill.fillStyle(0xffffff, 0.32);
+            this.comboFill.fillRoundedRect(this.comboX + 2, this.comboY + 2, fillW, Math.max(2, (this.comboH - 4) * 0.45), { tl: 4, tr: 4, bl: 1, br: 1 });
+        }
+
         this.multiplierTexts.forEach((txt, idx) => {
             if (idx + 1 === mul) {
                 txt.setColor('#ffd700');
-                txt.setFontSize('15px');
-                txt.setStroke('#111625', 3);
+                txt.setFontSize('14px');
+                txt.setStroke('#0f172a', 3);
             } else {
                 txt.setFontSize('12px');
-                txt.setStroke('#111625', 1);
+                txt.setStroke('#0f172a', 1);
             }
         });
     }

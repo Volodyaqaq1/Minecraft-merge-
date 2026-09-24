@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html, body { width:100%; height:100%; overflow:hidden; background:#111625; }
+        #game-container { position:fixed; top:0; left:0; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+    </style>
+</head>
+<body>
+<div id="game-container"></div>
+<script>
+function start() {
+    const config = {
+        type: Phaser.AUTO,
+        width: 960,
+        height: 540,
+        resolution: 2,
+        parent: 'game-container',
+        scale: {
+            mode: Phaser.Scale.FIT,
+            autoCenter: Phaser.Scale.CENTER_BOTH,
+        },
+        scene: {
+            create() {
+                const canvas = this.scale.canvas;
+                const rect = canvas.getBoundingClientRect();
+                const data = {
+                    canvasWidth: canvas.width,
+                    canvasHeight: canvas.height,
+                    rectWidth: Math.round(rect.width),
+                    rectHeight: Math.round(rect.height),
+                    rendererResolution: this.renderer ? this.renderer.resolution : null
+                };
+                document.title = 'RESULTS_JSON:' + encodeURIComponent(JSON.stringify(data));
+                this.game.destroy(true);
+            }
+        }
+    };
+    new Phaser.Game(config);
+}
+start();
+</script>
+</body>
+</html>

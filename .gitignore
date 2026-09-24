@@ -12,3 +12,8 @@ node_modules/
 
 # Antigravity
 .gemini/
+
+# Python & Binaries
+__pycache__/
+*.exe
+*.zip
