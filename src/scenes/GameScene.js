@@ -36,6 +36,7 @@ class GameScene extends Phaser.Scene {
     }
 
     create() {
+        setupSceneHiDPICamera(this);
         const W = CONFIG.WIDTH;
         const H = CONFIG.HEIGHT;
 
@@ -2074,15 +2075,15 @@ class GameScene extends Phaser.Scene {
             (typeof CONFIG !== 'undefined' && CONFIG.DEBUG === true);
         if (!isDebug) return;
 
-        const overlayBg = this.add.graphics().setDepth(99999).setScrollFactor(0);
-        const overlayText = this.add.text(12, 12, '', {
+        const overlayBg = this.add.graphics().setDepth(99999);
+        const overlayText = this.add.text(14, 78, '', {
             fontFamily: 'monospace',
             fontSize: '11px',
             color: '#00ffcc',
             stroke: '#000000',
             strokeThickness: 3,
             lineSpacing: 3,
-        }).setDepth(100000).setScrollFactor(0);
+        }).setDepth(100000);
 
         let lastTime = performance.now();
         let frameCount = 0;
@@ -2104,20 +2105,27 @@ class GameScene extends Phaser.Scene {
                 const backingH = canvas.height;
                 const cssW = Math.round(rect.width);
                 const cssH = Math.round(rect.height);
-                const expW = Math.round(rect.width * dpr);
-                const expH = Math.round(rect.height * dpr);
-                const upscaleRatio = ((rect.width * dpr) / backingW).toFixed(2);
+                const logicalW = (typeof CONFIG !== 'undefined' && CONFIG.WIDTH) || 960;
+                const logicalH = (typeof CONFIG !== 'undefined' && CONFIG.HEIGHT) || 540;
+                const renderScale = (backingW / logicalW).toFixed(2);
+                const physicalScreenW = Math.round(rect.width * dpr);
+                const physicalScreenH = Math.round(rect.height * dpr);
+                const stretchRatio = (physicalScreenW / backingW).toFixed(2);
+                const effectivePPR = (backingW / logicalW).toFixed(2);
                 const texCount = Object.keys(this.textures.list).length;
                 const vramEstMB = ((texCount * 256 * 256 * 4) / (1024 * 1024)).toFixed(1);
 
                 const lines = [
                     `⚡ [DEV TELEMETRY]`,
-                    `FPS: ${fps} | DPR: ${dpr.toFixed(2)}`,
-                    `Canvas Backing: ${backingW}x${backingH} [MEASURED]`,
-                    `CSS Display: ${cssW}x${cssH} [MEASURED]`,
-                    `Physical Screen: ${expW}x${expH} [MEASURED]`,
-                    `Upscale Stretch: ${upscaleRatio}x [MEASURED]`,
-                    `Active Textures: ${texCount}`,
+                    `FPS: ${fps} [MEASURED]`,
+                    `Logical Resolution: ${logicalW}x${logicalH}`,
+                    `Backing Buffer Resolution: ${backingW}x${backingH} [MEASURED]`,
+                    `CSS Display Resolution: ${cssW}x${cssH} [MEASURED]`,
+                    `Render Scale: ${renderScale}x [MEASURED]`,
+                    `DPR: ${dpr.toFixed(2)} [MEASURED]`,
+                    `CSS Stretch Ratio: ${stretchRatio}x [MEASURED]`,
+                    `Effective Physical Pixels Per Logical Pixel: ${effectivePPR} [MEASURED]`,
+                    `Active Textures: ${texCount} [MEASURED]`,
                     `VRAM (Est. 256px): ~${vramEstMB} MB [ESTIMATED]`,
                 ];
 
@@ -2125,8 +2133,8 @@ class GameScene extends Phaser.Scene {
                 overlayBg.clear();
                 overlayBg.fillStyle(0x0a0f1d, 0.88);
                 overlayBg.lineStyle(1.5, 0x00ffcc, 0.7);
-                overlayBg.fillRoundedRect(6, 6, overlayText.width + 12, overlayText.height + 12, 6);
-                overlayBg.strokeRoundedRect(6, 6, overlayText.width + 12, overlayText.height + 12, 6);
+                overlayBg.fillRoundedRect(8, 72, overlayText.width + 12, overlayText.height + 12, 6);
+                overlayBg.strokeRoundedRect(8, 72, overlayText.width + 12, overlayText.height + 12, 6);
             }
         });
 

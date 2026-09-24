@@ -13,6 +13,7 @@ class BattleScene extends Phaser.Scene {
     }
 
     create() {
+        setupSceneHiDPICamera(this);
         const W = CONFIG.WIDTH;
         const H = CONFIG.HEIGHT;
 

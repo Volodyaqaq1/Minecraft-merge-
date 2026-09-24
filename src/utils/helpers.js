@@ -63,7 +63,7 @@ function getMultiplier(playerLevel) {
 }
 
 /**
- * Единый UI helper для создания четкого HD текста с учетом devicePixelRatio
+ * Единый UI helper для создания четкого HD текста с учетом devicePixelRatio и RENDER_SCALE
  * @param {Phaser.Scene} scene
  * @param {number} x
  * @param {number} y
@@ -73,7 +73,9 @@ function getMultiplier(playerLevel) {
  */
 function createHDText(scene, x, y, text, style = {}) {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const targetRes = style.resolution !== undefined ? style.resolution : dpr;
+    const renderScale = (typeof CONFIG !== 'undefined' && CONFIG.RENDER_SCALE) ? CONFIG.RENDER_SCALE : 2;
+    const defaultRes = Math.min(2, Math.max(dpr, renderScale));
+    const targetRes = style.resolution !== undefined ? style.resolution : defaultRes;
     const hdStyle = {
         fontFamily: (typeof CONFIG !== 'undefined' && CONFIG.FONT_FAMILY) || "'Nunito', sans-serif",
         ...style,
@@ -92,6 +94,39 @@ function createHDText(scene, x, y, text, style = {}) {
         configurable: true
     });
     return t;
+}
+
+/**
+ * Настроить камеру сцены для True HiDPI рендеринга.
+ * Масштабирует камеру под физический backing buffer, центрируя логический вьюпорт 960x540.
+ */
+function setupSceneHiDPICamera(scene) {
+    if (!scene || !scene.cameras || !scene.cameras.main) return;
+    const cam = scene.cameras.main;
+    const logicalW = (typeof CONFIG !== 'undefined' && CONFIG.WIDTH) || 960;
+    const logicalH = (typeof CONFIG !== 'undefined' && CONFIG.HEIGHT) || 540;
+    const renderScale = (scene.game && scene.game.config && scene.game.config.width)
+        ? (scene.game.config.width / logicalW)
+        : ((typeof CONFIG !== 'undefined' && CONFIG.RENDER_SCALE) || 1);
+    cam.setZoom(renderScale);
+    cam.centerOn(logicalW / 2, logicalH / 2);
+    // Сразу вычисляем матрицы камеры до первого кадра рендера
+    cam.preRender();
+}
+
+/**
+ * Преобразовать координаты указателя в логические координаты игры (960x540).
+ */
+function getLogicalPointer(pointer, scene) {
+    if (!pointer) return { x: 0, y: 0 };
+    const cam = (scene && scene.cameras && scene.cameras.main) || (pointer && pointer.camera);
+    if (cam) {
+        return cam.getWorldPoint(pointer.x, pointer.y);
+    }
+    return {
+        x: pointer.worldX !== undefined ? pointer.worldX : pointer.x,
+        y: pointer.worldY !== undefined ? pointer.worldY : pointer.y
+    };
 }
 
 /**

@@ -3,9 +3,20 @@
 // ============================================================
 
 const CONFIG = {
-    // --- Phaser ---
+    // --- Phaser (Logical Coordinates & HiDPI Backing Buffer) ---
+    LOGICAL_WIDTH: 960,
+    LOGICAL_HEIGHT: 540,
     WIDTH: 960,
     HEIGHT: 540,
+    // HiDPI backing buffer: 2.0x (1920x1080) on Full HD / 1366x768 / Retina screens to eliminate CSS upscaling blur.
+    RENDER_SCALE: (function() {
+        if (typeof window === 'undefined') return 2.0;
+        const dpr = window.devicePixelRatio || 1;
+        const w = (window.innerWidth || 960) * dpr;
+        const h = (window.innerHeight || 540) * dpr;
+        const scaleFactor = Math.min(w / 960, h / 540);
+        return Math.min(2.0, Math.max(1.0, scaleFactor >= 1.2 ? 2.0 : 1.0));
+    })(),
 
     // --- Свободное поле мёрджа (увеличенный масштаб под мобильные) ---
     FIELD_BOUNDS: {

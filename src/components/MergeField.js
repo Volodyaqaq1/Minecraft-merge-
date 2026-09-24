@@ -85,24 +85,30 @@ class MergeField {
             }
         }
 
-        // Анимация плавного появления с последующим покачиванием (idle wobble)
-        if (!this._isLoading && typeof SoundManager !== 'undefined') {
-            SoundManager.playPop();
-        }
-        mobItem.container.setScale(0);
-        this.scene.tweens.add({
-            targets: mobItem.container,
-            scaleX: 1.0,
-            scaleY: 1.0,
-            duration: 220,
-            ease: 'Back.Out',
-            onComplete: () => {
-                if (mobItem.container) {
-                    mobItem.container.setScale(1.0);
-                    this._startMobWobble(mobItem);
-                }
+        // Анимация появления только для динамически заспавненных мобов,
+        // мобы из сохранения сразу отображаются в нормальном масштабе 1.0
+        if (this._isLoading) {
+            mobItem.container.setScale(1.0);
+            this._startMobWobble(mobItem);
+        } else {
+            if (typeof SoundManager !== 'undefined') {
+                SoundManager.playPop();
             }
-        });
+            mobItem.container.setScale(0);
+            this.scene.tweens.add({
+                targets: mobItem.container,
+                scaleX: 1.0,
+                scaleY: 1.0,
+                duration: 220,
+                ease: 'Back.Out',
+                onComplete: () => {
+                    if (mobItem.container) {
+                        mobItem.container.setScale(1.0);
+                        this._startMobWobble(mobItem);
+                    }
+                }
+            });
+        }
 
         return mobItem;
     }
@@ -203,7 +209,9 @@ class MergeField {
         let hasMoved = false;
 
         container.on('pointerdown', (ptr) => {
-            startPointerPos = { x: ptr.x, y: ptr.y };
+            const wx = ptr.worldX !== undefined ? ptr.worldX : ptr.x;
+            const wy = ptr.worldY !== undefined ? ptr.worldY : ptr.y;
+            startPointerPos = { x: wx, y: wy };
             hasMoved = false;
         });
 
@@ -221,7 +229,9 @@ class MergeField {
         container.on('drag', (ptr, dragX, dragY) => {
             container.x = dragX;
             container.y = dragY;
-            if (Phaser.Math.Distance.Between(startPointerPos.x, startPointerPos.y, ptr.x, ptr.y) > 10) {
+            const wx = ptr.worldX !== undefined ? ptr.worldX : ptr.x;
+            const wy = ptr.worldY !== undefined ? ptr.worldY : ptr.y;
+            if (Phaser.Math.Distance.Between(startPointerPos.x, startPointerPos.y, wx, wy) > 10) {
                 hasMoved = true;
             }
         });
@@ -230,7 +240,9 @@ class MergeField {
             container.setDepth(20);
 
             // Проверка: это был просто клик/тап или полноценное перетаскивание?
-            const moveDist = Phaser.Math.Distance.Between(startPointerPos.x, startPointerPos.y, ptr.x, ptr.y);
+            const wx = ptr.worldX !== undefined ? ptr.worldX : ptr.x;
+            const wy = ptr.worldY !== undefined ? ptr.worldY : ptr.y;
+            const moveDist = Phaser.Math.Distance.Between(startPointerPos.x, startPointerPos.y, wx, wy);
             if (!hasMoved && moveDist < 12) {
                 // КЛИКЕР — Нажатие на объект с упругим сквошем
                 this._handleMobClick(mobItem, container);

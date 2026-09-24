@@ -21,10 +21,11 @@ async function initYandex() {
 async function startGame() {
     await initYandex();
 
+    const renderScale = (typeof CONFIG !== 'undefined' && CONFIG.RENDER_SCALE) ? CONFIG.RENDER_SCALE : 2.0;
     const config = {
         type: Phaser.AUTO,
-        width:  CONFIG.WIDTH,
-        height: CONFIG.HEIGHT,
+        width:  Math.round(CONFIG.WIDTH * renderScale),
+        height: Math.round(CONFIG.HEIGHT * renderScale),
 
         // Масштабирование под любой экран (портретный и альбомный)
         scale: {
@@ -36,7 +37,6 @@ async function startGame() {
         backgroundColor: '#111625',
 
         // HiDPI четкость и сглаживание для ПК и мобильных (устранение размытости)
-        resolution: Math.min(window.devicePixelRatio || 1, 2),
         render: {
             pixelArt: false,
             antialias: true,

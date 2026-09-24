@@ -10,6 +10,7 @@ class CollectionScene extends Phaser.Scene {
     }
 
     create() {
+        setupSceneHiDPICamera(this);
         const W = CONFIG.WIDTH;
         const H = CONFIG.HEIGHT;
 
@@ -107,16 +108,18 @@ class CollectionScene extends Phaser.Scene {
         });
 
         this.input.on('pointerdown', (pointer) => {
-            if (pointer.y >= viewY && pointer.y <= viewY + viewH) {
+            const py = pointer.worldY !== undefined ? pointer.worldY : pointer.y;
+            if (py >= viewY && py <= viewY + viewH) {
                 isDragging = true;
-                startDragY = pointer.y;
+                startDragY = py;
                 startContainerY = scrollY;
             }
         });
 
         this.input.on('pointermove', (pointer) => {
             if (isDragging) {
-                const delta = pointer.y - startDragY;
+                const py = pointer.worldY !== undefined ? pointer.worldY : pointer.y;
+                const delta = py - startDragY;
                 updateScroll(startContainerY + delta);
             }
         });
