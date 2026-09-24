@@ -138,6 +138,9 @@ class GameScene extends Phaser.Scene {
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) this._save();
         });
+
+        // ─── 13. Dev Debug Telemetry Overlay (?debug=1 или CONFIG.DEBUG) ───
+        this._buildDevDebugOverlay();
     }
 
     // ============================================================
@@ -687,8 +690,10 @@ class GameScene extends Phaser.Scene {
         this._shopUiGroup.push(bg1);
 
         if (buyMob) {
-            const buyTex = buyMob.texture || (buyMob.level <= 10 ? `mob_0${buyMob.level}` : 'mob_placeholder');
-            const mobImg = this.add.image(cardX, cardY - 10, buyTex).setDisplaySize(52, 52);
+            const buyTex = (buyMob.portraitKey && this.textures.exists(buyMob.portraitKey))
+                ? buyMob.portraitKey
+                : (buyMob.texture || 'mob_portrait_placeholder');
+            const mobImg = this.add.image(cardX, cardY - 10, buyTex).setDisplaySize(58, 58);
 
             // Кнопка-пилюля стоимости
             const priceBg = this.add.graphics();
@@ -725,8 +730,10 @@ class GameScene extends Phaser.Scene {
         this._shopUiGroup.push(bg2);
 
         if (adMob) {
-            const adTex = adMob.texture || (adMob.level <= 10 ? `mob_0${adMob.level}` : 'mob_placeholder');
-            const mobImg2 = this.add.image(cardX, cardY2 - 10, adTex).setDisplaySize(52, 52);
+            const adTex = (adMob.portraitKey && this.textures.exists(adMob.portraitKey))
+                ? adMob.portraitKey
+                : (adMob.texture || 'mob_portrait_placeholder');
+            const mobImg2 = this.add.image(cardX, cardY2 - 10, adTex).setDisplaySize(58, 58);
 
             const adBg = this.add.graphics();
             const pillW = cardSize - 14;
@@ -2055,5 +2062,74 @@ class GameScene extends Phaser.Scene {
         if (!this._isResetting) {
             this._save();
         }
+    }
+
+    /**
+     * Dev-only оверлей с отображением FPS, renderer resolution, canvas backing size,
+     * CSS display size, DPR, active texture count.
+     * Включается только при ?debug=1 в URL или CONFIG.DEBUG === true
+     */
+    _buildDevDebugOverlay() {
+        const isDebug = location.search.includes('debug=1') ||
+            (typeof CONFIG !== 'undefined' && CONFIG.DEBUG === true);
+        if (!isDebug) return;
+
+        const overlayBg = this.add.graphics().setDepth(99999).setScrollFactor(0);
+        const overlayText = this.add.text(12, 12, '', {
+            fontFamily: 'monospace',
+            fontSize: '11px',
+            color: '#00ffcc',
+            stroke: '#000000',
+            strokeThickness: 3,
+            lineSpacing: 3,
+        }).setDepth(100000).setScrollFactor(0);
+
+        let lastTime = performance.now();
+        let frameCount = 0;
+        let fps = 60;
+
+        this.time.addEvent({
+            delay: 500,
+            loop: true,
+            callback: () => {
+                const now = performance.now();
+                fps = Math.round((frameCount * 1000) / (now - lastTime));
+                frameCount = 0;
+                lastTime = now;
+
+                const canvas = this.scale.canvas;
+                const rect = canvas.getBoundingClientRect();
+                const dpr = window.devicePixelRatio || 1;
+                const backingW = canvas.width;
+                const backingH = canvas.height;
+                const cssW = Math.round(rect.width);
+                const cssH = Math.round(rect.height);
+                const expW = Math.round(rect.width * dpr);
+                const expH = Math.round(rect.height * dpr);
+                const upscaleRatio = ((rect.width * dpr) / backingW).toFixed(2);
+                const texCount = Object.keys(this.textures.list).length;
+                const vramEstMB = ((texCount * 256 * 256 * 4) / (1024 * 1024)).toFixed(1);
+
+                const lines = [
+                    `⚡ [DEV TELEMETRY]`,
+                    `FPS: ${fps} | DPR: ${dpr.toFixed(2)}`,
+                    `Canvas Backing: ${backingW}x${backingH} [MEASURED]`,
+                    `CSS Display: ${cssW}x${cssH} [MEASURED]`,
+                    `Physical Screen: ${expW}x${expH} [MEASURED]`,
+                    `Upscale Stretch: ${upscaleRatio}x [MEASURED]`,
+                    `Active Textures: ${texCount}`,
+                    `VRAM (Est. 256px): ~${vramEstMB} MB [ESTIMATED]`,
+                ];
+
+                overlayText.setText(lines.join('\n'));
+                overlayBg.clear();
+                overlayBg.fillStyle(0x0a0f1d, 0.88);
+                overlayBg.lineStyle(1.5, 0x00ffcc, 0.7);
+                overlayBg.fillRoundedRect(6, 6, overlayText.width + 12, overlayText.height + 12, 6);
+                overlayBg.strokeRoundedRect(6, 6, overlayText.width + 12, overlayText.height + 12, 6);
+            }
+        });
+
+        this.events.on('update', () => { frameCount++; });
     }
 }

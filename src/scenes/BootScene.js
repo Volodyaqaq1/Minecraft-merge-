@@ -18,18 +18,27 @@ class BootScene extends Phaser.Scene {
         this._createColorTexture('bg_game',   0x2d5a27, 960, 540);
         this._createColorTexture('bg_battle', 0x1a1a2e, 960, 540);
 
-        // ─── Мобы из манифеста (HD 512 & 256) ───
-        if (typeof MOB_MANIFEST !== 'undefined') {
-            MOB_MANIFEST.forEach(mob => {
-                if (mob.hasSkin) {
-                    const key = `mob_${String(mob.level).padStart(2, '0')}`;
-                    this.load.image(key, `assets/mobs/512/${key}.png`);
-                    this.load.image(`${key}_sm`, `assets/mobs/256/${key}.png`);
-                }
-            });
+        // ─── Мобы: 256px Sprites и Portraits для максимальной четкости без раздувания VRAM ───
+        for (let baseId = 1; baseId <= 10; baseId++) {
+            const pad = String(baseId).padStart(2, '0');
+            const spritePath = `assets/mobs/sprites/256/mob_${pad}.png`;
+            // HD Спрайт (прозрачный персонаж для поля и арены)
+            this.load.image(`mob_sprite_${pad}`, spritePath);
+            // Обратная совместимость с легаси-ключами
+            this.load.image(`mob_${pad}`, spritePath);
+            this.load.image(`mob_${pad}_sm`, spritePath);
         }
-        // Нейтральный development placeholder для еще не добавленных скинов
-        this.load.image('mob_placeholder', 'assets/mobs/placeholder.png');
+
+        // Портреты для всех 90 уровней (для квестов, магазина, коллекции)
+        for (let lvl = 1; lvl <= 90; lvl++) {
+            const pad = String(lvl).padStart(2, '0');
+            this.load.image(`mob_portrait_${pad}`, `assets/mobs/portraits/256/mob_${pad}.png`);
+        }
+
+        // Плейсхолдеры
+        this.load.image('mob_sprite_placeholder',   'assets/mobs/sprites/256/placeholder.png');
+        this.load.image('mob_portrait_placeholder', 'assets/mobs/portraits/256/mob_11.png');
+        this.load.image('mob_placeholder',          'assets/mobs/sprites/256/placeholder.png');
 
         // ─── UI Иконки (128x128 HD) ───
         this.load.image('icon_gem',   'assets/icons/gem.png');

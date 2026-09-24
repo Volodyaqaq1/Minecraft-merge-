@@ -138,57 +138,56 @@ class MergeField {
         container.setDepth(20);
         container.setScale(1.0);
 
-        // 1. Мягкая радиальная тень на газоне (drop shadow)
+        // 1. Мягкая тень под ногами персонажа (на полянке)
         const shadow = scene.add.graphics();
-        shadow.fillStyle(0x1e4912, 0.24);
-        shadow.fillEllipse(0, mobSize / 2 - 4, mobSize * 0.74, 18);
-        shadow.fillStyle(0x1e4912, 0.12);
-        shadow.fillEllipse(0, mobSize / 2 - 4, mobSize * 0.88, 24);
+        shadow.fillStyle(0x0a2808, 0.28);
+        shadow.fillEllipse(0, mobSize / 2 - 8, mobSize * 0.74, 16);
+        shadow.fillStyle(0x0a2808, 0.14);
+        shadow.fillEllipse(0, mobSize / 2 - 8, mobSize * 0.88, 22);
         container.add(shadow);
 
-        // 2. Внешнее свечение / белый контур для сквиши-эффекта
-        const glow = scene.add.graphics();
-        glow.fillStyle(0xffffff, 0.85);
-        glow.fillCircle(0, -6, mobSize / 2 + 3);
-        container.add(glow);
+        // 2. Аура для повышенных визуальных тиров (Золотой / Алмазный)
+        if (mob.tier === 2) {
+            const goldAura = scene.add.graphics();
+            goldAura.fillStyle(0xffd700, 0.25);
+            goldAura.fillCircle(0, -6, mobSize * 0.48);
+            container.add(goldAura);
+        } else if (mob.tier === 3) {
+            const diaAura = scene.add.graphics();
+            diaAura.fillStyle(0x00e6ff, 0.25);
+            diaAura.fillCircle(0, -6, mobSize * 0.48);
+            container.add(diaAura);
+        }
 
-        // 3. Круглое тело персонажа с приятным градиентным/пастельным цветом
-        const bg = scene.add.graphics();
-        drawRoundRect(bg, -mobSize / 2, -mobSize / 2 - 6, mobSize, mobSize, mobSize / 2, mob.rarityColor, 0.65, 0xffffff, 3);
-        container.add(bg);
-
-        // 4. Глянцевый блик сверху (эффект мягкого сквиши-дамплинга)
-        const highlight = scene.add.graphics();
-        highlight.fillStyle(0xffffff, 0.35);
-        highlight.fillEllipse(0, -mobSize / 2 + 10, mobSize * 0.52, 12);
-        container.add(highlight);
-
-        // 5. HD арт моба (или нейтральный placeholder)
-        const texKey = scene.textures.exists(mob.texture) ? mob.texture : 'mob_placeholder';
-        const mobImg = scene.add.image(0, -6, texKey).setDisplaySize(mobSize * 0.82, mobSize * 0.82);
+        // 3. SPRITE: Полный персонаж (squishy character) с прозрачным альфа-фоном
+        const spriteTex = (mob.spriteKey && scene.textures.exists(mob.spriteKey))
+            ? mob.spriteKey
+            : (scene.textures.exists(mob.texture) ? mob.texture : 'mob_sprite_placeholder');
+        const mobImg = scene.add.image(0, -6, spriteTex).setDisplaySize(mobSize * 0.95, mobSize * 0.95);
         container.add(mobImg);
 
-        // 6. Имя моба снизу в бейдже
+        // 4. Имя моба снизу в компактном бейдже
         const nameBadge = scene.add.graphics();
-        const badgeW = Math.min(mobSize + 18, 120);
-        drawRoundRect(nameBadge, -badgeW / 2, mobSize / 2 - 19, badgeW, 20, 10, 0x000000, 0.72);
+        const badgeW = Math.min(mobSize + 16, 120);
+        drawRoundRect(nameBadge, -badgeW / 2, mobSize / 2 - 16, badgeW, 20, 10, 0x0f172a, 0.85, mob.tierColor || 0xffffff, 1.2);
         container.add(nameBadge);
 
-        const nameText = createHDText(scene, 0, mobSize / 2 - 9, mob.name, {
+        const nameText = createHDText(scene, 0, mobSize / 2 - 6, mob.name, {
             fontSize: '11px',
-            color: '#ffffff',
+            color: mob.tier === 2 ? '#ffd700' : (mob.tier === 3 ? '#38bdf8' : '#ffffff'),
             fontStyle: '800',
         }).setOrigin(0.5);
         container.add(nameText);
 
-        // 7. Бейдж уровня слева сверху
+        // 5. Бейдж уровня слева сверху
         const lvlBadge = scene.add.graphics();
-        drawRoundRect(lvlBadge, -mobSize / 2 + 2, -mobSize / 2 - 4, 30, 22, 8, 0x111625, 0.9, 0xffd700, 1.5);
+        const badgeBorderColor = mob.tier === 2 ? 0xffd700 : (mob.tier === 3 ? 0x00e6ff : 0x475569);
+        drawRoundRect(lvlBadge, -mobSize / 2 + 2, -mobSize / 2 - 4, 32, 22, 8, 0x0f172a, 0.92, badgeBorderColor, 1.5);
         container.add(lvlBadge);
 
-        const lvlText = createHDText(scene, -mobSize / 2 + 17, -mobSize / 2 + 7, `${mobItem.mobLevel}`, {
+        const lvlText = createHDText(scene, -mobSize / 2 + 18, -mobSize / 2 + 7, `${mobItem.mobLevel}`, {
             fontSize: '12px',
-            color: '#ffd700',
+            color: mob.tier === 2 ? '#ffd700' : (mob.tier === 3 ? '#38bdf8' : '#ffffff'),
             fontStyle: '900',
         }).setOrigin(0.5);
         container.add(lvlText);

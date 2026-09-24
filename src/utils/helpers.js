@@ -73,12 +73,25 @@ function getMultiplier(playerLevel) {
  */
 function createHDText(scene, x, y, text, style = {}) {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const targetRes = style.resolution !== undefined ? style.resolution : dpr;
     const hdStyle = {
         fontFamily: (typeof CONFIG !== 'undefined' && CONFIG.FONT_FAMILY) || "'Nunito', sans-serif",
         ...style,
-        resolution: style.resolution !== undefined ? style.resolution : dpr,
+        resolution: targetRes,
     };
-    return scene.add.text(x, y, text, hdStyle);
+    const t = scene.add.text(x, y, text, hdStyle);
+    if (t.frame && t.frame.source) {
+        t.frame.source.resolution = targetRes;
+    }
+    Object.defineProperty(t, 'resolution', {
+        get() { return this.style ? this.style.resolution : targetRes; },
+        set(val) {
+            if (this.style) this.style.setResolution(val);
+            if (this.frame && this.frame.source) this.frame.source.resolution = val;
+        },
+        configurable: true
+    });
+    return t;
 }
 
 /**

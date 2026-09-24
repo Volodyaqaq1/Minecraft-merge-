@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html, body { width:100%; height:100%; overflow:hidden; background:#111625; }
+        #game-container { position:fixed; top:0; left:0; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+    <script src="../src/config.js"></script>
+    <script src="../src/utils/helpers.js"></script>
+</head>
+<body>
+<div id="game-container"></div>
+<script>
+function start() {
+    const config = {
+        type: Phaser.AUTO,
+        width: CONFIG.WIDTH, // 960
+        height: CONFIG.HEIGHT, // 540
+        parent: 'game-container',
+        scale: {
+            mode: Phaser.Scale.FIT,
+            autoCenter: Phaser.Scale.CENTER_BOTH,
+        },
+        backgroundColor: '#111625',
+        render: {
+            pixelArt: false,
+            antialias: true,
+            antialiasGL: true,
+            roundPixels: false,
+        },
+        scene: {
+            create() {
+                const canvas = this.scale.canvas;
+                const rect = canvas.getBoundingClientRect();
+                const dpr = window.devicePixelRatio || 1;
+
+                // Test text resolution mechanics
+                // t1: resolution passed in constructor
+                const t1 = this.add.text(100, 100, 'T1 Constructor', {
+                    fontSize: '20px',
+                    resolution: 2
+                });
+
+                // t2: resolution set via setResolution post-creation
+                const t2 = this.add.text(100, 150, 'T2 Dynamic', {
+                    fontSize: '20px'
+                });
+                t2.setResolution(2);
+
+                // t3: createHDText helper
+                const t3 = createHDText(this, 100, 200, 'T3 HDText', {
+                    fontSize: '20px'
+                });
+
+                // Pointer center test
+                const centerPageX = rect.left + rect.width / 2;
+                const centerPageY = rect.top + rect.height / 2;
+                const transX = this.scale.transformX(centerPageX);
+                const transY = this.scale.transformY(centerPageY);
+
+                const data = {
+                    viewport: {
+                        windowW: window.innerWidth,
+                        windowH: window.innerHeight,
+                        dpr: dpr
+                    },
+                    canvas: {
+                        backingW: canvas.width,
+                        backingH: canvas.height,
+                        cssW: canvas.style.width,
+                        cssH: canvas.style.height,
+                        rectW: Math.round(rect.width),
+                        rectH: Math.round(rect.height),
+                        expectedPhysicalW: Math.round(rect.width * dpr),
+                        expectedPhysicalH: Math.round(rect.height * dpr),
+                        upscaleRatio: (rect.width * dpr) / canvas.width
+                    },
+                    input: {
+                        centerPageX,
+                        centerPageY,
+                        transX,
+                        transY,
+                        isCenterCorrect: Math.abs(transX - 480) < 1 && Math.abs(transY - 270) < 1
+                    },
+                    text: {
+                        t1_style_resolution: t1.style.resolution,
+                        t1_frame_source_resolution: t1.frame && t1.frame.source ? t1.frame.source.resolution : null,
+                        t1_text_resolution: t1.resolution,
+                        t2_style_resolution: t2.style.resolution,
+                        t2_frame_source_resolution: t2.frame && t2.frame.source ? t2.frame.source.resolution : null,
+                        t2_text_resolution: t2.resolution,
+                        t3_style_resolution: t3.style.resolution,
+                        t3_frame_source_resolution: t3.frame && t3.frame.source ? t3.frame.source.resolution : null,
+                        t3_text_resolution: t3.resolution
+                    }
+                };
+
+                document.title = 'RESULTS_JSON:' + encodeURIComponent(JSON.stringify(data));
+                this.game.destroy(true);
+            }
+        }
+    };
+
+    new Phaser.Game(config);
+}
+start();
+</script>
+</body>
+</html>

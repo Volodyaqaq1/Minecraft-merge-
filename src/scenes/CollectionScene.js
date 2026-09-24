@@ -66,8 +66,10 @@ class CollectionScene extends Phaser.Scene {
                 isUnlocked ? mob.rarityColor : 0x334155, 1.5);
 
             if (isUnlocked) {
-                const mobTex = mob.texture || (mob.level <= 10 ? `mob_0${mob.level}` : 'mob_placeholder');
-                const avatar = this.add.image(x + cardW / 2, y + 26, mobTex).setDisplaySize(44, 44);
+                const mobTex = (mob.portraitKey && this.textures.exists(mob.portraitKey))
+                    ? mob.portraitKey
+                    : (mob.texture || 'mob_portrait_placeholder');
+                const avatar = this.add.image(x + cardW / 2, y + 26, mobTex).setDisplaySize(48, 48);
                 const name = createHDText(this, x + cardW / 2, y + 54, mob.name, {
                     fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#fff',
                     stroke: '#111625', strokeThickness: 2, fontStyle: '800', wordWrap: { width: cardW - 8 }
