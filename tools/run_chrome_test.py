@@ -20,7 +20,7 @@ def test_viewport(width, height, dpr, html_path):
     ]
     
     try:
-        res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=8)
+        res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=25)
         import urllib.parse
         match = re.search(r"RESULTS_JSON:(.*?)(?:</title>|</div>|$)", res.stdout, re.DOTALL)
         if match:

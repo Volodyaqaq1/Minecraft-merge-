@@ -96,7 +96,9 @@ class GameScene extends Phaser.Scene {
         this.economy.onCoinsChange = (val) => this._setCoinsText(val);
         this.economy.onLevelChange = (lvl) => {
             this._updateLevelWidget();
-            spawnFloatingText(this, 84, 65, `НОВЫЙ УРОВЕНЬ ${lvl}! 🌟`, '#ffd700');
+            if (this._isInitialized) {
+                spawnFloatingText(this, 130, 90, `НОВЫЙ УРОВЕНЬ ${lvl}! 🌟`, '#ffd700');
+            }
         };
 
         // Синхронизируем уровень с максимальным открытым мобом
@@ -142,6 +144,7 @@ class GameScene extends Phaser.Scene {
 
         // ─── 13. Dev Debug Telemetry Overlay (?debug=1 или CONFIG.DEBUG) ───
         this._buildDevDebugOverlay();
+        this._isInitialized = true;
     }
 
     // ============================================================
@@ -280,9 +283,9 @@ class GameScene extends Phaser.Scene {
 
         // 4. Баланс изумрудов (справа, элегантная белая карточка со скругленными краями)
         const coinCard = this.add.graphics();
-        drawCasualCard(coinCard, W - 184, 10, 172, 44, 13, 0xffffff, 0x10b981, 0.9);
+        drawCasualCard(coinCard, W - 180, 10, 168, 44, 13, 0xffffff, 0x10b981, 0.9);
 
-        const gemIcon = this.add.image(W - 160, 32, 'icon_gem').setDisplaySize(28, 28);
+        const gemIcon = this.add.image(W - 156, 32, 'icon_gem').setDisplaySize(22, 22);
         this.tweens.add({
             targets: gemIcon,
             scaleX: 1.08,
@@ -293,7 +296,7 @@ class GameScene extends Phaser.Scene {
             ease: 'Sine.easeInOut'
         });
 
-        this._coinsText = createHDText(this, W - 20, 32, `${formatNumber(this.economy.coins)}`, {
+        this._coinsText = createHDText(this, W - 22, 32, `${formatNumber(this.economy.coins)}`, {
             fontSize: '18px',
             color: '#0f172a',
             fontStyle: '900',
@@ -433,16 +436,18 @@ class GameScene extends Phaser.Scene {
         this.comboFill = this.add.graphics();
         this.multiplierTexts = [];
         const mults = [1, 2, 3, 4, 5];
-        const candyColors = ['#94a3b8', '#38bdf8', '#60a5fa', '#c084fc', '#f87171'];
+        this._comboColors = ['#94a3b8', '#38bdf8', '#60a5fa', '#c084fc', '#f87171'];
 
-        // Числа x1 x2 x3 x4 x5 расположены СНИЗУ под шкалой
+        // Числа x1 x2 x3 x4 x5 расположены СНИЗУ под шкалой с четкой темной обводкой
         mults.forEach((m, idx) => {
             const tx = x + step * idx + step / 2;
-            const txt = this.add.text(tx, y + h + 11, `x${m}`, {
+            const txt = createHDText(this, tx, y + h + 11, `x${m}`, {
                 fontSize: '12px',
                 fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
-                color: candyColors[idx],
-                fontStyle: '800',
+                color: this._comboColors[idx],
+                fontStyle: '900',
+                stroke: '#0f172a',
+                strokeThickness: 2.5,
             }).setOrigin(0.5);
             this.multiplierTexts.push(txt);
         });
@@ -475,14 +480,16 @@ class GameScene extends Phaser.Scene {
             this.comboFill.fillRoundedRect(this.comboX + 2, this.comboY + 2, fillW, Math.max(2, (this.comboH - 4) * 0.45), { tl: 4, tr: 4, bl: 1, br: 1 });
         }
 
+        const colors = this._comboColors || ['#94a3b8', '#38bdf8', '#60a5fa', '#c084fc', '#f87171'];
         this.multiplierTexts.forEach((txt, idx) => {
             if (idx + 1 === mul) {
                 txt.setColor('#ffd700');
                 txt.setFontSize('14px');
-                txt.setStroke('#0f172a', 3);
+                txt.setStroke('#0f172a', 3.5);
             } else {
+                txt.setColor(colors[idx]);
                 txt.setFontSize('12px');
-                txt.setStroke('#0f172a', 1);
+                txt.setStroke('#0f172a', 2.5);
             }
         });
     }
@@ -620,80 +627,134 @@ class GameScene extends Phaser.Scene {
     }
 
     _renderQuests() {
-        this._questUiGroup.forEach(item => item && item.destroy && item.destroy());
+        if (this._questUiGroup) {
+            this._questUiGroup.forEach(item => {
+                if (item) {
+                    if (this.tweens) {
+                        this.tweens.killTweensOf(item);
+                        if (item.buttonFace) this.tweens.killTweensOf(item.buttonFace);
+                    }
+                    if (item.destroy) item.destroy();
+                }
+            });
+        }
         this._questUiGroup = [];
 
         const startX = 64;
-        const startY = 110;
-        const cardW  = 96;
-        const cardH  = 90;
-        const spacing = 98;
+        const startY = 122;
+        const cardW  = 102;
+        const cardH  = 98;
+        const spacing = 108;
 
         this.quests.forEach((quest, idx) => {
             const mob = getMobByLevel(quest.mobLevel);
             if (!mob) return;
 
+            const targetCount = quest.targetCount || quest.target || 2;
+            quest.targetCount = targetCount;
+
             // Считаем мобов на поле прямо сейчас (если объединил — статус готовности сбрасывается)
             const rawCount = this.mergeField.mobs.filter(m => m.mobLevel === quest.mobLevel).length;
-            const isReady = rawCount >= quest.targetCount;
+            const isReady = rawCount >= targetCount;
             quest.isCompleted = isReady;
 
-            // Не считаем больше мобов, чем нужно (максимум targetCount)
-            const displayCount = Math.min(rawCount, quest.targetCount);
+            const displayCount = Math.min(rawCount, targetCount);
 
             const cx = startX;
             const cy = startY + idx * spacing;
 
-            // 1. Белая карточка-стикер (как в референсе "Сквиши Мерж")
+            // 1. Sticker-style карточка с мягкой тенью и скруглением 14
             const bg = this.add.graphics();
-            // Мягкая тень под карточкой
-            drawRoundRect(bg, cx - cardW / 2, cy - cardH / 2 + 3, cardW, cardH, 12, 0x000000, 0.16);
-            // Белая бумага с золотистой/зелёной рамкой
-            drawRoundRect(bg, cx - cardW / 2, cy - cardH / 2, cardW, cardH, 12, 0xffffff, 0.98, isReady ? 0x22c55e : 0xf6ad55, isReady ? 2.5 : 1.8);
-            // Верхняя скрепка/булавка
-            bg.fillStyle(0x718096, 0.9);
-            bg.fillRoundedRect(cx - 7, cy - cardH / 2 - 3, 14, 5, 2);
+            // Мягкая внешняя тень под стикером
+            bg.fillStyle(0x000000, 0.15);
+            bg.fillRoundedRect(cx - cardW / 2 + 1, cy - cardH / 2 + 3, cardW, cardH, 14);
+
+            // Белая/пастельная основа стикера
+            bg.fillStyle(isReady ? 0xf0fdf4 : 0xffffff, 0.98);
+            bg.fillRoundedRect(cx - cardW / 2, cy - cardH / 2, cardW, cardH, 14);
+
+            // Контур
+            bg.lineStyle(isReady ? 2.5 : 1.5, isReady ? 0x22c55e : 0x94a3b8, 1);
+            bg.strokeRoundedRect(cx - cardW / 2, cy - cardH / 2, cardW, cardH, 14);
+
+            // Верхняя декоративная клейкая лента / стикер-скотч
+            bg.fillStyle(isReady ? 0xfbbf24 : 0x93c5fd, 0.95);
+            bg.fillRoundedRect(cx - 14, cy - cardH / 2 - 3, 28, 6, 2);
+            // Блик на скотче
+            bg.fillStyle(0xffffff, 0.4);
+            bg.fillRoundedRect(cx - 13, cy - cardH / 2 - 3, 26, 2, 1);
             this._questUiGroup.push(bg);
 
             // 2. Имя моба вверху карточки
-            const nameText = createHDText(this, cx, cy - cardH / 2 + 13, mob.name, {
+            const nameText = createHDText(this, cx, cy - cardH / 2 + 14, mob.name, {
                 fontSize: '11px',
                 fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
-                color: '#475569',
-                fontStyle: '800',
+                color: '#1e293b',
+                fontStyle: '900',
             }).setOrigin(0.5);
 
-            // 3. HD аватар моба в центре
-            const mobTex = mob.texture || (mob.level <= 10 ? `mob_0${mob.level}` : 'mob_placeholder');
-            const mobImg = this.add.image(cx, cy + 2, mobTex).setDisplaySize(42, 42);
+            // 3. Круглое блюдце (постамент) под portrait моба
+            const platter = this.add.graphics();
+            // Ободок блюдца
+            platter.fillStyle(isReady ? 0xdcfce7 : 0xe2e8f0, 1);
+            platter.fillCircle(cx, cy - 2, 25);
+            // Внутреннее углубление блюдца
+            platter.fillStyle(isReady ? 0xf0fdf4 : 0xffffff, 1);
+            platter.fillCircle(cx, cy - 2, 22);
+            // Нижняя теневая фаска в углублении
+            platter.fillStyle(isReady ? 0xbbf7d0 : 0xf1f5f9, 0.8);
+            platter.fillCircle(cx, cy, 18);
+            platter.fillStyle(isReady ? 0xf0fdf4 : 0xffffff, 1);
+            platter.fillCircle(cx, cy - 2, 18);
+            this._questUiGroup.push(platter);
 
-            // 4. Статус / бейдж в правом нижнем углу
+            // Portrait / аватар моба
+            const mobTex = (mob.portraitKey && this.textures.exists(mob.portraitKey))
+                ? mob.portraitKey
+                : (mob.texture || (mob.level <= 10 ? `mob_0${mob.level}` : 'mob_placeholder'));
+            const mobImg = this.add.image(cx, cy - 2, mobTex).setDisplaySize(42, 42);
+
+            // 4. Нижнее состояние: мини-прогресс бар (2/4) или кнопка "ЗАБРАТЬ 🎁"
             let statusElements = [];
             if (isReady) {
-                const claimBg = this.add.graphics();
-                drawRoundRect(claimBg, cx - cardW / 2 + 4, cy + cardH / 2 - 24, cardW - 8, 22, 11, 0x22c55e, 1, 0xffffff, 1.8);
-                const claimTxt = createHDText(this, cx, cy + cardH / 2 - 13, 'ЗАБРАТЬ 🎁', {
+                // Зелёная 3D кнопка "ЗАБРАТЬ 🎁" с деликатной pulse-анимацией
+                const claimBtn = createCasualButton(this, cx, cy + cardH / 2 - 16, cardW - 14, 26, 'ЗАБРАТЬ 🎁', {
+                    topColor: 0x22c55e,
+                    bottomColor: 0x15803d,
+                    strokeColor: 0x86efac,
+                    fontSize: '11px',
+                    radius: 8,
+                    lip: 3,
+                    pulse: true,
+                    pulseScale: 1.03,
+                    pulseDuration: 850
+                }, () => {
+                    this._claimQuest(idx, cx, cy);
+                });
+                statusElements.push(claimBtn);
+            } else {
+                // Мини progress bar через drawCasualProgressBar + прогресс вида 2/4
+                const pBarG = this.add.graphics();
+                const pBarW = cardW - 16;
+                const pBarH = 16;
+                const pBarX = cx - pBarW / 2;
+                const pBarY = cy + cardH / 2 - 24;
+                const progressRatio = targetCount > 0 ? (displayCount / targetCount) : 0;
+                drawCasualProgressBar(pBarG, pBarX, pBarY, pBarW, pBarH, 5, progressRatio, 0x0f172a, 0xf59e0b, 0x334155);
+
+                const pText = createHDText(this, cx, pBarY + pBarH / 2, `${displayCount} / ${targetCount}`, {
                     fontSize: '10px',
                     fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
                     color: '#ffffff',
                     fontStyle: '900',
+                    stroke: '#0f172a',
+                    strokeThickness: 2.5,
                 }).setOrigin(0.5);
-                statusElements = [claimBg, claimTxt];
-            } else {
-                const pillBg = this.add.graphics();
-                const pillW = 44;
-                const pillH = 20;
-                drawRoundRect(pillBg, cx + cardW / 2 - pillW - 4, cy + cardH / 2 - pillH - 4, pillW, pillH, 10, 0xfef3c7, 1, 0xf59e0b, 1.5);
-                const countText = createHDText(this, cx + cardW / 2 - pillW / 2 - 4, cy + cardH / 2 - pillH / 2 - 4, `${displayCount}/${quest.targetCount}`, {
-                    fontSize: '11px',
-                    fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
-                    color: '#b45309',
-                    fontStyle: '800',
-                }).setOrigin(0.5);
-                statusElements = [pillBg, countText];
+
+                statusElements.push(pBarG, pText);
             }
 
-            // Интерактивная зона
+            // Интерактивная зона по всей карточке для удобного тача
             const hitArea = this.add.rectangle(cx, cy, cardW, cardH, 0, 0)
                 .setInteractive({ cursor: isReady ? 'pointer' : 'default' });
 
@@ -701,7 +762,7 @@ class GameScene extends Phaser.Scene {
                 if (isReady) {
                     this._claimQuest(idx, cx, cy);
                 } else {
-                    spawnFloatingText(this, cx + 60, cy - 20, `Соберите ${quest.targetCount}x ${mob.name}!`, '#ffd700');
+                    spawnFloatingText(this, cx + 60, cy - 20, `Соберите ${targetCount}x ${mob.name}!`, '#ffd700');
                 }
             });
 
@@ -716,6 +777,10 @@ class GameScene extends Phaser.Scene {
         // Начисляем монеты
         this.economy.addCoins(quest.rewardCoins);
 
+        if (typeof SoundManager !== 'undefined') {
+            SoundManager.playVictory();
+        }
+        this._spawnFlyingCoins(x, y, 4);
         spawnFloatingText(this, x, y - 20, `+💎 ${formatNumber(quest.rewardCoins)}`, '#5dff6e');
 
         // Удаляем выполненное задание
@@ -768,96 +833,167 @@ class GameScene extends Phaser.Scene {
     }
 
     _updateShopButton() {
-        this._shopUiGroup.forEach(item => item.destroy && item.destroy());
+        if (this._shopUiGroup) {
+            this._shopUiGroup.forEach(item => {
+                if (item) {
+                    if (this.tweens) {
+                        this.tweens.killTweensOf(item);
+                        if (item.buttonFace) this.tweens.killTweensOf(item.buttonFace);
+                    }
+                    if (item.destroy) item.destroy();
+                }
+            });
+        }
         this._shopUiGroup = [];
 
         const W = CONFIG.WIDTH;
         const maxUnlocked = Math.max(...this.mergeField.collection, 1);
 
-        // 1. Слот 1: Моб за монеты (глянцевая карточка как в референсе)
+        const cardX = W - 72;
+        const cardW = 108;
+        const cardH = 114;
+
+        // 1. Слот 1: Моб за монеты (мягкая пастельная голубая карточка)
         const buyLevel = Math.max(1, maxUnlocked - CONFIG.BUY_LEVEL_OFFSET);
         const buyMob   = getMobByLevel(buyLevel);
         const cost     = getMobCost(buyLevel);
 
-        const cardX = W - 72;
-        const cardY = 130;
-        const cardSize = 112;
+        const cardY1 = 130;
 
         const bg1 = this.add.graphics();
-        // 3D тень под карточкой
-        drawRoundRect(bg1, cardX - cardSize / 2, cardY - cardSize / 2 + 4, cardSize, cardSize, 18, 0x1d4ed8, 0.4);
-        // Лицевая нежно-голубая основа карточки
-        drawRoundRect(bg1, cardX - cardSize / 2, cardY - cardSize / 2, cardSize, cardSize, 18, 0xdbeafe, 1, 0x3b82f6, 2.5);
-        // Белая внутренняя тарелочка под персонажа
-        bg1.fillStyle(0xffffff, 0.95);
-        bg1.fillCircle(cardX, cardY - 10, 34);
+        // Мягкая внешняя тень под карточкой
+        bg1.fillStyle(0x000000, 0.16);
+        bg1.fillRoundedRect(cardX - cardW / 2 + 1, cardY1 - cardH / 2 + 3, cardW, cardH, 16);
+        // Нежно-голубая основа карточки
+        bg1.fillStyle(0xf0f9ff, 0.98);
+        bg1.fillRoundedRect(cardX - cardW / 2, cardY1 - cardH / 2, cardW, cardH, 16);
+        // Шелковистый контур
+        bg1.lineStyle(2, 0x38bdf8, 1);
+        bg1.strokeRoundedRect(cardX - cardW / 2, cardY1 - cardH / 2, cardW, cardH, 16);
+        // Верхний декоративный ярлычок
+        bg1.fillStyle(0x38bdf8, 0.9);
+        bg1.fillRoundedRect(cardX - 22, cardY1 - cardH / 2 - 2, 44, 5, 2);
 
         this._shopUiGroup.push(bg1);
+
+        // Круглое блюдце (постамент) под моба
+        const platter1 = this.add.graphics();
+        // Внешний ободок постамента
+        platter1.fillStyle(0xbae6fd, 1);
+        platter1.fillCircle(cardX, cardY1 - 11, 35);
+        // Внутренняя белая тарелочка
+        platter1.fillStyle(0xffffff, 1);
+        platter1.fillCircle(cardX, cardY1 - 11, 32);
+        // Мягкая нижняя теневая фаска
+        platter1.fillStyle(0xe0f2fe, 0.7);
+        platter1.fillCircle(cardX, cardY1 - 9, 26);
+        platter1.fillStyle(0xffffff, 1);
+        platter1.fillCircle(cardX, cardY1 - 11, 26);
+        this._shopUiGroup.push(platter1);
 
         if (buyMob) {
             const buyTex = (buyMob.portraitKey && this.textures.exists(buyMob.portraitKey))
                 ? buyMob.portraitKey
                 : (buyMob.texture || 'mob_portrait_placeholder');
-            const mobImg = this.add.image(cardX, cardY - 10, buyTex).setDisplaySize(58, 58);
+            const mobImg1 = this.add.image(cardX, cardY1 - 11, buyTex).setDisplaySize(58, 58);
 
-            // Кнопка-пилюля стоимости
-            const priceBg = this.add.graphics();
-            const pillW = cardSize - 14;
-            drawRoundRect(priceBg, cardX - pillW / 2, cardY + cardSize / 2 - 28, pillW, 24, 12, 0xd97706, 1);
-            drawRoundRect(priceBg, cardX - pillW / 2, cardY + cardSize / 2 - 30, pillW, 24, 12, 0xfbbf24, 1, 0xffffff, 1.5);
+            // Плавное парение моба над постаментом (idle hover)
+            this.tweens.add({
+                targets: mobImg1,
+                y: cardY1 - 15,
+                duration: 1400,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut'
+            });
 
-            const priceText = createHDText(this, cardX, cardY + cardSize / 2 - 18, `💎 ${formatNumber(cost)}`, {
+            // Тактильная 3D-кнопка покупки за изумруды
+            const buyBtn = createCasualButton(this, cardX, cardY1 + cardH / 2 - 18, cardW - 14, 26, `💎 ${formatNumber(cost)}`, {
+                topColor: 0xf59e0b,
+                bottomColor: 0xb45309,
+                strokeColor: 0xfef08a,
                 fontSize: '12px',
-                fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
-                color: '#78350f',
-                fontStyle: '900',
-            }).setOrigin(0.5);
+                radius: 9,
+                lip: 3,
+            }, () => this._onBuyMob(buyMob, cost));
 
-            const hitArea1 = this.add.rectangle(cardX, cardY, cardSize, cardSize, 0, 0)
+            // Интерактивная зона по всей карточке для удобного тапа
+            const hitArea1 = this.add.rectangle(cardX, cardY1, cardW, cardH, 0, 0)
                 .setInteractive({ cursor: 'pointer' });
-
             hitArea1.on('pointerdown', () => this._onBuyMob(buyMob, cost));
 
-            this._shopUiGroup.push(mobImg, priceBg, priceText, hitArea1);
+            this._shopUiGroup.push(mobImg1, buyBtn, hitArea1);
         }
 
-        // 2. Слот 2: Моб за рекламу (на 1 уровень ниже максимального!)
+        // 2. Слот 2: Моб за рекламу (мягкая пастельная сиреневая карточка)
         const adMobLevel = Math.max(1, maxUnlocked - CONFIG.AD_LEVEL_OFFSET);
         const adMob      = getMobByLevel(adMobLevel);
 
-        const cardY2 = 255;
+        const cardY2 = 258;
+
         const bg2 = this.add.graphics();
-        drawRoundRect(bg2, cardX - cardSize / 2, cardY2 - cardSize / 2 + 4, cardSize, cardSize, 18, 0x1d4ed8, 0.4);
-        drawRoundRect(bg2, cardX - cardSize / 2, cardY2 - cardSize / 2, cardSize, cardSize, 18, 0xdbeafe, 1, 0x3b82f6, 2.5);
-        bg2.fillStyle(0xffffff, 0.95);
-        bg2.fillCircle(cardX, cardY2 - 10, 34);
+        // Мягкая внешняя тень под карточкой
+        bg2.fillStyle(0x000000, 0.16);
+        bg2.fillRoundedRect(cardX - cardW / 2 + 1, cardY2 - cardH / 2 + 3, cardW, cardH, 16);
+        // Нежно-сиреневая основа карточки
+        bg2.fillStyle(0xfaf5ff, 0.98);
+        bg2.fillRoundedRect(cardX - cardW / 2, cardY2 - cardH / 2, cardW, cardH, 16);
+        // Шелковистый контур
+        bg2.lineStyle(2, 0xa855f7, 1);
+        bg2.strokeRoundedRect(cardX - cardW / 2, cardY2 - cardH / 2, cardW, cardH, 16);
+        // Верхний декоративный ярлычок
+        bg2.fillStyle(0xa855f7, 0.9);
+        bg2.fillRoundedRect(cardX - 22, cardY2 - cardH / 2 - 2, 44, 5, 2);
 
         this._shopUiGroup.push(bg2);
+
+        // Круглое блюдце (постамент) под моба за рекламу
+        const platter2 = this.add.graphics();
+        // Внешний ободок постамента
+        platter2.fillStyle(0xe9d5ff, 1);
+        platter2.fillCircle(cardX, cardY2 - 11, 35);
+        // Внутренняя белая тарелочка
+        platter2.fillStyle(0xffffff, 1);
+        platter2.fillCircle(cardX, cardY2 - 11, 32);
+        // Мягкая нижняя теневая фаска
+        platter2.fillStyle(0xf3e8ff, 0.7);
+        platter2.fillCircle(cardX, cardY2 - 9, 26);
+        platter2.fillStyle(0xffffff, 1);
+        platter2.fillCircle(cardX, cardY2 - 11, 26);
+        this._shopUiGroup.push(platter2);
 
         if (adMob) {
             const adTex = (adMob.portraitKey && this.textures.exists(adMob.portraitKey))
                 ? adMob.portraitKey
                 : (adMob.texture || 'mob_portrait_placeholder');
-            const mobImg2 = this.add.image(cardX, cardY2 - 10, adTex).setDisplaySize(58, 58);
+            const mobImg2 = this.add.image(cardX, cardY2 - 11, adTex).setDisplaySize(58, 58);
 
-            const adBg = this.add.graphics();
-            const pillW = cardSize - 14;
-            drawRoundRect(adBg, cardX - pillW / 2, cardY2 + cardSize / 2 - 28, pillW, 24, 12, 0x7e22ce, 1);
-            drawRoundRect(adBg, cardX - pillW / 2, cardY2 + cardSize / 2 - 30, pillW, 24, 12, 0xa855f7, 1, 0xffffff, 1.5);
+            // Плавное парение моба (idle hover) с небольшим сдвигом по фазе
+            this.tweens.add({
+                targets: mobImg2,
+                y: cardY2 - 15,
+                duration: 1550,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut'
+            });
 
-            const adText = createHDText(this, cardX, cardY2 + cardSize / 2 - 18, 'Реклама 🎬', {
+            // Тактильная 3D-кнопка просмотра рекламы
+            const adBtn = createCasualButton(this, cardX, cardY2 + cardH / 2 - 18, cardW - 14, 26, '🎬 РЕКЛАМА', {
+                topColor: 0x9333ea,
+                bottomColor: 0x581c87,
+                strokeColor: 0xd8b4fe,
                 fontSize: '11px',
-                fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
-                color: '#ffffff',
-                fontStyle: '900',
-            }).setOrigin(0.5);
+                radius: 9,
+                lip: 3,
+            }, () => this._onAdMob(adMob));
 
-            const hitArea2 = this.add.rectangle(cardX, cardY2, cardSize, cardSize, 0, 0)
+            // Интерактивная зона по всей карточке для удобного тапа
+            const hitArea2 = this.add.rectangle(cardX, cardY2, cardW, cardH, 0, 0)
                 .setInteractive({ cursor: 'pointer' });
-
             hitArea2.on('pointerdown', () => this._onAdMob(adMob));
 
-            this._shopUiGroup.push(mobImg2, adBg, adText, hitArea2);
+            this._shopUiGroup.push(mobImg2, adBtn, hitArea2);
         }
     }
 
@@ -891,28 +1027,98 @@ class GameScene extends Phaser.Scene {
         const W = CONFIG.WIDTH;
         const H = CONFIG.HEIGHT;
 
-        // Полупрозрачная подложка, чтобы газон просвечивал
-        const g = this.add.graphics();
-        drawRoundRect(g, 10, H - 62, W - 20, 56, 16, 0x111625, 0.40);
+        // 1. Полупрозрачная стеклянная подложка дока
+        const dockPlate = this.add.graphics();
+        // Внешняя тень дока
+        dockPlate.fillStyle(0x000000, 0.22);
+        dockPlate.fillRoundedRect(10, H - 59, W - 20, 54, 18);
+        // Темное полупрозрачное стекло
+        dockPlate.fillStyle(0x0f172a, 0.72);
+        dockPlate.fillRoundedRect(10, H - 61, W - 20, 54, 18);
+        // Деликатный верхний световой блик на стекле
+        dockPlate.fillStyle(0xffffff, 0.08);
+        dockPlate.fillRoundedRect(12, H - 59, W - 24, 18, { tl: 16, tr: 16, bl: 2, br: 2 });
+        // Тонкая шелковистая рамка
+        dockPlate.lineStyle(1.5, 0x334155, 0.85);
+        dockPlate.strokeRoundedRect(10, H - 61, W - 20, 54, 18);
 
-        this._makeButton(105, H - 34, 150, 46, 'Коллекция 🗂️', '#3b82f6',
-            () => this.scene.launch('CollectionScene', { collection: [...this.mergeField.collection] }), '14px');
+        const btnY = H - 34;
 
-        // Кнопка Инкубатора
-        this._makeButton(268, H - 34, 150, 46, 'Инкубатор 🥚', '#3b82f6',
-            () => this._openIncubatorModal(), '14px');
+        // 2. Кнопка "📖 Бестиарий" (Сапфирово-синяя 3D-кнопка)
+        createCasualButton(this, 95, btnY, 145, 42, '📖 Бестиарий', {
+            topColor: 0x2563eb,
+            bottomColor: 0x1d4ed8,
+            strokeColor: 0x60a5fa,
+            fontSize: '13px',
+            radius: 11,
+            lip: 3,
+        }, () => this.scene.launch('CollectionScene', { collection: [...this.mergeField.collection] }));
 
-        this._makeButton(430, H - 34, 145, 46, 'Награды 📦', '#3b82f6',
-            () => spawnFloatingText(this, 430, H - 80, 'Скоро!', '#ffd700'), '14px');
+        // 3. Кнопка "🥚 Инкубатор" (Аметистово-фиолетовая 3D-кнопка)
+        createCasualButton(this, 255, btnY, 145, 42, '🥚 Инкубатор', {
+            topColor: 0x7c3aed,
+            bottomColor: 0x5b21b6,
+            strokeColor: 0xa78bfa,
+            fontSize: '13px',
+            radius: 11,
+            lip: 3,
+        }, () => this._openIncubatorModal());
 
-        // Большая сочная красная кнопка В БОЙ
-        this._makeButton(W - 120, H - 34, 195, 48, 'В бой! ⚔️', '#dc2626', () => {
+        // Бейдж готовности инкубатора
+        this._dockIncubatorBadge = this._createNotificationBadge(255 + 56, btnY - 14);
+
+        // 4. Кнопка "🎁 Награды" (Бирюзово-изумрудная 3D-кнопка)
+        createCasualButton(this, 415, btnY, 145, 42, '🎁 Награды', {
+            topColor: 0x0d9488,
+            bottomColor: 0x115e59,
+            strokeColor: 0x2dd4bf,
+            fontSize: '13px',
+            radius: 11,
+            lip: 3,
+        }, () => this._openPlaytimeModal());
+
+        // Бейдж готовых наград
+        this._dockRewardBadge = this._createNotificationBadge(415 + 56, btnY - 14);
+
+        // 5. Главная кнопка действия (Primary CTA) — "В БОЙ! ⚔️" (Сочная рубиновая 3D-кнопка)
+        createCasualButton(this, W - 110, btnY, 185, 44, 'В бой! ⚔️', {
+            topColor: 0xef4444,
+            bottomColor: 0x991b1b,
+            strokeColor: 0xfca5a5,
+            fontSize: '17px',
+            radius: 12,
+            lip: 4,
+            pulse: true,
+            pulseScale: 1.035,
+            pulseDuration: 800,
+        }, () => {
             if (this.mergeField.mobs.length === 0) {
-                spawnFloatingText(this, W - 120, H - 80, 'Купите бойцов!', '#ff4444');
+                spawnFloatingText(this, W - 110, H - 80, 'Купите бойцов!', '#ff4444');
                 return;
             }
             this._openBattleModal();
-        }, '18px');
+        });
+    }
+
+    _createNotificationBadge(x, y) {
+        const badge = this.add.container(x, y).setVisible(false).setDepth(30);
+        const g = this.add.graphics();
+        g.fillStyle(0xef4444, 1);
+        g.fillCircle(0, 0, 7);
+        g.lineStyle(1.8, 0xffffff, 1);
+        g.strokeCircle(0, 0, 7);
+        badge.add(g);
+
+        this.tweens.add({
+            targets: badge,
+            scaleX: 1.25,
+            scaleY: 1.25,
+            duration: 600,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+        return badge;
     }
 
     // ============================================================
@@ -928,8 +1134,20 @@ class GameScene extends Phaser.Scene {
             this.state.playtime.totalSeconds >= t.seconds && !this.state.playtime.claimed[i]
         );
 
-        if (this._giftBtnText) {
-            this._giftBtnText.setText(hasUnclaimed ? '🎁 Подарки 🔴' : '🎁 Подарки');
+        if (this._giftBadge) {
+            this._giftBadge.setVisible(hasUnclaimed);
+        }
+        if (this._dockRewardBadge) {
+            this._dockRewardBadge.setVisible(hasUnclaimed);
+        }
+
+        // Проверяем, готов ли инкубатор
+        let hasReadyEgg = false;
+        if (Array.isArray(this.state.incubatorSlots)) {
+            hasReadyEgg = this.state.incubatorSlots.some(s => s.active && Date.now() >= s.endTime);
+        }
+        if (this._dockIncubatorBadge) {
+            this._dockIncubatorBadge.setVisible(hasReadyEgg);
         }
 
         // Если окно наград открыто — обновляем таймеры
@@ -1058,7 +1276,7 @@ class GameScene extends Phaser.Scene {
         const W = CONFIG.WIDTH;
         const H = CONFIG.HEIGHT;
 
-        this._playtimeModal = this.add.container(W / 2, H / 2).setDepth(450).setVisible(false);
+        this._playtimeModal = this.add.container(W / 2, H / 2).setDepth(1000).setVisible(false);
 
         const overlay = this.add.rectangle(0, 0, W, H, 0x000000, 0.72).setInteractive();
         const bg = this.add.graphics();
@@ -1169,7 +1387,7 @@ class GameScene extends Phaser.Scene {
         const W = CONFIG.WIDTH;
         const H = CONFIG.HEIGHT;
 
-        this._incubatorModal = this.add.container(W / 2, H / 2).setDepth(450).setVisible(false);
+        this._incubatorModal = this.add.container(W / 2, H / 2).setDepth(1000).setVisible(false);
 
         const overlay = this.add.rectangle(0, 0, W, H, 0x000000, 0.75).setInteractive();
         const bg = this.add.graphics();
@@ -1674,28 +1892,82 @@ class GameScene extends Phaser.Scene {
         const W = CONFIG.WIDTH;
         const H = CONFIG.HEIGHT;
 
-        this._battleModal = this.add.container(W / 2, H / 2).setDepth(300).setVisible(false);
+        this._battleModal = this.add.container(W / 2, H / 2).setDepth(1000).setVisible(false);
 
-        const overlay = this.add.rectangle(0, 0, W, H, 0x000000, 0.65).setInteractive();
+        const overlay = this.add.rectangle(0, 0, W, H, 0x090d16, 0.70).setInteractive();
+
+        const cardW = 460;
+        const cardH = 260;
+
+        // Внешняя тень
+        const shadowG = this.add.graphics();
+        shadowG.fillStyle(0x000000, 0.35);
+        shadowG.fillRoundedRect(-cardW / 2 + 2, -cardH / 2 + 5, cardW, cardH, 20);
+
+        // Карточка модалки (мягкий светлый казуальный стиль с золотистой рамкой)
         const bg = this.add.graphics();
-        drawRoundRect(bg, -220, -120, 440, 240, 16, 0xfffdf0, 0.98, 0x8b5a2b, 3);
+        bg.fillStyle(0xfffdfa, 0.99);
+        bg.fillRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, 20);
+        bg.lineStyle(2.5, 0xf59e0b, 1);
+        bg.strokeRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, 20);
 
-        const title = this.add.text(0, -75, 'Вы вызвали на бой игрока:', {
-            fontSize: '17px', fontFamily: 'monospace', color: '#2c3e50',
-            stroke: '#ffffff', strokeThickness: 2, fontStyle: 'bold',
+        // Верхняя декоративная 3D лента-заголовок
+        const headerW = 240;
+        const headerH = 42;
+        const headerG = this.add.graphics();
+        headerG.fillStyle(0xef4444, 1);
+        headerG.fillRoundedRect(-headerW / 2, -cardH / 2 - headerH / 2 + 4, headerW, headerH, 12);
+        headerG.fillStyle(0xffffff, 0.26);
+        headerG.fillRoundedRect(-headerW / 2 + 3, -cardH / 2 - headerH / 2 + 6, headerW - 6, 15, { tl: 9, tr: 9, bl: 2, br: 2 });
+        headerG.lineStyle(2, 0xfca5a5, 1);
+        headerG.strokeRoundedRect(-headerW / 2, -cardH / 2 - headerH / 2 + 4, headerW, headerH, 12);
+
+        const title = createHDText(this, 0, -cardH / 2 + 6, '⚔️ ВЫЗОВ НА БОЙ! ⚔️', {
+            fontSize: '17px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#ffffff', stroke: '#0f172a', strokeThickness: 3, fontStyle: '900',
         }).setOrigin(0.5);
 
-        this._battleModalName = this.add.text(0, -35, '', {
-            fontSize: '25px', fontFamily: 'monospace', color: '#c0392b',
-            stroke: '#ffffff', strokeThickness: 2, fontStyle: 'bold',
+        const sub = createHDText(this, 0, -cardH / 2 + 48, 'Вы бросаете вызов сопернику:', {
+            fontSize: '13px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#64748b', fontStyle: '800',
         }).setOrigin(0.5);
 
-        const runBtn = this._makeButton(-85, 50, 140, 44, 'Убежать', '#576574',
-            () => { this._battleModal.setVisible(false); }, '14px');
-        const fightBtn = this._makeButton(85, 50, 140, 44, 'В бой! ⚔', '#2ed573',
-            () => { this._battleModal.setVisible(false); this._openFighterSelect(); }, '14px');
+        // Плашка соперника
+        const namePill = this.add.graphics();
+        const pillW = 260;
+        const pillH = 46;
+        const pillY = -cardH / 2 + 88;
+        drawRoundRect(namePill, -pillW / 2, pillY - pillH / 2, pillW, pillH, 23, 0x0f172a, 0.94, 0xf59e0b, 1.5);
 
-        this._battleModal.add([overlay, bg, title, this._battleModalName, ...runBtn, ...fightBtn]);
+        this._battleModalName = createHDText(this, 0, pillY, '', {
+            fontSize: '20px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#ffd700', stroke: '#0f172a', strokeThickness: 2.5, fontStyle: '900',
+        }).setOrigin(0.5);
+
+        const hint = createHDText(this, 0, -cardH / 2 + 130, 'Сразитесь за кристаллы и ценные сокровища арены!', {
+            fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#475569', fontStyle: '800',
+        }).setOrigin(0.5);
+
+        // Кнопки действий:
+        // Вторичная (Убежать)
+        const runBtn = createCasualButton(this, -95, cardH / 2 - 42, 135, 40, 'Убежать', {
+            topColor: 0x64748b, bottomColor: 0x334155, strokeColor: 0x94a3b8,
+            fontSize: '14px', textColor: '#ffffff',
+        }, () => {
+            this._battleModal.setVisible(false);
+        });
+
+        // Главная CTA (В бой! ⚔)
+        const fightBtn = createCasualButton(this, 95, cardH / 2 - 42, 165, 44, 'В бой! ⚔', {
+            topColor: 0xef4444, bottomColor: 0x991b1b, strokeColor: 0xfca5a5,
+            fontSize: '16px', textColor: '#ffffff', pulse: true,
+        }, () => {
+            this._battleModal.setVisible(false);
+            this._openFighterSelect();
+        });
+
+        this._battleModal.add([overlay, shadowG, bg, headerG, title, sub, namePill, this._battleModalName, hint, runBtn, fightBtn]);
     }
 
     _openBattleModal() {
@@ -1710,32 +1982,62 @@ class GameScene extends Phaser.Scene {
         const W = CONFIG.WIDTH;
         const H = CONFIG.HEIGHT;
 
-        this._fighterModal = this.add.container(W / 2, H / 2).setDepth(300).setVisible(false);
+        this._fighterModal = this.add.container(W / 2, H / 2).setDepth(1000).setVisible(false);
 
-        const overlay = this.add.rectangle(0, 0, W, H, 0x000000, 0.65).setInteractive();
+        const overlay = this.add.rectangle(0, 0, W, H, 0x090d16, 0.70).setInteractive();
+
+        const modalW = 770;
+        const modalH = 430;
+
+        // Внешняя тень
+        const shadowG = this.add.graphics();
+        shadowG.fillStyle(0x000000, 0.40);
+        shadowG.fillRoundedRect(-modalW / 2 + 2, -modalH / 2 + 6, modalW, modalH, 20);
+
+        // Светлая премиальная основа карточки
         const bg = this.add.graphics();
-        // Светлая кремовая карточка модалки (как на скриншоте 2)
-        drawRoundRect(bg, -385, -215, 770, 430, 20, 0xfffdf0, 0.98, 0x8b5a2b, 3);
+        bg.fillStyle(0xfffdfa, 0.99);
+        bg.fillRoundedRect(-modalW / 2, -modalH / 2, modalW, modalH, 20);
+        bg.lineStyle(2.5, 0x3b82f6, 1);
+        bg.strokeRoundedRect(-modalW / 2, -modalH / 2, modalW, modalH, 20);
 
-        const title = this.add.text(0, -182, 'Выберите до 3 мобов для боя', {
-            fontSize: '20px', fontFamily: 'monospace', color: '#2c3e50',
-            stroke: '#ffffff', strokeThickness: 2, fontStyle: 'bold',
+        // Верхняя плашка шапки
+        bg.fillStyle(0x0f172a, 0.94);
+        bg.fillRoundedRect(-modalW / 2 + 3, -modalH / 2 + 3, modalW - 6, 56, { tl: 17, tr: 17, bl: 0, br: 0 });
+
+        const title = createHDText(this, 0, -modalH / 2 + 22, '🛡️ ВЫБОР ОТРЯДА В БОЙ', {
+            fontSize: '18px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#ffd700', stroke: '#0f172a', strokeThickness: 3, fontStyle: '900',
         }).setOrigin(0.5);
 
-        this._fighterCountText = this.add.text(0, -156, 'Выбрано: 0 / 3', {
-            fontSize: '13px', fontFamily: 'monospace', color: '#27ae60', fontStyle: 'bold'
+        // Капсула счетчика бойцов
+        const countPill = this.add.graphics();
+        drawRoundRect(countPill, -70, -modalH / 2 + 37, 140, 18, 9, 0x166534, 0.9, 0x22c55e, 1.2);
+
+        this._fighterCountText = createHDText(this, 0, -modalH / 2 + 46, 'Выбрано: 0 / 3', {
+            fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#ffffff', fontStyle: '900'
         }).setOrigin(0.5);
 
         this._fighterCards = [];
         this._selectedFighters = new Set();
         this._fighterGridContainer = this.add.container(0, 0);
 
-        const runBtn = this._makeButton(-110, 172, 160, 44, 'Убежать', '#576574',
-            () => { this._fighterModal.setVisible(false); }, '14px');
-        const startBtn = this._makeButton(110, 172, 180, 44, 'Начать бой ⚔', '#2ed573',
-            () => { this._startBattle(); }, '15px');
+        const runBtn = createCasualButton(this, -110, 178, 150, 40, 'Убежать', {
+            topColor: 0x64748b, bottomColor: 0x334155, strokeColor: 0x94a3b8,
+            fontSize: '14px', textColor: '#ffffff',
+        }, () => {
+            this._fighterModal.setVisible(false);
+        });
 
-        this._fighterModal.add([overlay, bg, title, this._fighterCountText, this._fighterGridContainer, ...runBtn, ...startBtn]);
+        const startBtn = createCasualButton(this, 110, 178, 190, 42, 'Начать бой ⚔', {
+            topColor: 0x22c55e, bottomColor: 0x15803d, strokeColor: 0x86efac,
+            fontSize: '15px', pulse: true, textColor: '#ffffff',
+        }, () => {
+            this._startBattle();
+        });
+
+        this._fighterModal.add([overlay, shadowG, bg, title, countPill, this._fighterCountText, this._fighterGridContainer, runBtn, startBtn]);
     }
 
     _openFighterSelect() {
@@ -1779,16 +2081,19 @@ class GameScene extends Phaser.Scene {
 
     _buildFighterCard(x, y, entry, idx) {
         const objs = [];
-        const cardW = 104;
-        const cardH = 104;
+        const cardW = 106;
+        const cardH = 106;
 
         if (!entry) {
             // Пустой слот
             const bg = this.add.graphics();
-            drawRoundRect(bg, x - cardW / 2, y - cardH / 2, cardW, cardH, 10, 0xf5f6fa, 0.95, 0xdcdde1, 1.5);
+            drawRoundRect(bg, x - cardW / 2, y - cardH / 2, cardW, cardH, 12, 0xf1f5f9, 0.95, 0xcbd5e1, 1.5);
             objs.push(bg);
 
-            const plusTxt = this.add.text(x, y, '＋', { fontSize: '26px', color: '#c8d6e5' }).setOrigin(0.5);
+            const plusTxt = createHDText(this, x, y, '＋', {
+                fontSize: '24px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+                color: '#94a3b8', fontStyle: '900'
+            }).setOrigin(0.5);
             objs.push(plusTxt);
 
             this._fighterGridContainer.add(objs);
@@ -1801,52 +2106,75 @@ class GameScene extends Phaser.Scene {
         const bg = this.add.graphics();
         objs.push(bg);
 
-        // Круглый чекбокс в правом верхнем углу (как на скриншоте 2)
+        // Круглый постамент под аватар
+        const saucer = this.add.graphics();
+        objs.push(saucer);
+
+        // Чекбокс в правом верхнем углу
         const checkCircle = this.add.graphics();
         objs.push(checkCircle);
 
-        const checkMarkTxt = this.add.text(x + cardW / 2 - 13, y - cardH / 2 + 13, isSelected ? '✓' : '', {
-            fontSize: '11px', color: '#ffffff', fontStyle: 'bold'
+        const checkMarkTxt = createHDText(this, x + cardW / 2 - 14, y - cardH / 2 + 14, isSelected ? '✓' : '', {
+            fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#ffffff', fontStyle: '900'
         }).setOrigin(0.5);
         objs.push(checkMarkTxt);
 
         const drawCardState = (selected) => {
             bg.clear();
-            drawRoundRect(bg, x - cardW / 2, y - cardH / 2, cardW, cardH, 10,
-                selected ? 0xeafaf1 : 0xffffff, 0.98,
-                selected ? 0x2ed573 : 0xd2c4b0,
-                selected ? 2.5 : 1.5);
+            if (selected) {
+                // Выделенная карточка (soft mint + emerald border)
+                drawRoundRect(bg, x - cardW / 2 + 1, y - cardH / 2 + 2, cardW, cardH, 12, 0x059669, 0.20);
+                drawRoundRect(bg, x - cardW / 2, y - cardH / 2, cardW, cardH, 12, 0xecfdf5, 0.98, 0x10b981, 2.5);
+            } else {
+                // Обычная карточка
+                drawRoundRect(bg, x - cardW / 2 + 1, y - cardH / 2 + 2, cardW, cardH, 12, 0x000000, 0.08);
+                drawRoundRect(bg, x - cardW / 2, y - cardH / 2, cardW, cardH, 12, 0xffffff, 0.98, 0xcbd5e1, 1.5);
+            }
+
+            saucer.clear();
+            saucer.fillStyle(selected ? 0xd1fae5 : 0xf1f5f9, 1);
+            saucer.fillCircle(x, y - 14, 23);
+            saucer.lineStyle(1.2, selected ? 0x10b981 : 0x94a3b8, 0.6);
+            saucer.strokeCircle(x, y - 14, 23);
 
             checkCircle.clear();
             if (selected) {
-                checkCircle.fillStyle(0x2ed573, 1);
-                checkCircle.fillCircle(x + cardW / 2 - 13, y - cardH / 2 + 13, 8);
+                checkCircle.fillStyle(0x10b981, 1);
+                checkCircle.fillCircle(x + cardW / 2 - 14, y - cardH / 2 + 14, 9);
                 checkCircle.lineStyle(1.5, 0xffffff, 1);
-                checkCircle.strokeCircle(x + cardW / 2 - 13, y - cardH / 2 + 13, 8);
+                checkCircle.strokeCircle(x + cardW / 2 - 14, y - cardH / 2 + 14, 9);
                 checkMarkTxt.setText('✓');
             } else {
                 checkCircle.fillStyle(0xffffff, 1);
-                checkCircle.fillCircle(x + cardW / 2 - 13, y - cardH / 2 + 13, 8);
-                checkCircle.lineStyle(1.5, 0xa4b0be, 1);
-                checkCircle.strokeCircle(x + cardW / 2 - 13, y - cardH / 2 + 13, 8);
+                checkCircle.fillCircle(x + cardW / 2 - 14, y - cardH / 2 + 14, 9);
+                checkCircle.lineStyle(1.5, 0x94a3b8, 1);
+                checkCircle.strokeCircle(x + cardW / 2 - 14, y - cardH / 2 + 14, 9);
                 checkMarkTxt.setText('');
             }
         };
 
         drawCardState(isSelected);
 
-        const mobTex = mob.texture || (mob.level <= 10 ? `mob_0${mob.level}` : 'mob_placeholder');
-        const mobImg = this.add.image(x, y - 18, mobTex).setDisplaySize(42, 42);
+        const mobTex = (mob.portraitKey && this.textures.exists(mob.portraitKey))
+            ? mob.portraitKey
+            : (mob.texture || (mob.level <= 10 ? `mob_0${mob.level}` : 'mob_placeholder'));
+        const mobImg = this.add.image(x, y - 14, mobTex).setDisplaySize(42, 42);
         objs.push(mobImg);
 
-        const nameTxt = createHDText(this, x, y + 15, mob.name, {
-            fontSize: '10.5px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#2d3436', fontStyle: 'bold',
-            align: 'center', wordWrap: { width: cardW - 8 }
+        const nameTxt = createHDText(this, x, y + 17, mob.name, {
+            fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#1e293b', fontStyle: '800', align: 'center', wordWrap: { width: cardW - 8 }
         }).setOrigin(0.5);
         objs.push(nameTxt);
 
-        const atkTxt = createHDText(this, x, y + 31, `⚔ ${formatNumber(mob.atk)}`, {
-            fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#e74c3c', fontStyle: 'bold'
+        const atkPill = this.add.graphics();
+        drawRoundRect(atkPill, x - 34, y + 29, 68, 17, 8, 0xfef2f2, 0.95, 0xef4444, 1);
+        objs.push(atkPill);
+
+        const atkTxt = createHDText(this, x, y + 37, `⚔ ${formatNumber(mob.atk)}`, {
+            fontSize: '10.5px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#dc2626', fontStyle: '900'
         }).setOrigin(0.5);
         objs.push(atkTxt);
 

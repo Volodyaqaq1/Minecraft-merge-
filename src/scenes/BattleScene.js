@@ -104,20 +104,37 @@ class BattleScene extends Phaser.Scene {
         const cx = W / 2;
         const cy = H / 2 - 10;
 
-        // Лучи сияния за сундуком (позиционируем в центре, рисуем в 0, 0)
+        // ЕДИНЫЙ КОНТЕЙНЕР: сундук, лучи и надпись награды привязаны вместе
+        this.treasureContainer = this.add.container(cx, cy).setDepth(20);
+
+        // Лучи сияния за сундуком (позиционированы внутри контейнера)
         this.rays = this.add.graphics();
-        this.rays.setPosition(cx, cy);
-        this.rays.fillStyle(0xffd700, 0.15);
-        this.rays.fillCircle(0, 0, 110);
+        this.rays.fillStyle(0xffd700, 0.16);
+        this.rays.fillCircle(0, -10, 95);
+        this.rays.fillStyle(0xffffff, 0.10);
+        this.rays.fillCircle(0, -10, 120);
 
         // Иконка сундука
-        this.chestIcon = this.add.image(cx, cy - 20, 'icon_chest').setDisplaySize(68, 68);
+        this.chestIcon = this.add.image(0, -16, 'icon_chest').setDisplaySize(68, 68);
 
         // Подпись награды
-        this.prizeText = createHDText(this, cx, cy + 40, `💎 ${formatNumber(this.prize)}`, {
+        this.prizeText = createHDText(this, 0, 36, `💎 ${formatNumber(this.prize)}`, {
             fontSize: '18px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
             color: '#5dff6e', stroke: '#111625', strokeThickness: 3, fontStyle: '900',
         }).setOrigin(0.5);
+
+        this.treasureContainer.add([this.rays, this.chestIcon, this.prizeText]);
+
+        // Плавное парение сокровища в центре арены
+        this.tweens.add({
+            targets: this.treasureContainer,
+            scaleX: 1.05,
+            scaleY: 1.05,
+            duration: 1100,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
     }
 
     // ============================================================
@@ -132,65 +149,60 @@ class BattleScene extends Phaser.Scene {
         const wallH = 260;
         const wallY = H / 2 - 20;
 
-        // ── 1. Стенка Игрока (слева, ровно посередине между мобами 90 и центром 450) ──
+        // ── 1. Стенка Игрока (слева) ──
         this.pWallX = 270;
         this.pWallY = wallY;
         this.pWallGraphics = this.add.graphics();
         this.pWallGraphics.setPosition(this.pWallX, this.pWallY);
-        this._drawWoodenWall(this.pWallGraphics, -wallW / 2, -wallH / 2, wallW, wallH);
+        this.pWallGraphics._shakeBaseX = this.pWallX;
+        this._drawWoodenWall(this.pWallGraphics, -wallW / 2, -wallH / 2, wallW, wallH, 0);
 
         const pTotalAtk = this.playerTeam.reduce((s, m) => s + m.atk, 0);
         const bTotalAtk = this.botTeam.reduce((s, m) => s + m.atk, 0);
-
-        // ОБЕ СТЕНКИ ИМЕЮТ ОДИНАКОВОЕ ЗДОРОВЬЕ:
-        // Рассчитывается от среднего урона матча.
-        // - Если мобы одинаковые: честный шанс 50 на 50 (решают криты)!
-        // - Если мобы игрока сильнее: игрок сносит стенку быстрее и побеждает!
-        // - Если мобы бота сильнее: бот побеждает!
         const avgAtk = Math.max(10, (pTotalAtk + bTotalAtk) / 2);
         const matchWallHP = Math.max(80, Math.round(avgAtk * CONFIG.BATTLE_WALL_HP_FACTOR));
 
         this.pWallMaxHP = matchWallHP;
         this.pWallHP    = matchWallHP;
 
-        // HP бар стенки игрока (зеленый снизу)
-        const pBarBg = this.add.graphics();
-        drawRoundRect(pBarBg, this.pWallX - 60, H - 90, 120, 24, 6, 0x1f2421, 0.9, 0xffffff, 2);
-
+        // HP бар стенки игрока
         this.pBarFill = this.add.graphics();
-        this.pBarText = createHDText(this, this.pWallX, H - 78, '100%', {
-            fontSize: '13px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#ffffff', fontStyle: '800'
+        this.pBarFlash = this.add.graphics().setAlpha(0);
+        this.pBarText = createHDText(this, this.pWallX, H - 79, '100%', {
+            fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#ffffff', stroke: '#0f172a', strokeThickness: 2.5, fontStyle: '900'
         }).setOrigin(0.5);
-        this._updateWallHPBar('player');
 
-        // ── 2. Стенка Бота (справа, ровно посередине между ботом 810 и центром 450) ──
+        // ── 2. Стенка Бота (справа) ──
         this.bWallX = W - 270;
         this.bWallY = wallY;
         this.bWallGraphics = this.add.graphics();
         this.bWallGraphics.setPosition(this.bWallX, this.bWallY);
-        this._drawWoodenWall(this.bWallGraphics, -wallW / 2, -wallH / 2, wallW, wallH);
+        this.bWallGraphics._shakeBaseX = this.bWallX;
+        this._drawWoodenWall(this.bWallGraphics, -wallW / 2, -wallH / 2, wallW, wallH, 0);
 
         this.bWallMaxHP = matchWallHP;
         this.bWallHP    = matchWallHP;
 
-        // HP бар стенки бота (красный снизу)
-        const bBarBg = this.add.graphics();
-        drawRoundRect(bBarBg, this.bWallX - 60, H - 90, 120, 24, 6, 0x1f2421, 0.9, 0xffffff, 2);
-
+        // HP бар стенки бота
         this.bBarFill = this.add.graphics();
-        this.bBarText = createHDText(this, this.bWallX, H - 78, '100%', {
-            fontSize: '13px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#ffffff', fontStyle: '800'
+        this.bBarFlash = this.add.graphics().setAlpha(0);
+        this.bBarText = createHDText(this, this.bWallX, H - 79, '100%', {
+            fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#ffffff', stroke: '#0f172a', strokeThickness: 2.5, fontStyle: '900'
         }).setOrigin(0.5);
-        this._updateWallHPBar('bot');
+
+        this._updateWallHPBar('player', false);
+        this._updateWallHPBar('bot', false);
     }
 
-    _drawWoodenWall(g, x, y, w, h) {
+    _drawWoodenWall(g, x, y, w, h, damageRatio = 0) {
         g.clear();
-        // Деревянная текстура (доски)
+        // Деревянная основа (бревна / брус)
         g.fillStyle(0xb27848, 1);
         g.fillRoundedRect(x, y, w, h, 8);
 
-        // Линии досок
+        // Линии досок и окантовка
         g.lineStyle(3, 0x6e4624, 1);
         g.strokeRoundedRect(x, y, w, h, 8);
 
@@ -198,25 +210,63 @@ class BattleScene extends Phaser.Scene {
         for (let py = y + plankH; py < y + h; py += plankH) {
             g.lineBetween(x, py, x + w, py);
         }
+
+        // Трещины при повреждениях:
+        // Если HP < 70% (damageRatio >= 0.3)
+        if (damageRatio >= 0.3) {
+            g.lineStyle(2, 0x3d2314, 0.95);
+            g.lineBetween(x + 12, y + 45, x + 28, y + 80);
+            g.lineBetween(x + 28, y + 80, x + 20, y + 115);
+            g.lineBetween(x + 44, y + 165, x + 32, y + 195);
+        }
+        // Если HP < 35% (damageRatio >= 0.65)
+        if (damageRatio >= 0.65) {
+            g.lineStyle(2.5, 0x1f0e05, 1);
+            g.lineBetween(x + 10, y + 75, x + 35, y + 100);
+            g.lineBetween(x + 35, y + 100, x + 50, y + 125);
+            g.lineBetween(x + 18, y + 145, x + 40, y + 180);
+            g.lineBetween(x + 40, y + 180, x + 24, y + 220);
+            g.lineBetween(x + 8, y + 205, x + 32, y + 235);
+        }
     }
 
-    _updateWallHPBar(side) {
+    _updateWallHPBar(side, flashDamage = false) {
+        const H = CONFIG.HEIGHT;
+        const barW = 120;
+        const barH = 22;
+
         if (side === 'player') {
             const ratio = Math.max(0, this.pWallHP / this.pWallMaxHP);
+            const damageRatio = 1 - ratio;
+            this._drawWoodenWall(this.pWallGraphics, -30, -130, 60, 260, damageRatio);
+
             this.pBarFill.clear();
-            if (ratio > 0) {
-                this.pBarFill.fillStyle(0x2ed573, 1);
-                this.pBarFill.fillRoundedRect(this.pWallX - 58, CONFIG.HEIGHT - 88, Math.floor(116 * ratio), 20, 4);
-            }
+            drawCasualProgressBar(this.pBarFill, this.pWallX - barW / 2, H - 90, barW, barH, 7, ratio, 0x0f172a, 0x22c55e, 0x334155);
             this.pBarText.setText(`${Math.ceil(ratio * 100)}%`);
+
+            if (flashDamage) {
+                this.pBarFlash.clear();
+                this.pBarFlash.fillStyle(0xffffff, 0.75);
+                this.pBarFlash.fillRoundedRect(this.pWallX - barW / 2, H - 90, barW, barH, 7);
+                this.pBarFlash.setAlpha(1);
+                this.tweens.add({ targets: this.pBarFlash, alpha: 0, duration: 160 });
+            }
         } else {
             const ratio = Math.max(0, this.bWallHP / this.bWallMaxHP);
+            const damageRatio = 1 - ratio;
+            this._drawWoodenWall(this.bWallGraphics, -30, -130, 60, 260, damageRatio);
+
             this.bBarFill.clear();
-            if (ratio > 0) {
-                this.bBarFill.fillStyle(0xff4757, 1);
-                this.bBarFill.fillRoundedRect(this.bWallX - 58, CONFIG.HEIGHT - 88, Math.floor(116 * ratio), 20, 4);
-            }
+            drawCasualProgressBar(this.bBarFill, this.bWallX - barW / 2, H - 90, barW, barH, 7, ratio, 0x0f172a, 0xef4444, 0x334155);
             this.bBarText.setText(`${Math.ceil(ratio * 100)}%`);
+
+            if (flashDamage) {
+                this.bBarFlash.clear();
+                this.bBarFlash.fillStyle(0xffffff, 0.75);
+                this.bBarFlash.fillRoundedRect(this.bWallX - barW / 2, H - 90, barW, barH, 7);
+                this.bBarFlash.setAlpha(1);
+                this.tweens.add({ targets: this.bBarFlash, alpha: 0, duration: 160 });
+            }
         }
     }
 
@@ -230,25 +280,37 @@ class BattleScene extends Phaser.Scene {
 
         team.forEach((mob, i) => {
             const y = H / 2 - 90 + i * 95;
+            const rColor = mob.rarityColor || 0x64748b;
 
-            // Фон-кружок карточки бойца
+            // Фон-кружок карточки бойца с мягкой тенью и цветной рамкой редкости
             const bg = this.add.graphics();
-            drawRoundRect(bg, cx - 40, y - 40, 80, 80, 40, mob.rarityColor, 0.45, 0xffffff, 2);
+            drawRoundRect(bg, cx - 41, y - 41 + 2, 82, 82, 41, 0x020617, 0.4);
+            drawRoundRect(bg, cx - 40, y - 40, 80, 80, 40, 0x162032, 0.85, rColor, 2.2);
 
-            const mobTex = mob.texture || (mob.level <= 10 ? `mob_0${mob.level}` : 'mob_placeholder');
-            const avatar = this.add.image(cx, y - 6, mobTex).setDisplaySize(56, 56);
+            // Внутреннее блюдце
+            bg.fillStyle(0x0f172a, 0.6);
+            bg.fillCircle(cx, y - 6, 26);
 
-            const nameT = createHDText(this, cx, y + 26, mob.name, {
+            const mobTex = (mob.portraitKey && this.textures.exists(mob.portraitKey))
+                ? mob.portraitKey
+                : (mob.texture || (mob.level <= 10 ? `mob_0${mob.level}` : 'mob_placeholder'));
+            const avatar = this.add.image(cx, y - 6, mobTex).setDisplaySize(50, 50);
+
+            const nameT = createHDText(this, cx, y + 25, mob.name, {
                 fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#ffffff',
-                stroke: '#111625', strokeThickness: 2, fontStyle: '800',
+                stroke: '#0f172a', strokeThickness: 2.5, fontStyle: '800',
             }).setOrigin(0.5, 0);
 
-            const atkT = createHDText(this, cx, y + 39, `⚔${formatNumber(mob.atk)}`, {
-                fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: isPlayer ? '#4ade80' : '#f87171',
-                stroke: '#111625', strokeThickness: 2, fontStyle: '800',
-            }).setOrigin(0.5, 0);
+            // Аккуратная плашка урона
+            const atkPill = this.add.graphics();
+            drawRoundRect(atkPill, cx - 34, y + 38, 68, 17, 8, isPlayer ? 0x14532d : 0x7f1d1d, 0.9, isPlayer ? 0x22c55e : 0xef4444, 1);
 
-            sprites.push({ bg, avatar, emoji: avatar, nameT, atkT, mob, x: cx, y });
+            const atkT = createHDText(this, cx, y + 46, `⚔ ${formatNumber(mob.atk)}`, {
+                fontSize: '10.5px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+                color: isPlayer ? '#4ade80' : '#fca5a5', stroke: '#0f172a', strokeThickness: 2, fontStyle: '900',
+            }).setOrigin(0.5, 0.5);
+
+            sprites.push({ bg, atkPill, avatar, emoji: avatar, nameT, atkT, mob, x: cx, y });
         });
 
         return sprites;
@@ -351,7 +413,7 @@ class BattleScene extends Phaser.Scene {
         // Уменьшение HP
         if (isPlayer) {
             this.pWallHP -= damage;
-            this._updateWallHPBar('player');
+            this._updateWallHPBar('player', true);
 
             if (this.pWallHP <= 0) {
                 this.pWallHP = 0;
@@ -359,7 +421,7 @@ class BattleScene extends Phaser.Scene {
             }
         } else {
             this.bWallHP -= damage;
-            this._updateWallHPBar('bot');
+            this._updateWallHPBar('bot', true);
 
             if (this.bWallHP <= 0) {
                 this.bWallHP = 0;
@@ -384,18 +446,10 @@ class BattleScene extends Phaser.Scene {
             duration: 350,
         });
 
-        // Награда перетягивается в сторону победителя («как будто он её забирает»)!
-        const chestBaseScale = this.chestIcon.scaleX;
+        // Награда целиком (сундук + лучи + надпись) перетягивается к победителю!
+        this.tweens.killTweensOf(this.treasureContainer);
         this.tweens.add({
-            targets: this.chestIcon,
-            x: targetX,
-            scaleX: chestBaseScale * 1.25,
-            scaleY: chestBaseScale * 1.25,
-            duration: 800,
-            ease: 'Back.Out',
-        });
-        this.tweens.add({
-            targets: [this.prizeText, this.rays],
+            targets: this.treasureContainer,
             x: targetX,
             scaleX: 1.25,
             scaleY: 1.25,
@@ -423,55 +477,108 @@ class BattleScene extends Phaser.Scene {
         const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.72).setDepth(200).setInteractive();
         const modal = this.add.container(W / 2, H / 2).setDepth(201);
 
-        const cardW = 480;
-        const cardH = 310;
-        const bg = this.add.graphics();
-        drawRoundRect(bg, -cardW / 2, -cardH / 2, cardW, cardH, 20, 0xfffdf0, 0.99, 0xf39c12, 3.5);
+        const cardW = 460;
+        const cardH = 330;
 
-        const titleText = isWin ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ...';
-        const titleColor = isWin ? '#198754' : '#b02a37';
-        const title = createHDText(this, 0, -112, titleText, {
-            fontSize: '28px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: titleColor, fontStyle: '900'
+        // Мягкая внешняя тень модального окна
+        const shadowG = this.add.graphics();
+        shadowG.fillStyle(0x000000, 0.35);
+        shadowG.fillRoundedRect(-cardW / 2 + 2, -cardH / 2 + 6, cardW, cardH, 22);
+
+        // Белая глянцевая основа карточки
+        const bg = this.add.graphics();
+        bg.fillStyle(0xffffff, 0.99);
+        bg.fillRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, 22);
+        bg.lineStyle(3, isWin ? 0xf59e0b : 0x94a3b8, 1);
+        bg.strokeRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, 22);
+
+        // Верхний декоративный бейдж с заголовком
+        const headerW = 230;
+        const headerH = 46;
+        const headerBg = this.add.graphics();
+        headerBg.fillStyle(isWin ? 0x22c55e : 0xef4444, 1);
+        headerBg.fillRoundedRect(-headerW / 2, -cardH / 2 - headerH / 2 + 4, headerW, headerH, 14);
+        headerBg.fillStyle(0xffffff, 0.28);
+        headerBg.fillRoundedRect(-headerW / 2 + 3, -cardH / 2 - headerH / 2 + 6, headerW - 6, 17, { tl: 11, tr: 11, bl: 3, br: 3 });
+        headerBg.lineStyle(2, isWin ? 0x86efac : 0xfca5a5, 1);
+        headerBg.strokeRoundedRect(-headerW / 2, -cardH / 2 - headerH / 2 + 4, headerW, headerH, 14);
+
+        const titleText = isWin ? 'ПОБЕДА! 🏆' : 'ПОРАЖЕНИЕ 💔';
+        const title = createHDText(this, 0, -cardH / 2 + 6, titleText, {
+            fontSize: '20px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#ffffff', stroke: '#0f172a', strokeThickness: 3, fontStyle: '900'
         }).setOrigin(0.5);
 
         const subText = isWin
-            ? '🏆 Отличный бой! Сокровище принадлежит вашей команде!'
-            : '📗 Бери мобов более высокого уровня в бой, чтобы победить';
-        const sub = createHDText(this, 0, -74, subText, {
-            fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#555555', fontStyle: '800', align: 'center', wordWrap: { width: cardW - 40 }
+            ? 'Отличный бой! Сокровище принадлежит вашей команде!'
+            : 'Берите более сильных мобов в команду, чтобы победить';
+        const sub = createHDText(this, 0, -cardH / 2 + 56, subText, {
+            fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#64748b', fontStyle: '800', align: 'center', wordWrap: { width: cardW - 40 }
         }).setOrigin(0.5);
 
-        const adTitle = createHDText(this, 0, -36, 'Увеличить награду за просмотр рекламы?', {
-            fontSize: '13px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#7f8c8d', fontStyle: '800'
+        // Плашка базовой награды
+        const prizePill = this.add.graphics();
+        const pillW = 180;
+        const pillH = 34;
+        const pillY = -cardH / 2 + 94;
+        prizePill.fillStyle(0xfef3c7, 1);
+        prizePill.fillRoundedRect(-pillW / 2, pillY - pillH / 2, pillW, pillH, pillH / 2);
+        prizePill.lineStyle(1.5, 0xf59e0b, 1);
+        prizePill.strokeRoundedRect(-pillW / 2, pillY - pillH / 2, pillW, pillH, pillH / 2);
+
+        const prizeTxt = createHDText(this, 0, pillY, `💎 +${formatNumber(basePrize)}`, {
+            fontSize: '18px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#92400e', fontStyle: '900'
         }).setOrigin(0.5);
 
-        // Полоса слайдера от x2 до x5
+        const adTitle = createHDText(this, 0, -cardH / 2 + 138, 'Умножить награду за рекламу:', {
+            fontSize: '13px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#334155', fontStyle: '900'
+        }).setOrigin(0.5);
+
+        // Полоса слайдера от x2 до x5 в темном казуальном желобе
         const trackW = 280;
-        const trackH = 10;
-        const trackY = 10;
+        const trackH = 14;
+        const trackY = -cardH / 2 + 178;
         const trackBg = this.add.graphics();
-        drawRoundRect(trackBg, -trackW / 2, trackY - trackH / 2, trackW, trackH, 5, 0xe8c48a, 1, 0xb98e4f, 1.5);
+        drawRoundRect(trackBg, -trackW / 2, trackY - trackH / 2, trackW, trackH, 7, 0x0f172a, 0.95, 0x334155, 1.5);
 
         // Метки множителей над шкалой
         const labelY = trackY - 18;
-        const lX2Left  = createHDText(this, -trackW / 2 + 10, labelY, 'x2', { fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#888', fontStyle: '800' }).setOrigin(0.5);
-        const lX3Left  = createHDText(this, -trackW / 4, labelY, 'x3', { fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#888', fontStyle: '800' }).setOrigin(0.5);
-        const lX5Mid   = createHDText(this, 0, labelY, 'x5 🔥', { fontSize: '16px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#e11d48', fontStyle: '900' }).setOrigin(0.5);
-        const lX3Right = createHDText(this, trackW / 4, labelY, 'x3', { fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#888', fontStyle: '800' }).setOrigin(0.5);
-        const lX2Right = createHDText(this, trackW / 2 - 10, labelY, 'x2', { fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#888', fontStyle: '800' }).setOrigin(0.5);
+        const lX2Left  = createHDText(this, -trackW / 2 + 12, labelY, 'x2', { fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#94a3b8', fontStyle: '800', stroke: '#0f172a', strokeThickness: 2 }).setOrigin(0.5);
+        const lX3Left  = createHDText(this, -trackW / 4, labelY, 'x3', { fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#f59e0b', fontStyle: '900', stroke: '#0f172a', strokeThickness: 2.5 }).setOrigin(0.5);
+        const lX5Mid   = createHDText(this, 0, labelY, 'x5 🔥', { fontSize: '16px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#ef4444', fontStyle: '900', stroke: '#0f172a', strokeThickness: 3 }).setOrigin(0.5);
+        const lX3Right = createHDText(this, trackW / 4, labelY, 'x3', { fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#f59e0b', fontStyle: '900', stroke: '#0f172a', strokeThickness: 2.5 }).setOrigin(0.5);
+        const lX2Right = createHDText(this, trackW / 2 - 12, labelY, 'x2', { fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#94a3b8', fontStyle: '800', stroke: '#0f172a', strokeThickness: 2 }).setOrigin(0.5);
 
-        // Бегающий ползунок
+        // Бегающий ползунок (круглая фиолетовая бусина с иконкой)
         const knobContainer = this.add.container(0, trackY);
         const knobG = this.add.graphics();
-        drawRoundRect(knobG, -15, -15, 30, 30, 7, 0x8e44ad, 1, 0xffffff, 2);
+        knobG.fillStyle(0x581c87, 1);
+        knobG.fillRoundedRect(-16, -16 + 3, 32, 32, 8);
+        knobG.fillStyle(0x9333ea, 1);
+        knobG.fillRoundedRect(-16, -16, 32, 32, 8);
+        knobG.lineStyle(1.8, 0xffffff, 1);
+        knobG.strokeRoundedRect(-16, -16, 32, 32, 8);
         const knobTxt = createHDText(this, 0, 0, '🎬', { fontSize: '16px' }).setOrigin(0.5);
         knobContainer.add([knobG, knobTxt]);
 
         let sliderActive = true;
         let currentMult = 3;
 
-        // Большая зеленая кнопка множителя
-        const [claimBg, claimTxt, claimHit] = this._makeButton(0, 70, 240, 50, '', '#2ed573', () => {
+        // Большая сочная 3D кнопка множителя
+        const claimBtn = createCasualButton(this, 0, cardH / 2 - 58, 280, 48, `🎬 ЗАБРАТЬ x3 (💎 ${formatNumber(basePrize * 3)})`, {
+            topColor: 0x22c55e,
+            bottomColor: 0x15803d,
+            strokeColor: 0x86efac,
+            fontSize: '15px',
+            radius: 12,
+            lip: 4,
+            pulse: true,
+            pulseScale: 1.03,
+            pulseDuration: 750,
+        }, () => {
             if (!sliderActive) return;
             sliderActive = false;
 
@@ -488,14 +595,20 @@ class BattleScene extends Phaser.Scene {
             this.time.delayedCall(450, () => {
                 this.scene.start('GameScene');
             });
-        }, '16px');
+        });
 
-        // Текстовая кнопка "НЕ НАДО" (забрать 1x без рекламы)
-        const skipTxt = createHDText(this, 0, 124, 'НЕ НАДО', {
-            fontSize: '13px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#7f8c8d', fontStyle: '800'
-        }).setOrigin(0.5).setInteractive({ cursor: 'pointer' });
+        // Вторичная кнопка "Забрать без рекламы (1x)"
+        const skipContainer = this.add.container(0, cardH / 2 - 18);
+        const skipBg = this.add.graphics();
+        drawRoundRect(skipBg, -100, -12, 200, 24, 12, 0xf1f5f9, 0.95, 0xcbd5e1, 1);
+        const skipTxt = createHDText(this, 0, 0, 'Забрать без рекламы (1x)', {
+            fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#64748b', fontStyle: '800'
+        }).setOrigin(0.5);
+        const skipHit = this.add.rectangle(0, 0, 200, 24, 0, 0).setInteractive({ cursor: 'pointer' });
+        skipContainer.add([skipBg, skipTxt, skipHit]);
 
-        skipTxt.on('pointerdown', () => {
+        skipHit.on('pointerdown', () => {
             if (!sliderActive) return;
             sliderActive = false;
 
@@ -510,11 +623,12 @@ class BattleScene extends Phaser.Scene {
         });
 
         modal.add([
-            bg, title, sub, adTitle,
+            shadowG, bg, headerBg, title, sub,
+            prizePill, prizeTxt, adTitle,
             trackBg, lX2Left, lX3Left, lX5Mid, lX3Right, lX2Right,
             knobContainer,
-            claimBg, claimTxt, claimHit,
-            skipTxt
+            claimBtn,
+            skipContainer
         ]);
 
         // Анимация бегающего ползунка с комфортной скоростью (~1.8 сек проход)
@@ -539,11 +653,18 @@ class BattleScene extends Phaser.Scene {
                     currentMult = 2;
                 }
 
-                claimTxt.setText(`${formatNumber(basePrize * currentMult)} 💎 ▶`);
+                // Динамическая подсветка активного множителя
+                lX5Mid.setScale(currentMult === 5 ? 1.25 : 1.0);
+                lX3Left.setScale((currentMult === 4 || currentMult === 3) && xPos < 0 ? 1.2 : 1.0);
+                lX3Right.setScale((currentMult === 4 || currentMult === 3) && xPos > 0 ? 1.2 : 1.0);
+                lX2Left.setScale(currentMult === 2 && xPos < 0 ? 1.15 : 1.0);
+                lX2Right.setScale(currentMult === 2 && xPos > 0 ? 1.15 : 1.0);
+
+                claimBtn.setText(`🎬 ЗАБРАТЬ x${currentMult} (💎 ${formatNumber(basePrize * currentMult)})`);
             }
         };
 
-        claimTxt.setText(`${formatNumber(basePrize * 3)} 💎 ▶`);
+        claimBtn.setText(`🎬 ЗАБРАТЬ x3 (💎 ${formatNumber(basePrize * 3)})`);
     }
 
     update(time, delta) {

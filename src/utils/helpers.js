@@ -320,9 +320,9 @@ function createCasualButton(scene, x, y, w, h, text, options = {}, onClick = nul
     if (options.pulse) {
         scene.tweens.add({
             targets: container,
-            scaleX: 1.04,
-            scaleY: 1.04,
-            duration: 750,
+            scaleX: options.pulseScale !== undefined ? options.pulseScale : 1.04,
+            scaleY: options.pulseScale !== undefined ? options.pulseScale : 1.04,
+            duration: options.pulseDuration !== undefined ? options.pulseDuration : 750,
             yoyo: true,
             repeat: -1,
             ease: 'Sine.easeInOut'

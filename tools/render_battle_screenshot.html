@@ -1,14 +1,18 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HiDPI Game Screenshot Test</title>
-    <style>
-        * { margin:0; padding:0; box-sizing:border-box; }
-        html, body { width:100%; height:100%; overflow:hidden; background:#111625; display:flex; align-items:center; justify-content:center; }
-        #game-container { position:fixed; top:0; left:0; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
-    </style>
+<meta charset="UTF-8">
+<title>BATTLE_TEST</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background: #0f172a; overflow: hidden;
+  }
+  #game-container {
+    width: 100%; height: 100%; display: flex;
+    align-items: center; justify-content: center;
+  }
+</style>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
     <script src="../src/config.js"></script>
     <script src="../src/data/mobs.js"></script>
@@ -20,43 +24,31 @@
     <script src="../src/components/MergeField.js"></script>
     <script src="../src/components/BattleSystem.js"></script>
     <script src="../src/scenes/BootScene.js"></script>
+    <script src="../src/scenes/BattleScene.js"></script>
     <script src="../src/scenes/GameScene.js"></script>
+    <script src="../src/scenes/CollectionScene.js"></script>
 </head>
 <body>
 <div id="game-container"></div>
 <div id="snapshot"></div>
 <script>
-// Mock initial state with several mobs on field
+window.onerror = function(msg, url, line, col, error) {
+    document.title = 'ERR: ' + msg + ' at ' + line;
+};
 const mockState = {
     coins: 25000,
+    player: { coins: 25000, xp: 100 },
     playerLevel: 5,
     maxMobLevel: 6,
     unlockedTiers: [1],
-    field: [
-        { id: 'm1', mobLevel: 1, x: 280, y: 190 },
-        { id: 'm2', mobLevel: 2, x: 420, y: 180 },
-        { id: 'm3', mobLevel: 2, x: 570, y: 195 },
-        { id: 'm4', mobLevel: 3, x: 700, y: 200 },
-        { id: 'm5', mobLevel: 3, x: 270, y: 320 },
-        { id: 'm6', mobLevel: 4, x: 410, y: 330 },
-        { id: 'm7', mobLevel: 5, x: 550, y: 315 },
-        { id: 'm8', mobLevel: 6, x: 690, y: 330 },
-    ],
-    collection: [1, 2, 3, 4, 5, 6],
-    incubatorSlots: [
-        { id: 0, unlockLevel: 5, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0 },
-        { id: 1, unlockLevel: 15, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0 },
-        { id: 2, unlockLevel: 25, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0 },
-    ],
+    field: [],
+    collection: [1, 2],
+    incubatorSlots: [],
     playtime: { totalSeconds: 120, claimed: {} },
-    quests: [
-        { id: 'q1', mobLevel: 2, targetCount: 4, rewardCoins: 150 },
-        { id: 'q2', mobLevel: 1, targetCount: 1, rewardCoins: 80 }
-    ]
+    quests: []
 };
 localStorage.setItem('bestiary_squishy_save_v1', JSON.stringify(mockState));
 
-// Override BootScene.preload to only load needed assets for the snapshot
 BootScene.prototype.preload = function() {
     this._createColorTexture('bg_game',   0x2d5a27, 960, 540);
     this._createColorTexture('bg_battle', 0x1a1a2e, 960, 540);
@@ -77,9 +69,21 @@ BootScene.prototype.preload = function() {
     this.load.image('icon_gear',  '../assets/icons/gear.png');
 };
 
-// Force debug telemetry overlay
-CONFIG.DEBUG = true;
+BootScene.prototype.create = function() {
+    const pMob1 = getMobByLevel(2);
+    const pMob2 = getMobByLevel(1);
+    const bMob1 = getMobByLevel(2);
+    const bMob2 = getMobByLevel(1);
 
+    this.scene.start('BattleScene', {
+        playerTeam: [pMob1, pMob2],
+        botTeam: [bMob1, bMob2],
+        botName: 'Лесной Страж',
+        state: SaveManager.load()
+    });
+};
+
+CONFIG.DEBUG = true;
 const renderScale = CONFIG.RENDER_SCALE || 2.0;
 const config = {
     type: Phaser.AUTO,
@@ -98,16 +102,15 @@ const config = {
         roundPixels: false,
         powerPreference: 'high-performance',
     },
-    scene: [BootScene, GameScene]
+    scene: [BootScene, BattleScene]
 };
 
 window.game = new Phaser.Game(config);
 
-// Capture snapshot after GameScene renders
 let frameCount = 0;
 let captured = false;
 function pollCapture() {
-    const scene = window.game && window.game.scene ? window.game.scene.getScene('GameScene') : null;
+    const scene = window.game && window.game.scene ? window.game.scene.getScene('BattleScene') : null;
     if (scene && scene.scene.isActive()) {
         frameCount++;
         if (frameCount >= 3 && !captured) {

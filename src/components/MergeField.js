@@ -58,9 +58,44 @@ class MergeField {
         const mob = getMobByLevel(mobLevel);
         if (!mob) return null;
 
-        // Если координаты не переданы, выбираем случайную позицию на полянке
-        const x = targetX !== undefined ? targetX : randInt(this.bounds.minX + 40, this.bounds.maxX - 40);
-        const y = targetY !== undefined ? targetY : randInt(this.bounds.minY + 40, this.bounds.maxY - 40);
+        // Если координаты не переданы, выбираем свободную позицию на полянке без перекрытия других мобов
+        let x = targetX;
+        let y = targetY;
+        if (x === undefined || y === undefined) {
+            let bestX = randInt(this.bounds.minX + 45, this.bounds.maxX - 45);
+            let bestY = randInt(this.bounds.minY + 45, this.bounds.maxY - 45);
+            let maxMinDist = -1;
+
+            // Пробуем 24 случайные точки и выбираем ту, где максимальное расстояние до всех существующих мобов
+            for (let attempt = 0; attempt < 24; attempt++) {
+                const candX = randInt(this.bounds.minX + 45, this.bounds.maxX - 45);
+                const candY = randInt(this.bounds.minY + 45, this.bounds.maxY - 45);
+                if (this.mobs.length === 0) {
+                    bestX = candX;
+                    bestY = candY;
+                    break;
+                }
+                let minDist = 999999;
+                for (const m of this.mobs) {
+                    const mx = m.container ? m.container.x : m.x;
+                    const my = m.container ? m.container.y : m.y;
+                    const d = Phaser.Math.Distance.Between(candX, candY, mx, my);
+                    if (d < minDist) minDist = d;
+                }
+                if (minDist > maxMinDist) {
+                    maxMinDist = minDist;
+                    bestX = candX;
+                    bestY = candY;
+                }
+                if (minDist >= 96) {
+                    bestX = candX;
+                    bestY = candY;
+                    break;
+                }
+            }
+            x = bestX;
+            y = bestY;
+        }
 
         const mobItem = {
             id: this._nextId++,
@@ -141,7 +176,7 @@ class MergeField {
         const mob = getMobByLevel(mobItem.mobLevel);
 
         const container = scene.add.container(mobItem.x, mobItem.y);
-        container.setDepth(20);
+        container.setDepth(20 + Math.floor(mobItem.y));
         container.setScale(1.0);
 
         // 1. Мягкая тень под ногами персонажа (на полянке)
@@ -172,29 +207,37 @@ class MergeField {
         const mobImg = scene.add.image(0, -6, spriteTex).setDisplaySize(mobSize * 0.95, mobSize * 0.95);
         container.add(mobImg);
 
-        // 4. Имя моба снизу в компактном бейдже
-        const nameBadge = scene.add.graphics();
-        const badgeW = Math.min(mobSize + 16, 120);
-        drawRoundRect(nameBadge, -badgeW / 2, mobSize / 2 - 16, badgeW, 20, 10, 0x0f172a, 0.85, mob.tierColor || 0xffffff, 1.2);
-        container.add(nameBadge);
-
-        const nameText = createHDText(scene, 0, mobSize / 2 - 6, mob.name, {
-            fontSize: '11px',
+        // 4. Имя моба снизу в аккуратном компактном пилл-бейдже
+        const nameText = createHDText(scene, 0, mobSize / 2 - 10, mob.name, {
+            fontSize: '10.5px',
             color: mob.tier === 2 ? '#ffd700' : (mob.tier === 3 ? '#38bdf8' : '#ffffff'),
+            stroke: '#0f172a',
+            strokeThickness: 2,
             fontStyle: '800',
         }).setOrigin(0.5);
+
+        const nameBadge = scene.add.graphics();
+        const badgeW = Math.min(Math.max(42, nameText.width + 12), Math.round(mobSize * 0.76));
+        drawRoundRect(nameBadge, -badgeW / 2, mobSize / 2 - 19, badgeW, 18, 9, 0x0f172a, 0.90, mob.tierColor || 0x64748b, 1.2);
+        container.add(nameBadge);
         container.add(nameText);
 
-        // 5. Бейдж уровня слева сверху
+        // 5. Бейдж уровня: компактная плашка, прижатая к контуру головы моба
         const lvlBadge = scene.add.graphics();
-        const badgeBorderColor = mob.tier === 2 ? 0xffd700 : (mob.tier === 3 ? 0x00e6ff : 0x475569);
-        drawRoundRect(lvlBadge, -mobSize / 2 + 2, -mobSize / 2 - 4, 32, 22, 8, 0x0f172a, 0.92, badgeBorderColor, 1.5);
+        const badgeBorderColor = mob.tier === 2 ? 0xffd700 : (mob.tier === 3 ? 0x00e6ff : 0x64748b);
+        const lvlBadgeX = -Math.round(mobSize * 0.30);
+        const lvlBadgeY = -Math.round(mobSize * 0.42);
+        const lvlBadgeW = 24;
+        const lvlBadgeH = 17;
+        drawRoundRect(lvlBadge, lvlBadgeX - lvlBadgeW / 2, lvlBadgeY - lvlBadgeH / 2, lvlBadgeW, lvlBadgeH, 8, 0x0f172a, 0.92, badgeBorderColor, 1.2);
         container.add(lvlBadge);
 
-        const lvlText = createHDText(scene, -mobSize / 2 + 18, -mobSize / 2 + 7, `${mobItem.mobLevel}`, {
-            fontSize: '12px',
+        const lvlText = createHDText(scene, lvlBadgeX, lvlBadgeY, `${mobItem.mobLevel}`, {
+            fontSize: '11px',
             color: mob.tier === 2 ? '#ffd700' : (mob.tier === 3 ? '#38bdf8' : '#ffffff'),
             fontStyle: '900',
+            stroke: '#0f172a',
+            strokeThickness: 2,
         }).setOrigin(0.5);
         container.add(lvlText);
 
@@ -237,7 +280,7 @@ class MergeField {
         });
 
         container.on('dragend', (ptr) => {
-            container.setDepth(20);
+            container.setDepth(20 + Math.floor(container.y));
 
             // Проверка: это был просто клик/тап или полноценное перетаскивание?
             const wx = ptr.worldX !== undefined ? ptr.worldX : ptr.x;
@@ -342,11 +385,31 @@ class MergeField {
                 SoundManager.playPop();
             }
 
-            const clampedX = Phaser.Math.Clamp(curX, this.bounds.minX + 30, this.bounds.maxX - 30);
-            const clampedY = Phaser.Math.Clamp(curY, this.bounds.minY + 30, this.bounds.maxY - 30);
+            // Layout protection: мягкое отталкивание от соседних мобов, чтобы шильдики не слипались
+            let adjustedX = curX;
+            let adjustedY = curY;
+            const minSpacing = 86;
+            for (let pass = 0; pass < 3; pass++) {
+                for (const other of this.mobs) {
+                    if (other.id === draggedItem.id) continue;
+                    const ox = other.container ? other.container.x : other.x;
+                    const oy = other.container ? other.container.y : other.y;
+                    const dist = Phaser.Math.Distance.Between(adjustedX, adjustedY, ox, oy);
+                    if (dist < minSpacing) {
+                        let angle = Phaser.Math.Angle.Between(ox, oy, adjustedX, adjustedY);
+                        if (dist < 4) angle = Math.random() * Math.PI * 2;
+                        adjustedX = ox + Math.cos(angle) * minSpacing;
+                        adjustedY = oy + Math.sin(angle) * minSpacing;
+                    }
+                }
+            }
+
+            const clampedX = Phaser.Math.Clamp(adjustedX, this.bounds.minX + 35, this.bounds.maxX - 35);
+            const clampedY = Phaser.Math.Clamp(adjustedY, this.bounds.minY + 35, this.bounds.maxY - 35);
 
             draggedItem.x = clampedX;
             draggedItem.y = clampedY;
+            draggedItem.container.setDepth(20 + Math.floor(clampedY));
 
             this.scene.tweens.killTweensOf(draggedItem.container);
             this.scene.tweens.add({
@@ -622,6 +685,46 @@ class MergeField {
                 this.spawnMob(item.mobLevel, item.x, item.y);
             }
         });
+        this._relaxFieldLayout();
+    }
+
+    /**
+     * Мягкая релаксация поля: расталкивает мобов, если они оказались слишком близко друг к другу
+     */
+    _relaxFieldLayout() {
+        if (!this.mobs || this.mobs.length <= 1) return;
+        const minSpacing = 84;
+        for (let iter = 0; iter < 4; iter++) {
+            for (let i = 0; i < this.mobs.length; i++) {
+                for (let j = i + 1; j < this.mobs.length; j++) {
+                    const m1 = this.mobs[i];
+                    const m2 = this.mobs[j];
+                    if (!m1 || !m2 || !m1.container || !m2.container) continue;
+                    const d = Phaser.Math.Distance.Between(m1.container.x, m1.container.y, m2.container.x, m2.container.y);
+                    if (d < minSpacing) {
+                        let angle = Phaser.Math.Angle.Between(m1.container.x, m1.container.y, m2.container.x, m2.container.y);
+                        if (d < 4) angle = Math.random() * Math.PI * 2;
+                        const overlap = (minSpacing - d) / 2;
+                        m1.container.x -= Math.cos(angle) * overlap;
+                        m1.container.y -= Math.sin(angle) * overlap;
+                        m2.container.x += Math.cos(angle) * overlap;
+                        m2.container.y += Math.sin(angle) * overlap;
+
+                        m1.container.x = Phaser.Math.Clamp(m1.container.x, this.bounds.minX + 35, this.bounds.maxX - 35);
+                        m1.container.y = Phaser.Math.Clamp(m1.container.y, this.bounds.minY + 35, this.bounds.maxY - 35);
+                        m2.container.x = Phaser.Math.Clamp(m2.container.x, this.bounds.minX + 35, this.bounds.maxX - 35);
+                        m2.container.y = Phaser.Math.Clamp(m2.container.y, this.bounds.minY + 35, this.bounds.maxY - 35);
+
+                        m1.x = m1.container.x;
+                        m1.y = m1.container.y;
+                        m2.x = m2.container.x;
+                        m2.y = m2.container.y;
+                        m1.container.setDepth(20 + Math.floor(m1.y));
+                        m2.container.setDepth(20 + Math.floor(m2.y));
+                    }
+                }
+            }
+        }
     }
 
     toState() {

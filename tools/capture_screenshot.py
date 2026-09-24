@@ -8,10 +8,14 @@ def capture():
     target_html = sys.argv[1] if len(sys.argv) > 1 else "screenshot_test.html"
     target_out_name = sys.argv[2] if len(sys.argv) > 2 else "hidpi_1080p_gameplay.png"
     chrome_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+    query = ""
+    if "?" in target_html:
+        target_html, query = target_html.split("?", 1)
+        query = "&" + query
     html_path = os.path.abspath(target_html).replace("\\", "/")
     out_dir = r"C:\Users\volod\.gemini\antigravity\brain\984a2eb8-6d05-42d2-a48b-e1af6f2e486d"
     out_path = os.path.join(out_dir, target_out_name)
-    file_url = f"file:///{html_path}?debug=1"
+    file_url = f"file:///{html_path}?debug=1{query}"
 
     cmd = [
         chrome_path,
@@ -26,7 +30,7 @@ def capture():
     ]
 
     print("Running Chrome to capture snapshot from screenshot_test.html...")
-    res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=12)
+    res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=25)
     print("Returncode:", res.returncode)
     
     title_m = re.search(r"<title>(.*?)</title>", res.stdout)
