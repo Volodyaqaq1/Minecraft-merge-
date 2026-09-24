@@ -1,5 +1,6 @@
 // ============================================================
 // components/MergeField.js — свободное поле без сетки и логика слияния
+// Stage 3 Step 1: Premium drag/merge/spawn feel
 // ============================================================
 
 class MergeField {
@@ -58,7 +59,7 @@ class MergeField {
         const mob = getMobByLevel(mobLevel);
         if (!mob) return null;
 
-        // Если координаты не переданы, выбираем свободную позицию на полянке без перекрытия других мобов
+        // Если координаты не переданы, выбираем свободную позицию
         let x = targetX;
         let y = targetY;
         if (x === undefined || y === undefined) {
@@ -66,7 +67,6 @@ class MergeField {
             let bestY = randInt(this.bounds.minY + 45, this.bounds.maxY - 45);
             let maxMinDist = -1;
 
-            // Пробуем 24 случайные точки и выбираем ту, где максимальное расстояние до всех существующих мобов
             for (let attempt = 0; attempt < 24; attempt++) {
                 const candX = randInt(this.bounds.minX + 45, this.bounds.maxX - 45);
                 const candY = randInt(this.bounds.minY + 45, this.bounds.maxY - 45);
@@ -120,8 +120,7 @@ class MergeField {
             }
         }
 
-        // Анимация появления только для динамически заспавненных мобов,
-        // мобы из сохранения сразу отображаются в нормальном масштабе 1.0
+        // Анимация появления
         if (this._isLoading) {
             mobItem.container.setScale(1.0);
             this._startMobWobble(mobItem);
@@ -129,23 +128,139 @@ class MergeField {
             if (typeof SoundManager !== 'undefined') {
                 SoundManager.playPop();
             }
-            mobItem.container.setScale(0);
-            this.scene.tweens.add({
-                targets: mobItem.container,
-                scaleX: 1.0,
-                scaleY: 1.0,
-                duration: 220,
-                ease: 'Back.Out',
-                onComplete: () => {
-                    if (mobItem.container) {
-                        mobItem.container.setScale(1.0);
-                        this._startMobWobble(mobItem);
-                    }
-                }
-            });
+            this._playSpawnAnimation(mobItem);
         }
 
         return mobItem;
+    }
+
+    // ============================================================
+    // Stage 3: Staggered bulk spawn for incubator / reward systems
+    // ============================================================
+
+    /**
+     * Spawn multiple mobs with atomic state registration and staggered visual appearance.
+     * All N mobs are added to this.mobs synchronously, guaranteeing transactional save safety.
+     * The visual pop-in animation is staggered (75ms apart).
+     */
+    spawnMobsStaggered(mobLevel, count, onAllDone) {
+        const mob = getMobByLevel(mobLevel);
+        if (!mob || count <= 0) {
+            if (onAllDone) onAllDone([]);
+            return [];
+        }
+
+        const allocatedMobs = [];
+
+        // 1. Synchronously allocate and register all mobs into this.mobs
+        // This guarantees that any immediate save() captures the entire batch atomically.
+        for (let i = 0; i < count; i++) {
+            let bestX = randInt(this.bounds.minX + 45, this.bounds.maxX - 45);
+            let bestY = randInt(this.bounds.minY + 45, this.bounds.maxY - 45);
+            let maxMinDist = -1;
+            for (let attempt = 0; attempt < 24; attempt++) {
+                const candX = randInt(this.bounds.minX + 45, this.bounds.maxX - 45);
+                const candY = randInt(this.bounds.minY + 45, this.bounds.maxY - 45);
+                let minDist = 999999;
+                for (const m of this.mobs) {
+                    const mx = m.container ? m.container.x : m.x;
+                    const my = m.container ? m.container.y : m.y;
+                    const d = Phaser.Math.Distance.Between(candX, candY, mx, my);
+                    if (d < minDist) minDist = d;
+                }
+                if (minDist > maxMinDist) {
+                    maxMinDist = minDist;
+                    bestX = candX;
+                    bestY = candY;
+                }
+                if (minDist >= 96) { bestX = candX; bestY = candY; break; }
+            }
+
+            const mobItem = {
+                id: this._nextId++,
+                mobLevel: mob.level,
+                x: bestX,
+                y: bestY,
+                container: null,
+            };
+            mobItem.container = this._buildMobContainer(mobItem);
+            mobItem.container.setScale(0); // Initially scaled to 0 until its staggered reveal time
+            this.mobs.push(mobItem);
+            allocatedMobs.push(mobItem);
+
+            // Collection / discovery check
+            const isNew = !this.collection.has(mob.level) || !this.shownModals.has(mob.level);
+            this.collection.add(mob.level);
+            if (isNew && !this._isLoading) {
+                this.shownModals.add(mob.level);
+                if (this.onNewMobDiscovered) {
+                    this.onNewMobDiscovered(mob);
+                }
+            }
+        }
+
+        // 2. Staggered visual animation (pop-pop-pop)
+        let completedCount = 0;
+        allocatedMobs.forEach((mobItem, idx) => {
+            this.scene.time.delayedCall(idx * 75, () => {
+                if (typeof SoundManager !== 'undefined') SoundManager.playPop();
+                this._playSpawnAnimation(mobItem, () => {
+                    completedCount++;
+                    if (completedCount === allocatedMobs.length && onAllDone) {
+                        onAllDone(allocatedMobs);
+                    }
+                });
+            });
+        });
+
+        return allocatedMobs;
+    }
+
+    // ============================================================
+    // Stage 3: Spawn animation — scale 0.5 → 1.14 → 1.0 + shadow pop
+    // ============================================================
+
+    _playSpawnAnimation(mobItem, onComplete) {
+        if (!mobItem || !mobItem.container) return;
+        const c = mobItem.container;
+
+        // Find shadow (first child = graphics shadow)
+        const shadow = c.list && c.list[0];
+
+        c.setScale(0.5);
+        if (shadow) { shadow.setAlpha(0); }
+
+        this.scene.tweens.add({
+            targets: c,
+            scaleX: 1.14,
+            scaleY: 1.14,
+            duration: 140,
+            ease: 'Back.Out',
+            onComplete: () => {
+                if (shadow) {
+                    this.scene.tweens.add({
+                        targets: shadow,
+                        alpha: 1,
+                        duration: 80,
+                        ease: 'Quad.Out',
+                    });
+                }
+                this.scene.tweens.add({
+                    targets: c,
+                    scaleX: 1.0,
+                    scaleY: 1.0,
+                    duration: 100,
+                    ease: 'Quad.Out',
+                    onComplete: () => {
+                        if (c) {
+                            c.setScale(1.0);
+                            this._startMobWobble(mobItem);
+                        }
+                        if (onComplete) onComplete();
+                    }
+                });
+            }
+        });
     }
 
     /**
@@ -179,7 +294,7 @@ class MergeField {
         container.setDepth(20 + Math.floor(mobItem.y));
         container.setScale(1.0);
 
-        // 1. Мягкая тень под ногами персонажа (на полянке)
+        // 1. Мягкая тень под ногами персонажа
         const shadow = scene.add.graphics();
         shadow.fillStyle(0x0a2808, 0.28);
         shadow.fillEllipse(0, mobSize / 2 - 8, mobSize * 0.74, 16);
@@ -187,7 +302,7 @@ class MergeField {
         shadow.fillEllipse(0, mobSize / 2 - 8, mobSize * 0.88, 22);
         container.add(shadow);
 
-        // 2. Аура для повышенных визуальных тиров (Золотой / Алмазный)
+        // 2. Аура для повышенных визуальных тиров
         if (mob.tier === 2) {
             const goldAura = scene.add.graphics();
             goldAura.fillStyle(0xffd700, 0.25);
@@ -200,14 +315,14 @@ class MergeField {
             container.add(diaAura);
         }
 
-        // 3. SPRITE: Полный персонаж (squishy character) с прозрачным альфа-фоном
+        // 3. SPRITE
         const spriteTex = (mob.spriteKey && scene.textures.exists(mob.spriteKey))
             ? mob.spriteKey
             : (scene.textures.exists(mob.texture) ? mob.texture : 'mob_sprite_placeholder');
         const mobImg = scene.add.image(0, -6, spriteTex).setDisplaySize(mobSize * 0.95, mobSize * 0.95);
         container.add(mobImg);
 
-        // 4. Имя моба снизу в аккуратном компактном пилл-бейдже
+        // 4. Имя моба
         const nameText = createHDText(scene, 0, mobSize / 2 - 10, mob.name, {
             fontSize: '10.5px',
             color: mob.tier === 2 ? '#ffd700' : (mob.tier === 3 ? '#38bdf8' : '#ffffff'),
@@ -222,7 +337,7 @@ class MergeField {
         container.add(nameBadge);
         container.add(nameText);
 
-        // 5. Бейдж уровня: компактная плашка, прижатая к контуру головы моба
+        // 5. Бейдж уровня
         const lvlBadge = scene.add.graphics();
         const badgeBorderColor = mob.tier === 2 ? 0xffd700 : (mob.tier === 3 ? 0x00e6ff : 0x64748b);
         const lvlBadgeX = -Math.round(mobSize * 0.30);
@@ -248,51 +363,143 @@ class MergeField {
         );
         scene.input.setDraggable(container);
 
+        // Stage 3: drag velocity tracking
         let startPointerPos = { x: 0, y: 0 };
         let hasMoved = false;
+        let lastDragX = 0;
+        let lastDragPos = { x: 0, y: 0 };
+        let dragVelX = 0;
+        let dragVelY = 0;
+        let currentAngle = 0;
+        let dragScaleX = 1.0;
+        let dragScaleY = 1.0;
 
         container.on('pointerdown', (ptr) => {
             const wx = ptr.worldX !== undefined ? ptr.worldX : ptr.x;
             const wy = ptr.worldY !== undefined ? ptr.worldY : ptr.y;
             startPointerPos = { x: wx, y: wy };
+            lastDragPos = { x: wx, y: wy };
             hasMoved = false;
+            dragVelX = 0;
+            dragVelY = 0;
         });
 
         container.on('dragstart', () => {
             scene.tweens.killTweensOf(container);
-            container.setDepth(100);
+            container.setDepth(500);
+
+            // Save previous valid coordinates for invalid-drop restoration
+            mobItem._prevValidX = mobItem.x;
+            mobItem._prevValidY = mobItem.y;
+
+            // Stage 3: shadow element (first child)
+            const sh = container.list[0];
+
+            // Lift effect: shadow shrinks and fades
+            if (sh) {
+                scene.tweens.add({
+                    targets: sh,
+                    scaleX: 0.72,
+                    scaleY: 0.72,
+                    alpha: 0.55,
+                    duration: 90,
+                    ease: 'Quad.Out',
+                });
+            }
+
+            // Squash pickup: scaleX 1.08, scaleY 0.94 then ease to lifted scale
+            container.setScale(1.0);
             scene.tweens.add({
                 targets: container,
-                scaleX: 1.15,
-                scaleY: 1.15,
-                duration: 90,
+                scaleX: 1.08,
+                scaleY: 0.94,
+                duration: 55,
+                ease: 'Quad.Out',
+                onComplete: () => {
+                    scene.tweens.add({
+                        targets: container,
+                        scaleX: 1.10,
+                        scaleY: 1.10,
+                        duration: 80,
+                        ease: 'Back.Out',
+                    });
+                }
             });
+
+            dragScaleX = 1.10;
+            dragScaleY = 1.10;
+            currentAngle = 0;
         });
 
         container.on('drag', (ptr, dragX, dragY) => {
             container.x = dragX;
             container.y = dragY;
+
             const wx = ptr.worldX !== undefined ? ptr.worldX : ptr.x;
             const wy = ptr.worldY !== undefined ? ptr.worldY : ptr.y;
+
             if (Phaser.Math.Distance.Between(startPointerPos.x, startPointerPos.y, wx, wy) > 10) {
                 hasMoved = true;
             }
+
+            // Stage 3: compute velocity for stretch + lean
+            const dvx = wx - lastDragPos.x;
+            const dvy = wy - lastDragPos.y;
+            // Smooth velocity via lerp (avoids snapping)
+            dragVelX = lerp(dragVelX, dvx * 60, 0.28); // approx px/sec
+            dragVelY = lerp(dragVelY, dvy * 60, 0.28);
+            lastDragPos = { x: wx, y: wy };
+
+            // Stretch based on speed — max ±12% deformation
+            const speed = Math.sqrt(dragVelX * dragVelX + dragVelY * dragVelY);
+            const maxDeform = 0.12;
+            const stretchAmount = Math.min(maxDeform, speed * 0.00018);
+
+            // Stretch along primary axis: fast horizontal → wider, fast vertical → taller
+            const horizDom = Math.abs(dragVelX) > Math.abs(dragVelY);
+            const targetScaleX = horizDom
+                ? 1.10 + stretchAmount
+                : 1.10 - stretchAmount * 0.5;
+            const targetScaleY = horizDom
+                ? 1.10 - stretchAmount * 0.5
+                : 1.10 + stretchAmount;
+
+            dragScaleX = lerp(dragScaleX, targetScaleX, 0.22);
+            dragScaleY = lerp(dragScaleY, targetScaleY, 0.22);
+
+            // Subtle rotation lean in direction of horizontal movement — max ±3 degrees
+            const targetAngle = Phaser.Math.Clamp(dragVelX * 0.012, -3, 3);
+            currentAngle = lerp(currentAngle, targetAngle, 0.18);
+
+            container.setScale(dragScaleX, dragScaleY);
+            container.setAngle(currentAngle);
         });
 
         container.on('dragend', (ptr) => {
+            container.setAngle(0);
             container.setDepth(20 + Math.floor(container.y));
 
-            // Проверка: это был просто клик/тап или полноценное перетаскивание?
+            const sh = container.list[0];
+            // Restore shadow
+            if (sh) {
+                scene.tweens.add({
+                    targets: sh,
+                    scaleX: 1.0,
+                    scaleY: 1.0,
+                    alpha: 1.0,
+                    duration: 120,
+                    ease: 'Quad.Out',
+                });
+            }
+
             const wx = ptr.worldX !== undefined ? ptr.worldX : ptr.x;
             const wy = ptr.worldY !== undefined ? ptr.worldY : ptr.y;
             const moveDist = Phaser.Math.Distance.Between(startPointerPos.x, startPointerPos.y, wx, wy);
             if (!hasMoved && moveDist < 12) {
-                // КЛИКЕР — Нажатие на объект с упругим сквошем
                 this._handleMobClick(mobItem, container);
                 return;
             }
 
-            // ПЕРЕТАСКИВАНИЕ — Проверяем слияние с другими мобами
             this._handleMobDrop(mobItem);
         });
 
@@ -308,7 +515,6 @@ class MergeField {
             SoundManager.playClink();
         }
 
-        // Анимация упругого сквоша и стретча (быстрое сплющивание и эластичный отскок)
         this.scene.tweens.killTweensOf(container);
         this.scene.tweens.add({
             targets: container,
@@ -342,12 +548,10 @@ class MergeField {
             }
         });
 
-        // Начисляем немного опыта за клик
         if (CONFIG.XP_PER_CLICK) {
             this.economy.addXP(CONFIG.XP_PER_CLICK);
         }
 
-        // Оповещаем GameScene для начисления награды и роста комбо
         if (this.onMobClick) {
             this.onMobClick(mobItem);
         }
@@ -361,7 +565,6 @@ class MergeField {
         const curX = draggedItem.container.x;
         const curY = draggedItem.container.y;
 
-        // Ищем ближайшего моба того же уровня в радиусе MERGE_RADIUS
         let targetMob = null;
         let minDist = CONFIG.MERGE_RADIUS;
 
@@ -379,53 +582,255 @@ class MergeField {
         if (targetMob && draggedItem.mobLevel < CONFIG.MOB_LEVELS) {
             // УСПЕШНОЕ СЛИЯНИЕ!
             this._executeMerge(draggedItem, targetMob);
-        } else {
-            // Слияния нет: мягкий звук падения и удерживаем моба в границах поля
-            if (typeof SoundManager !== 'undefined') {
-                SoundManager.playPop();
-            }
+            return;
+        }
 
-            // Layout protection: мягкое отталкивание от соседних мобов, чтобы шильдики не слипались
-            let adjustedX = curX;
-            let adjustedY = curY;
-            const minSpacing = 86;
-            for (let pass = 0; pass < 3; pass++) {
-                for (const other of this.mobs) {
-                    if (other.id === draggedItem.id) continue;
-                    const ox = other.container ? other.container.x : other.x;
-                    const oy = other.container ? other.container.y : other.y;
-                    const dist = Phaser.Math.Distance.Between(adjustedX, adjustedY, ox, oy);
-                    if (dist < minSpacing) {
-                        let angle = Phaser.Math.Angle.Between(ox, oy, adjustedX, adjustedY);
-                        if (dist < 4) angle = Math.random() * Math.PI * 2;
-                        adjustedX = ox + Math.cos(angle) * minSpacing;
-                        adjustedY = oy + Math.sin(angle) * minSpacing;
+        // Проверяем: это невалидный сброс?
+        // Невалидный сброс:
+        // 1) Выход за пределы игрового поля (curX < minX || curX > maxX || curY < minY || curY > maxY)
+        // 2) Сброс прямо на другого моба ДРУГОГО уровня (дистанция < 55px)
+        const isOutOfBounds = (
+            curX < this.bounds.minX ||
+            curX > this.bounds.maxX ||
+            curY < this.bounds.minY ||
+            curY > this.bounds.maxY
+        );
+
+        let droppedOnOtherMob = false;
+        for (const other of this.mobs) {
+            if (other.id === draggedItem.id) continue;
+            const ox = other.container ? other.container.x : other.x;
+            const oy = other.container ? other.container.y : other.y;
+            if (Phaser.Math.Distance.Between(curX, curY, ox, oy) < 55) {
+                droppedOnOtherMob = true;
+                break;
+            }
+        }
+
+        if (isOutOfBounds || droppedOnOtherMob) {
+            this._playInvalidDropAnimation(draggedItem);
+            return;
+        }
+
+        // ВАЛИДНЫЙ СБРОС (Valid Drop на свободное место)
+        if (typeof SoundManager !== 'undefined') {
+            SoundManager.playPop();
+        }
+
+        let adjustedX = curX;
+        let adjustedY = curY;
+        const minSpacing = 86;
+        for (let pass = 0; pass < 3; pass++) {
+            for (const other of this.mobs) {
+                if (other.id === draggedItem.id) continue;
+                const ox = other.container ? other.container.x : other.x;
+                const oy = other.container ? other.container.y : other.y;
+                const dist = Phaser.Math.Distance.Between(adjustedX, adjustedY, ox, oy);
+                if (dist < minSpacing) {
+                    let angle = Phaser.Math.Angle.Between(ox, oy, adjustedX, adjustedY);
+                    if (dist < 4) angle = Math.random() * Math.PI * 2;
+                    adjustedX = ox + Math.cos(angle) * minSpacing;
+                    adjustedY = oy + Math.sin(angle) * minSpacing;
+                }
+            }
+        }
+
+        const clampedX = Phaser.Math.Clamp(adjustedX, this.bounds.minX + 35, this.bounds.maxX - 35);
+        const clampedY = Phaser.Math.Clamp(adjustedY, this.bounds.minY + 35, this.bounds.maxY - 35);
+
+        draggedItem.x = clampedX;
+        draggedItem.y = clampedY;
+        draggedItem.container.setDepth(20 + Math.floor(clampedY));
+
+        // Stage 3: landing squash sequence
+        this._playLandingAnimation(draggedItem, clampedX, clampedY);
+    }
+
+    // ============================================================
+    // Stage 3: Invalid drop feedback — snap back to valid position,
+    // horizontal shake: -4px -> +4px -> -2px -> 0 with subtle squash
+    // ============================================================
+
+    _playInvalidDropAnimation(mobItem) {
+        const c = mobItem.container;
+        const scene = this.scene;
+        if (!c) return;
+
+        const origX = mobItem._prevValidX !== undefined ? mobItem._prevValidX : mobItem.x;
+        const origY = mobItem._prevValidY !== undefined ? mobItem._prevValidY : mobItem.y;
+
+        // Restore target logical coordinates to original valid position
+        mobItem.x = origX;
+        mobItem.y = origY;
+        c.setDepth(20 + Math.floor(origY));
+
+        scene.tweens.killTweensOf(c);
+        c.setAngle(0);
+
+        // Soft low-frequency pop / error sound
+        if (typeof SoundManager !== 'undefined' && SoundManager.playClick) {
+            SoundManager.playClick();
+        }
+
+        // Restore shadow
+        const sh = c.list && c.list[0];
+        if (sh) {
+            scene.tweens.add({
+                targets: sh,
+                scaleX: 1.0, scaleY: 1.0, alpha: 1.0,
+                duration: 90, ease: 'Quad.Out'
+            });
+        }
+
+        // Return immediately to original position, then horizontal shake with subtle squash
+        // Sequence: -4px -> +4px -> -2px -> original (total ~150ms)
+        c.x = origX;
+        c.y = origY;
+        c.setScale(1.08, 0.94); // subtle squash
+
+        scene.tweens.add({
+            targets: c,
+            x: origX - 4,
+            duration: 35,
+            ease: 'Quad.Out',
+            onComplete: () => {
+                scene.tweens.add({
+                    targets: c,
+                    x: origX + 4,
+                    duration: 45,
+                    ease: 'Quad.InOut',
+                    onComplete: () => {
+                        scene.tweens.add({
+                            targets: c,
+                            x: origX - 2,
+                            duration: 35,
+                            ease: 'Quad.InOut',
+                            onComplete: () => {
+                                scene.tweens.add({
+                                    targets: c,
+                                    x: origX,
+                                    scaleX: 1.0,
+                                    scaleY: 1.0,
+                                    duration: 35,
+                                    ease: 'Quad.Out',
+                                    onComplete: () => {
+                                        if (c) {
+                                            c.x = origX;
+                                            c.y = origY;
+                                            c.setScale(1.0);
+                                            this._startMobWobble(mobItem);
+                                        }
+                                    }
+                                });
+                            }
+                        });
                     }
-                }
+                });
             }
+        });
+    }
 
-            const clampedX = Phaser.Math.Clamp(adjustedX, this.bounds.minX + 35, this.bounds.maxX - 35);
-            const clampedY = Phaser.Math.Clamp(adjustedY, this.bounds.minY + 35, this.bounds.maxY - 35);
+    // ============================================================
+    // Stage 3: Satisfying landing squash → overshoot → settle
+    // ============================================================
 
-            draggedItem.x = clampedX;
-            draggedItem.y = clampedY;
-            draggedItem.container.setDepth(20 + Math.floor(clampedY));
+    _playLandingAnimation(mobItem, targetX, targetY) {
+        const c = mobItem.container;
+        const scene = this.scene;
 
-            this.scene.tweens.killTweensOf(draggedItem.container);
-            this.scene.tweens.add({
-                targets: draggedItem.container,
-                x: clampedX,
-                y: clampedY,
-                scaleX: 1.0,
-                scaleY: 1.0,
-                duration: 120,
-                ease: 'Quad.Out',
-                onComplete: () => {
-                    this._startMobWobble(draggedItem);
-                }
+        // Snap position immediately
+        scene.tweens.killTweensOf(c);
+        c.x = targetX;
+        c.y = targetY;
+        c.setAngle(0);
+
+        // Shadow snap back
+        const sh = c.list && c.list[0];
+        if (sh) {
+            scene.tweens.add({
+                targets: sh,
+                scaleX: 1.0, scaleY: 1.0, alpha: 1.0,
+                duration: 60, ease: 'Quad.Out'
+            });
+        }
+
+        // Phase 1: Squash on impact
+        scene.tweens.add({
+            targets: c,
+            scaleX: 1.16,
+            scaleY: 0.84,
+            duration: 65,
+            ease: 'Quad.Out',
+            onComplete: () => {
+                // Phase 2: Overshoot up
+                scene.tweens.add({
+                    targets: c,
+                    scaleX: 0.94,
+                    scaleY: 1.10,
+                    duration: 90,
+                    ease: 'Quad.Out',
+                    onComplete: () => {
+                        // Phase 3: Settle
+                        scene.tweens.add({
+                            targets: c,
+                            scaleX: 1.0,
+                            scaleY: 1.0,
+                            duration: 100,
+                            ease: 'Back.Out',
+                            onComplete: () => {
+                                if (c) {
+                                    c.setScale(1.0);
+                                    this._startMobWobble(mobItem);
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+        });
+
+        // Landing dust — 6 tiny particles
+        this._spawnLandingDust(targetX, targetY);
+    }
+
+    // ============================================================
+    // Stage 3: Landing dust particles (grass/pale-green puffs)
+    // ============================================================
+
+    _spawnLandingDust(x, y) {
+        const scene = this.scene;
+        const groundY = y + (this.mobSize / 2) - 10;
+        const colors = ['#b7f5a0', '#d4f7c5', '#ffffff', '#a8edc0'];
+        const count = 6;
+
+        for (let i = 0; i < count; i++) {
+            const angle = (Math.PI) + ((i / count) * Math.PI) + (Math.random() - 0.5) * 0.7;
+            const speed = 20 + Math.random() * 22;
+            const size = randInt(3, 6);
+            const g = scene.add.graphics().setDepth(18);
+            const col = parseInt(colors[i % colors.length].replace('#', ''), 16);
+            g.fillStyle(col, 0.82);
+            g.fillCircle(0, 0, size);
+            g.x = x;
+            g.y = groundY;
+
+            scene.tweens.add({
+                targets: g,
+                x: x + Math.cos(angle) * speed,
+                y: groundY + Math.sin(angle) * speed * 0.5,
+                alpha: 0,
+                scaleX: 0.3,
+                scaleY: 0.3,
+                duration: 250 + Math.random() * 200,
+                ease: 'Cubic.Out',
+                onComplete: () => g.destroy(),
             });
         }
     }
+
+    // ============================================================
+    // Stage 3: Merge sequence — attraction → impact → reveal
+    // ============================================================
 
     _executeMerge(draggedItem, targetItem) {
         const newLevel = targetItem.mobLevel + 1;
@@ -436,8 +841,9 @@ class MergeField {
         const targetY = targetItem.container.y;
         targetItem.x  = targetX;
         targetItem.y  = targetY;
+        targetItem.mobLevel = newLevel;
 
-        // 1. Быстрое комбо слияний (в пределах 2.6 сек)
+        // 1. Combo tracking
         const now = Date.now();
         if (now - this.lastMergeTime < 2600) {
             this.mergeCombo++;
@@ -445,145 +851,332 @@ class MergeField {
             this.mergeCombo = 1;
         }
         this.lastMergeTime = now;
+        const combo = this.mergeCombo;
 
-        // Звук слияния с повышающейся тональностью
+        // Merge combo sound
         if (typeof SoundManager !== 'undefined') {
-            SoundManager.playMerge(this.mergeCombo);
+            SoundManager.playMerge(combo);
         }
 
-        // Всплывающее комбо над мобом
-        if (this.mergeCombo >= 2) {
-            let comboText = `COMBO x${this.mergeCombo}!`;
+        // Combo floating text
+        if (combo >= 2) {
+            let comboText = `COMBO x${combo}!`;
             let comboColor = '#ffd700';
-            if (this.mergeCombo === 2) {
-                comboText = 'COMBO x2! 🔥';
-                comboColor = '#ffaa00';
-            } else if (this.mergeCombo === 3) {
-                comboText = 'COMBO x3! ⚡';
-                comboColor = '#ff5722';
-            } else {
-                comboText = `MEGA MERGE x${this.mergeCombo}! 💥🔥`;
-                comboColor = '#ff1744';
-            }
+            if (combo === 2)      { comboText = 'COMBO x2! 🔥'; comboColor = '#ffaa00'; }
+            else if (combo === 3) { comboText = 'COMBO x3! ⚡'; comboColor = '#ff5722'; }
+            else                  { comboText = `MEGA MERGE x${combo}! 💥🔥`; comboColor = '#ff1744'; }
             spawnFloatingText(this.scene, targetX, targetY - 68, comboText, comboColor, 20);
         }
 
         if (this.onMergeCombo) {
-            this.onMergeCombo(this.mergeCombo);
+            this.onMergeCombo(combo);
         }
 
-        // 2. Визуальные сочные эффекты (вспышка + веер пастельных конфетти и звездочек)
-        const flash = this.scene.add.graphics().setDepth(180);
-        flash.fillStyle(0xffffff, 0.95);
-        flash.fillCircle(targetX, targetY, 60);
-        this.scene.tweens.add({
-            targets: flash,
-            scaleX: 2.2,
-            scaleY: 2.2,
-            alpha: 0,
-            duration: 260,
-            ease: 'Quad.Out',
-            onComplete: () => flash.destroy()
-        });
+        // Remove draggedItem from array immediately (prevents double-merge)
+        this.mobs = this.mobs.filter(m => m.id !== draggedItem.id);
 
-        const burstIcons = ['⭐', '✨', '🌸', '💫', '🌟'];
-        for (let i = 0; i < 16; i++) {
-            const angle = (i / 16) * Math.PI * 2 + Math.random() * 0.2;
-            const dist = randInt(45, 110);
-            const icon = burstIcons[i % burstIcons.length];
-            const p = this.scene.add.text(targetX, targetY, icon, {
-                fontSize: `${randInt(14, 22)}px`
-            }).setOrigin(0.5).setDepth(170);
+        // ── PHASE A: Attraction (both mobs move toward midpoint, shrink slightly) ──
+        const midX = (draggedItem.container.x + targetX) / 2;
+        const midY = (draggedItem.container.y + targetY) / 2;
 
-            this.scene.tweens.add({
-                targets: p,
-                x: targetX + Math.cos(angle) * dist,
-                y: targetY + Math.sin(angle) * dist,
-                alpha: 0,
-                scaleX: 0.2,
-                scaleY: 0.2,
-                duration: randInt(380, 560),
-                ease: 'Cubic.Out',
-                onComplete: () => p.destroy()
-            });
-        }
-
-        // Экранный shake для сочности
-        this.scene.cameras.main.shake(140, 0.006);
-
-        // 3. Анимация: перетаскиваемый моб притягивается к цели и исчезает
         this.scene.tweens.killTweensOf(draggedItem.container);
+        this.scene.tweens.killTweensOf(targetItem.container);
+
+        const phaseADur = 100;
+
         this.scene.tweens.add({
             targets: draggedItem.container,
             x: targetX,
             y: targetY,
-            scaleX: 0,
-            scaleY: 0,
-            duration: 140,
-            ease: 'Cubic.In',
-            onComplete: () => {
-                draggedItem.container.destroy();
-            }
+            scaleX: 0.88,
+            scaleY: 0.88,
+            duration: phaseADur,
+            ease: 'Quad.In',
         });
 
-        // Удаляем draggedItem из массива
-        this.mobs = this.mobs.filter(m => m.id !== draggedItem.id);
-
-        // 4. Обновляем уровень целевого моба
-        targetItem.mobLevel = newLevel;
-
-        // Пересоздаём визуализацию целевого моба
-        this.scene.tweens.killTweensOf(targetItem.container);
-        targetItem.container.destroy();
-        targetItem.container = this._buildMobContainer(targetItem);
-
-        // Пружинистое сочное появление (Squash-pop)
-        targetItem.container.setScale(0.35);
         this.scene.tweens.add({
             targets: targetItem.container,
-            scaleX: 1.32,
-            scaleY: 1.32,
-            duration: 150,
-            ease: 'Back.Out',
+            scaleX: 0.88,
+            scaleY: 0.88,
+            duration: phaseADur,
+            ease: 'Quad.In',
             onComplete: () => {
+                // ── PHASE B: Impact ──
+                draggedItem.container.destroy();
+
+                // Brief flash on target before destroying
                 this.scene.tweens.add({
                     targets: targetItem.container,
-                    scaleX: 1.0,
-                    scaleY: 1.0,
-                    duration: 130,
-                    ease: 'Back.Out',
+                    scaleX: 1.18,
+                    scaleY: 1.18,
+                    duration: 50,
+                    ease: 'Quad.Out',
                     onComplete: () => {
-                        if (targetItem.container) {
-                            targetItem.container.setScale(1.0);
-                            this._startMobWobble(targetItem);
+                        targetItem.container.destroy();
+                        targetItem.container = null;
+
+                        // Shockwave ring + particles
+                        this._spawnMergeRing(targetX, targetY, combo);
+                        this._spawnMergeParticles(targetX, targetY, combo);
+
+                        // Camera shake scaled by combo (only for combo >= 3 to protect UI readability)
+                        if (combo >= 5) {
+                            this.scene.cameras.main.shake(120, 0.005);
+                        } else if (combo === 4) {
+                            this.scene.cameras.main.shake(80, 0.003);
+                        } else if (combo === 3) {
+                            this.scene.cameras.main.shake(60, 0.002);
                         }
+                        // combo 1 and 2: zero camera shake!
+
+                        // ── PHASE C: New mob reveal ──
+                        targetItem.mobLevel = newLevel;
+                        targetItem.container = this._buildMobContainer(targetItem);
+
+                        // Temporarily hide to let ring lead
+                        targetItem.container.setScale(0);
+                        targetItem.container.setDepth(25 + Math.floor(targetY));
+
+                        // Short delay then pop in with Back.Out bounce
+                        this.scene.time.delayedCall(60, () => {
+                            if (!targetItem.container) return;
+
+                            this.scene.tweens.add({
+                                targets: targetItem.container,
+                                scaleX: 1.22,
+                                scaleY: 1.22,
+                                duration: 180,
+                                ease: 'Back.Out',
+                                onComplete: () => {
+                                    if (!targetItem.container) return;
+                                    this.scene.tweens.add({
+                                        targets: targetItem.container,
+                                        scaleX: 1.0,
+                                        scaleY: 1.0,
+                                        duration: 120,
+                                        ease: 'Quad.Out',
+                                        onComplete: () => {
+                                            if (targetItem.container) {
+                                                targetItem.container.setScale(1.0);
+                                                this._startMobWobble(targetItem);
+                                            }
+                                            // Completion-driven sequencing: trigger unlock modal only after reveal is 100% complete!
+                                            if (this.onMergeSuccess) {
+                                                this.onMergeSuccess(newMob, isNewUnlock);
+                                            }
+                                        }
+                                    });
+                                }
+                            });
+                        });
                     }
                 });
             }
         });
 
-        // 5. Награда за слияние: ТОЛЬКО ОПЫТ (без монет)
+        // 5. XP reward floating text — slightly after impact
         const xpEarned = this.economy.onMerge(newMob);
-        spawnFloatingText(this.scene, targetX, targetY - 45, `+${xpEarned} XP ⭐`, '#ffd700');
+        this.scene.time.delayedCall(150, () => {
+            this._spawnMergeRewardText(targetX, targetY, xpEarned);
+        });
 
-        // 6. Добавляем в коллекцию (проверяем, открыт ли моб впервые)
+        // 6. New unlock tracking
         const isNewUnlock = !this.shownModals.has(newLevel);
         this.shownModals.add(newLevel);
         this.collection.add(newLevel);
 
-        // Очищаем устаревших мобов ниже уровня магазина, которые больше не смогут объединиться
         const currentShopLevel = Math.max(1, Math.max(...this.collection) - CONFIG.BUY_LEVEL_OFFSET);
         this.cleanupUnmergeableOldMobs(currentShopLevel);
+    }
 
-        // Оповещаем о слиянии (обновить магазин, задания и показать окно открытия)
-        if (this.onMergeSuccess) {
-            this.onMergeSuccess(newMob, isNewUnlock);
+    // ============================================================
+    // Stage 3: Merge ring / shockwave (tween-driven, no frame timers)
+    // ============================================================
+
+    _spawnMergeRing(x, y, combo = 1) {
+        const scene = this.scene;
+        // Ring color: pale gold / mint depending on combo
+        const ringColor = combo >= 5 ? 0xffd700 : (combo >= 3 ? 0x86efac : 0xe2f8e0);
+        const endR = combo >= 5 ? 75 : (combo >= 3 ? 65 : 55);
+
+        const ring = scene.add.graphics().setDepth(160);
+        ring.lineStyle(2.5, ringColor, 1.0);
+        ring.strokeCircle(0, 0, endR);
+        ring.x = x;
+        ring.y = y;
+        ring.setScale(0.25);
+        ring.setAlpha(0.88);
+
+        scene.tweens.add({
+            targets: ring,
+            scaleX: 1.0,
+            scaleY: 1.0,
+            alpha: 0,
+            duration: 340,
+            ease: 'Quad.Out',
+            onComplete: () => ring.destroy()
+        });
+
+        // x5 combo: double ring
+        if (combo >= 5) {
+            const ring2 = scene.add.graphics().setDepth(159);
+            ring2.lineStyle(1.8, 0xffd700, 1.0);
+            ring2.strokeCircle(0, 0, endR * 1.25);
+            ring2.x = x;
+            ring2.y = y;
+            ring2.setScale(0.18);
+            ring2.setAlpha(0.7);
+
+            scene.tweens.add({
+                targets: ring2,
+                scaleX: 1.0,
+                scaleY: 1.0,
+                alpha: 0,
+                duration: 440,
+                delay: 40,
+                ease: 'Quad.Out',
+                onComplete: () => ring2.destroy()
+            });
         }
     }
 
+    // ============================================================
+    // Stage 3: Merge particles — stars + sparkles + diamonds
+    // ============================================================
+
+    _spawnMergeParticles(x, y, combo = 1) {
+        const scene = this.scene;
+        // Base count 10, scale with combo
+        const baseCount = 10;
+        const count = Math.min(baseCount + (combo - 1) * 2, 20);
+
+        // Casual palette: yellow, mint, cyan, white
+        const colors = [0xffd700, 0x86efac, 0x67e8f9, 0xffffff, 0xfbbf24, 0xa7f3d0];
+        const shapes = ['star', 'diamond', 'circle', 'circle', 'star'];
+
+        for (let i = 0; i < count; i++) {
+            const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+            const dist = 40 + Math.random() * 55;
+            const size = 2.5 + Math.random() * 3.5;
+            const col = colors[Math.floor(Math.random() * colors.length)];
+            const shape = shapes[Math.floor(Math.random() * shapes.length)];
+            const lifetime = 380 + Math.random() * 280;
+
+            const g = scene.add.graphics().setDepth(165);
+            g.fillStyle(col, 1.0);
+
+            if (shape === 'circle') {
+                g.fillCircle(0, 0, size);
+            } else if (shape === 'diamond') {
+                g.fillTriangle(0, -size, size * 0.6, 0, 0, size);
+                g.fillTriangle(0, -size, -size * 0.6, 0, 0, size);
+            } else {
+                // Simple star: 5 points
+                for (let p = 0; p < 5; p++) {
+                    const a = (p / 5) * Math.PI * 2 - Math.PI / 2;
+                    const a2 = a + Math.PI / 5;
+                    g.fillTriangle(
+                        Math.cos(a) * size, Math.sin(a) * size,
+                        Math.cos(a2) * (size * 0.4), Math.sin(a2) * (size * 0.4),
+                        Math.cos(a + Math.PI * 2 / 5) * size, Math.sin(a + Math.PI * 2 / 5) * size
+                    );
+                }
+            }
+
+            g.x = x;
+            g.y = y;
+
+            // Some rise upward, some spread outward
+            const riseBonus = Math.random() > 0.4 ? -Math.random() * 25 : 0;
+
+            scene.tweens.add({
+                targets: g,
+                x: x + Math.cos(angle) * dist,
+                y: y + Math.sin(angle) * dist + riseBonus,
+                alpha: 0,
+                scaleX: 0.1,
+                scaleY: 0.1,
+                duration: lifetime,
+                ease: 'Cubic.Out',
+                onComplete: () => g.destroy(),
+            });
+        }
+
+        // x5 combo: extra gold star burst
+        if (combo >= 5) {
+            for (let i = 0; i < 4; i++) {
+                const angle = (i / 4) * Math.PI * 2;
+                const g = scene.add.graphics().setDepth(166);
+                const starSize = 6 + Math.random() * 4;
+                g.fillStyle(0xffd700, 1.0);
+                // Larger star
+                for (let p = 0; p < 5; p++) {
+                    const a = (p / 5) * Math.PI * 2 - Math.PI / 2;
+                    const a2 = a + Math.PI / 5;
+                    g.fillTriangle(
+                        Math.cos(a) * starSize, Math.sin(a) * starSize,
+                        Math.cos(a2) * (starSize * 0.4), Math.sin(a2) * (starSize * 0.4),
+                        Math.cos(a + Math.PI * 2 / 5) * starSize, Math.sin(a + Math.PI * 2 / 5) * starSize
+                    );
+                }
+                g.x = x;
+                g.y = y;
+                scene.tweens.add({
+                    targets: g,
+                    x: x + Math.cos(angle) * 80,
+                    y: y + Math.sin(angle) * 80 - 20,
+                    alpha: 0,
+                    scaleX: 0.1,
+                    scaleY: 0.1,
+                    duration: 600,
+                    ease: 'Cubic.Out',
+                    onComplete: () => g.destroy(),
+                });
+            }
+        }
+    }
+
+    // ============================================================
+    // Stage 3: Merge reward floating text — refined arc + scale
+    // ============================================================
+
+    _spawnMergeRewardText(x, y, xpEarned) {
+        const scene = this.scene;
+        const text = `+${formatNumber(xpEarned)} XP ⭐`;
+
+        const t = createHDText(scene, x, y - 30, text, {
+            fontSize: '18px',
+            fontStyle: '900',
+            color: '#fde68a',
+            stroke: '#111625',
+            strokeThickness: 3,
+            shadow: { blur: 5, color: '#000', fill: true },
+        }).setOrigin(0.5, 1).setDepth(170).setScale(0.8).setAlpha(1.0);
+
+        // Scale up to 1.08 then hold, arc upward 38px, fade out at end
+        scene.tweens.add({
+            targets: t,
+            scaleX: 1.08,
+            scaleY: 1.08,
+            duration: 160,
+            ease: 'Back.Out',
+            onComplete: () => {
+                scene.tweens.add({
+                    targets: t,
+                    y: y - 75,
+                    scaleX: 1.0,
+                    scaleY: 1.0,
+                    alpha: 0,
+                    duration: 640,
+                    ease: 'Cubic.Out',
+                    onComplete: () => t.destroy(),
+                });
+            }
+        });
+    }
+
     /**
-     * Удаляет устаревших мобов, чей уровень ниже уровня магазина (shopLevel),
-     * которые математически больше никогда не смогут объединиться
+     * Удаляет устаревших мобов с поля
      */
     cleanupUnmergeableOldMobs(shopLevel) {
         if (!shopLevel || shopLevel <= 1) return;
@@ -591,15 +1184,12 @@ class MergeField {
         const belowMobs = this.mobs.filter(m => m.mobLevel < shopLevel);
         if (belowMobs.length === 0) return;
 
-        // Группируем мобов по уровням
         const mobsByLvl = new Map();
         belowMobs.forEach(m => {
             if (!mobsByLvl.has(m.mobLevel)) mobsByLvl.set(m.mobLevel, []);
             mobsByLvl.get(m.mobLevel).push(m);
         });
 
-        // Проверяем суммарную "силу" всех мобов ниже уровня магазина.
-        // Чтобы собрать хотя бы одного моба уровня shopLevel, нужно суммарно 2^(shopLevel - 1) единиц.
         const targetUnits = Math.pow(2, shopLevel - 1);
         let totalUnits = 0;
         belowMobs.forEach(m => {
@@ -609,12 +1199,8 @@ class MergeField {
         let toRemove = [];
 
         if (totalUnits < targetUnits) {
-            // Если все мобы ниже shopLevel вместе взятые не могут дойти до shopLevel —
-            // ВСЕ они гарантированно тупиковые и никогда не объединятся с магазином!
             toRemove = [...belowMobs];
         } else {
-            // Если потенциал есть, проверяем по цепочке снизу вверх:
-            // мобы без пары на своём уровне не могут объединиться
             const carryCount = new Map();
             for (let lvl = 1; lvl < shopLevel; lvl++) {
                 const list = mobsByLvl.get(lvl) || [];
@@ -624,7 +1210,6 @@ class MergeField {
                 const remainder = totalAtLvl % 2;
 
                 if (remainder === 1 && list.length > 0) {
-                    // Последний моб без пары — лишний сирота
                     toRemove.push(list[list.length - 1]);
                 }
 
@@ -636,12 +1221,9 @@ class MergeField {
 
         if (toRemove.length === 0) return;
 
-        // Удаляем отобранных мобов с поля с красивой анимацией растворения и начислением компенсации
         toRemove.forEach((mobItem, i) => {
-            // Исключаем из массива мобов
             this.mobs = this.mobs.filter(m => m.id !== mobItem.id);
 
-            // Компенсация за продажу устаревшего существа
             const sellValue = Math.max(1, Math.round(getMobCost(mobItem.mobLevel) * 0.5));
             this.economy.addCoins(sellValue);
 
@@ -688,9 +1270,6 @@ class MergeField {
         this._relaxFieldLayout();
     }
 
-    /**
-     * Мягкая релаксация поля: расталкивает мобов, если они оказались слишком близко друг к другу
-     */
     _relaxFieldLayout() {
         if (!this.mobs || this.mobs.length <= 1) return;
         const minSpacing = 84;

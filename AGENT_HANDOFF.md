@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-09-24  
 **Branch:** `main`  
-**Handoff commit:** `feat(gameplay): polish incubator hatch flow, clean mob sprites, and finalize post-stage-2 UX`
+**Handoff commit:** `feat(gameplay): complete stage 3 merge feel, drag feedback, and atomic incubator rewards`
 
 ---
 
@@ -31,7 +31,7 @@ Designed for **mobile landscape** (960×540 logical px), targeting Yandex Games 
 | Text rendering | Always use `createHDText()` from `src/utils/helpers.js` |
 | `setScrollFactor(0)` | **Forbidden in GameScene** — use container positioning in logical space |
 
-All four viewports verified by `tools/run_all_verifications.py` (360×640, 768×1024, 1280×720, 1920×1080).
+All four viewports verified by `tools/run_all_verifications.py` (Desktop Full HD, Desktop 1366x768, Mobile Landscape DPR 2, Mobile Landscape DPR 3).
 
 ---
 
@@ -53,12 +53,49 @@ All four viewports verified by `tools/run_all_verifications.py` (360×640, 768×
 
 ### Post-Stage-2 Corrections ✅
 - **Skeleton (mob_08) & Creeper (mob_10) sprites fixed:**  
-  Root cause: top rows had near-white pixels RGB(238–241) — previous alpha threshold `r > 242` missed them.  
-  Fix: added `(r > 235) & (g > 235) & (b > 235) & (max_diff <= 4)` in `tools/generate_all_mobs.py`.  
-  Regenerated 16 PNG files across all size/directory variants.
+  Neutral-bg filter `(r > 235) & (g > 235) & (b > 235) & (max_diff <= 4)` in `tools/generate_all_mobs.py`. Regenerated 16 PNG files.
 - **Incubator READY state:** Badge, timer complete display, ВЫЛУПИТЬ button.
-- **3-tap egg hatch flow:** Interactive modal `_openIncubatorHatchModal()` — see Section 4.
+- **3-tap egg hatch flow:** Hero egg, 3-tap interactive crack progression, radial glow reveal.
 - **Dev telemetry confirmed disabled** in all release paths.
+
+### Stage 3 Step 1 — Merge Feel, Drag Feedback & Atomic Incubator Rewards ✅
+- **Drag/Lift Feel:**
+  - On pickup: soft squishy lift with squash/stretch (`scaleX: 1.08, scaleY: 0.94` in 60ms) settling to drag scale `1.10`. Shadow expands (`scale: 1.25, alpha: 0.16`), container elevates (`depth: +1000`).
+  - Drag velocity tilt: smooth responsive tilt leaning into motion (clamped $\pm 8^\circ$).
+  - Landing squash: drops on empty field snap with bounce squash `(1.06, 0.94) -> (1.0, 1.0)` over 150ms + 4–6 dust puff particles.
+- **Valid vs Invalid Drop Behavior:**
+  - **Valid Drop:** Drops cleanly to field, updates `mobItem.x/y`, emits dust particles, saves state.
+  - **Invalid Drop (Out-of-Bounds or Incompatible Mob Collision):** Mob returns to `_prevValidX`/`_prevValidY` with non-destructive horizontal shake (`-4px -> +4px -> -2px -> 0px` over 150ms) + subtle squash `(1.08, 0.94) -> (1.0, 1.0)`. Zero state mutation, no merge fired, no mob loss, no aggressive red effect.
+- **Completion-Driven Merge Sequencing:**
+  - **Phase A (Attraction, 100ms):** Both dragged and target containers shrink to `0.88` and converge toward target coordinates.
+  - **Phase B (Impact, 50ms):** Dragged container destroyed; target flashes to `1.18` then destroys; spawns shockwave ring, radial particles, and combo-scaled camera shake.
+  - **Phase C (Reveal):** Newly merged mob container pops in with Back.Out bounce (`1.22 -> 1.0`), floating `+XP ⭐` arc, and fires unlock modal / quest callbacks strictly in `onComplete` (zero magic timers).
+- **Graduated Camera Shake:**
+  - Combo x1 & x2: **0** camera shake (protects UI readability during casual play).
+  - Combo x3: subtle shake (60ms, 0.002).
+  - Combo x4: medium shake (80ms, 0.003).
+  - Combo x5: high shake (120ms, 0.005) + double golden shockwave rings + 4-point gold star burst.
+- **Tween-Driven Merge Rings:**
+  - Replaced legacy `delayedCall(16)` frame timers with standard Phaser tweens driving scale (`0.25 -> 1.0`) and alpha (`0.88 -> 0`) with auto-destroy on complete.
+- **Atomic Merge State:**
+  - In `MergeField._executeMerge()`, `draggedItem` is immediately removed from `this.mobs` and `targetItem.mobLevel = newLevel` is assigned synchronously at the start of the function. If auto-save or reload occurs mid-animation, state is 100% atomic.
+- **Atomic Incubator Reward Semantics:**
+  - Transactional order in `GameScene.js`:
+    1. Re-entrancy guard: `if (rewardClaimed) return; rewardClaimed = true;`
+    2. Synchronous field data allocation: `spawnMobsStaggered()` registers all $N$ reward mobs in `this.mobs` and `this.collection` immediately.
+    3. Slot consumed: `slot.active = false; delete slot.endTime;`.
+    4. Immediate persistence: `this._save()` is called synchronously before stagger animations start.
+    5. Visual stagger: Mobs pop onto the field sequentially (`i * 70ms`) without blocking save integrity. Zero reward loss on mid-animation refresh.
+- **Stage 3 Verification Test Suite & Regression Harnesses:**
+  - `tools/test_stage3_logic.html` (in-memory headless Chrome logic tests A–F)
+  - `tools/verify_stage3_step1.py` (integrated validator: syntax, coords, viewports, and logic tests A–F)
+  - Visual render harnesses in `tools/`:
+    - `render_drag_lift.html`
+    - `render_invalid_drop.html`
+    - `render_merge_impact_peak.html`
+    - `render_merge_reveal.html`
+    - `render_merge_x5.html`
+    - `render_bulk_spawn.html`
 
 ---
 
@@ -82,29 +119,11 @@ Called when player taps "ВЫЛУПИТЬ" on a ready incubator slot.
 | 2 | Full branching network (4 arms from 2 hubs) + highlights | `playPop()` + particles |
 | 3 | White breakFlash → egg hidden → mob reveal with radial glow | `playVictory()` + 20 particles |
 
-### Crack implementation (GameScene.js ~line 1822, ~1869)
-- Tap 1: 3px dark (`#1e293b`), 5-segment zigzag, 1 tiny branch, 1.5px white highlight
-- Tap 2: 4px main spine + 3.5px right/left branches (3 segments each) + 2.5px upper-right mini-branch + 2px taper + highlights on major paths
-
-### Mob reveal (GameScene.js ~line 1955)
-- **Pedestal:** ellipse 150×32px (shadow 158×30), white fill, 3px green stroke
-- **Radial glow** (`mobGlow`): 5-layer, 125r@4% → 100r@7% → 76r@10% → 52r@12% → 30r@7% — fades naturally
-- **Mob avatar:** 188px (portrait texture)
-- **Badge:** "+Nx MobName (Lv.X)" green card
-- **CTA:** "ЗАБРАТЬ 🎁" 230×50 green button
-
 ### Reward grant logic — exact invariants
 - `slot.mobCount` and `slot.mobLevel` are stored at incubation start — NEVER mutated at claim time
 - `rewardClaimed` flag (boolean, local) prevents double-grant
+- Synchronously allocates all mobs to `mergeField.toState()` and marks slot inactive before visual stagger
 - Close button `✕` — does NOT consume reward, slot stays active
-- Reopening: guard destroys existing modal first
-- **No mutation mechanic** — `hasMutant`/`mutantLevel` do NOT exist anywhere in codebase
-
-### Guards
-```js
-if (isDebouncing || currentTaps >= 3) return;  // tap debounce
-if (rewardClaimed) return;                       // double-claim guard
-```
 
 ---
 
@@ -124,12 +143,6 @@ assets/mobs/512/mob_XX.png     ← high-res legacy; NOT referenced in src/
 ```
 > **Do NOT delete legacy directories.** Asset restructuring is deferred to a dedicated maintenance task.
 
-### Sprite extraction pipeline
-- Source skins: `assets/mobs/skins/` (e.g. `Skeleton.jpg`, `crepper.jpg`)
-- Pipeline script: `tools/generate_all_mobs.py`
-- Key fix (mob_08/10): neutral-bg filter `(r > 235) & (g > 235) & (b > 235) & (max_diff <= 4)`
-- Output: all 5 size directories × portraits
-
 ---
 
 ## 6. Verification Infrastructure
@@ -139,54 +152,25 @@ assets/mobs/512/mob_XX.png     ← high-res legacy; NOT referenced in src/
 | `tools/validate_syntax.py` | JS bracket balance + syntax scan | All 14 files: OK |
 | `tools/audit_coordinates.py` | Grep for `worldX/worldY` usage | Shows all call sites (all correct) |
 | `tools/run_all_verifications.py` | Headless Chrome: logical coords, hit-test, HiDPI text across 4 viewports | All pass |
+| `tools/verify_stage3_step1.py` | Complete Stage 3 Step 1 verification (syntax, coords, viewports, logic A–F) | All 6 logic checks + viewports pass |
 | `tools/capture_screenshot.py <html> <out.png>` | Headless Chrome screenshot capture | Used for all regression shots |
 
-### Regression render harnesses (in `tools/`)
-- `render_screenshot.html` — main gameplay field
-- `render_battle_screenshot.html` — battle scene
-- `render_battle_modal_screenshot.html` — pre-battle modal
-- `render_battle_flow_modals.html` — victory/defeat modals
-- `render_collection_screenshot.html` — bestiary/collection
-- `render_incubator_ready.html` — incubator READY state
-- `render_incubator_mid.html` — egg hatch mid-flow (tap 2)
-- `render_incubator_reveal.html` — egg hatch reward reveal (tap 3)
-
 ---
 
-## 7. Dev Telemetry
-
-- Method: `GameScene._buildDevDebugOverlay()` (~line 2899)
-- Gate: `location.search.includes('debug=1') || CONFIG.DEBUG === true`
-- `CONFIG.DEBUG` is **not defined** in `config.js` — evaluates to `undefined === true` → `false`
-- All render HTML test files explicitly set `CONFIG.DEBUG = false` before Phaser init
-- `capture_screenshot.py` does NOT append `?debug=1` to URLs
-- **Release captures contain zero telemetry**
-
----
-
-## 8. Key File Index
+## 7. Key File Index
 
 | File | Role |
 |---|---|
 | `src/config.js` | All constants: 960×540, RENDER_SCALE, economy, colors |
 | `src/main.js` | Phaser Game config, scene registration |
 | `src/scenes/BootScene.js` | Asset preload; creates color textures |
-| `src/scenes/GameScene.js` | Main game loop, all UI panels, incubator, quests, shop, combo |
+| `src/scenes/GameScene.js` | Main game loop, UI panels, incubator, quests, shop, combo, bulk spawn |
 | `src/scenes/BattleScene.js` | Battle arena overlay |
 | `src/scenes/CollectionScene.js` | Bestiary overlay |
 | `src/components/SaveManager.js` | localStorage load/save |
 | `src/components/Economy.js` | Coins, XP, levels |
-| `src/components/MergeField.js` | Drag/drop merge logic |
+| `src/components/MergeField.js` | Drag/drop, lift squash/stretch, invalid drop shake, 3-phase merge, combo rings |
 | `src/components/BattleSystem.js` | Battle simulation |
 | `src/data/mobs.js` | `BASE_MOBS` array, `getMobByLevel()` |
 | `src/utils/helpers.js` | `createHDText`, `drawRoundRect`, `drawCasualProgressBar`, `createCasualButton`, `shakeObject`, `spawnFloatingText`, `getLogicalPointer` |
-| `tools/generate_all_mobs.py` | Sprite extraction pipeline |
-
----
-
-## 9. Working Tree State at Handoff
-
-- Branch: `main`
-- All changes committed and pushed
-- Working tree: **clean**
-- No debug flags, no forced states, no test hooks in production code
+| `tools/verify_stage3_step1.py` | Stage 3 Step 1 verification test runner |

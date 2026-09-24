@@ -2012,9 +2012,10 @@ class GameScene extends Phaser.Scene {
                     rewardClaimed = true;
 
                     // Выдача точного сохраненного количества мобов на игровое поле (без мутаций)
-                    for (let i = 0; i < mobCount; i++) {
-                        this.mergeField.spawnMob(slot.mobLevel);
-                    }
+                    // Stage 3: staggered pop-pop-pop spawn
+                    this.mergeField.spawnMobsStaggered(slot.mobLevel, mobCount, () => {
+                        this._onFieldChanged();
+                    });
 
                     if (typeof SoundManager !== 'undefined') SoundManager.playVictory();
 
