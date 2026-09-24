@@ -278,8 +278,8 @@ class GameScene extends Phaser.Scene {
             ease: 'Sine.easeInOut'
         });
 
-        // 3. Комбо-шкала множителя (шкала вверху, числа x1-x5 строго снизу под шкалой)
-        this._buildComboBar(328, 12, 226, 17);
+        // 3. Комбо-множитель (чистая и спокойная панель множителей x1..x5)
+        this._buildComboBar(336, 10, 228, 44);
 
         // 4. Баланс изумрудов (справа, элегантная белая карточка со скругленными краями)
         const coinCard = this.add.graphics();
@@ -421,33 +421,35 @@ class GameScene extends Phaser.Scene {
         this.comboW = w;
         this.comboH = h;
 
-        // Фон шкалы комбо (глубокий казуальный желоб)
+        // Фон виджета комбо-множителя (стильная темная казуальная карточка в тон топа)
         this.comboBg = this.add.graphics();
-        drawRoundRect(this.comboBg, x, y, w, h, 8, 0x0f172a, 0.95, 0x334155, 1.8);
+        drawRoundRect(this.comboBg, x, y, w, h, 12, 0x0f172a, 0.94, 0x334155, 1.8);
 
-        // Разделительные насечки
-        const step = w / 5;
-        this.comboTicks = this.add.graphics();
-        this.comboTicks.lineStyle(1.5, 0x334155, 0.8);
-        for (let i = 1; i < 5; i++) {
-            this.comboTicks.lineBetween(x + step * i, y + 1, x + step * i, y + h - 1);
-        }
+        // Графика для пилюль множителей
+        this.comboPillsGraphics = this.add.graphics();
 
+        // Графика тонкой спокойной полоски прогресса внизу
         this.comboFill = this.add.graphics();
+
         this.multiplierTexts = [];
         const mults = [1, 2, 3, 4, 5];
-        this._comboColors = ['#94a3b8', '#38bdf8', '#60a5fa', '#c084fc', '#f87171'];
+        const pillW = 40;
+        const pillH = 24;
+        const pillY = y + 6;
+        const startX = x + 6;
+        const gap = 4;
 
-        // Числа x1 x2 x3 x4 x5 расположены СНИЗУ под шкалой с четкой темной обводкой
+        // Метки множителей x1, x2, x3, x4, x5 внутри пилюль
         mults.forEach((m, idx) => {
-            const tx = x + step * idx + step / 2;
-            const txt = createHDText(this, tx, y + h + 11, `x${m}`, {
+            const px = startX + idx * (pillW + gap);
+            const label = m === 5 ? 'x5🔥' : `x${m}`;
+            const txt = createHDText(this, px + pillW / 2, pillY + pillH / 2, label, {
                 fontSize: '12px',
                 fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
-                color: this._comboColors[idx],
+                color: '#64748b',
                 fontStyle: '900',
                 stroke: '#0f172a',
-                strokeThickness: 2.5,
+                strokeThickness: 2,
             }).setOrigin(0.5);
             this.multiplierTexts.push(txt);
         });
@@ -456,8 +458,6 @@ class GameScene extends Phaser.Scene {
     }
 
     _redrawComboBar() {
-        this.comboFill.clear();
-
         let mul = 1;
         if (this.comboGauge >= 80) mul = 5;
         else if (this.comboGauge >= 60) mul = 4;
@@ -467,31 +467,70 @@ class GameScene extends Phaser.Scene {
 
         this.currentMultiplier = mul;
 
-        const tierColors = [0x22c55e, 0x06b6d4, 0x3b82f6, 0xa855f7, 0xef4444];
-        const fillColor = tierColors[mul - 1] || 0x22c55e;
+        // Перерисовка плашек множителей
+        this.comboPillsGraphics.clear();
 
-        const fillW = Math.floor((this.comboW - 4) * (this.comboGauge / 100));
-        if (fillW > 0) {
-            this.comboFill.fillStyle(fillColor, 1);
-            this.comboFill.fillRoundedRect(this.comboX + 2, this.comboY + 2, fillW, this.comboH - 4, 4);
+        const multColors = [
+            { bg: 0x15803d, stroke: 0x4ade80, text: '#ffffff' }, // x1: изумруд
+            { bg: 0x0284c7, stroke: 0x38bdf8, text: '#ffffff' }, // x2: циан
+            { bg: 0x2563eb, stroke: 0x60a5fa, text: '#ffffff' }, // x3: синий
+            { bg: 0x7c3aed, stroke: 0xc084fc, text: '#ffffff' }, // x4: фиолетовый
+            { bg: 0xdc2626, stroke: 0xf87171, text: '#fde047' }, // x5: рубин с золотом
+        ];
 
-            // Верхний световой блик на заполненной части
-            this.comboFill.fillStyle(0xffffff, 0.32);
-            this.comboFill.fillRoundedRect(this.comboX + 2, this.comboY + 2, fillW, Math.max(2, (this.comboH - 4) * 0.45), { tl: 4, tr: 4, bl: 1, br: 1 });
+        const pillW = 40;
+        const pillH = 24;
+        const pillY = this.comboY + 6;
+        const startX = this.comboX + 6;
+        const gap = 4;
+
+        for (let i = 0; i < 5; i++) {
+            const px = startX + i * (pillW + gap);
+            const isActive = (i + 1) === mul;
+            const style = multColors[i];
+
+            if (isActive) {
+                // Активная пилюля: яркая казуальная подсветка с мягким бликом
+                drawRoundRect(this.comboPillsGraphics, px, pillY, pillW, pillH, 7, style.bg, 1, style.stroke, 1.8);
+                this.comboPillsGraphics.fillStyle(0xffffff, 0.28);
+                this.comboPillsGraphics.fillRoundedRect(px + 1, pillY + 1, pillW - 2, Math.floor(pillH * 0.42), { tl: 6, tr: 6, bl: 1, br: 1 });
+            } else {
+                // Неактивная пилюля: спокойный темный фон
+                drawRoundRect(this.comboPillsGraphics, px, pillY, pillW, pillH, 7, 0x1e293b, 0.85, 0x334155, 1);
+            }
+
+            const txt = this.multiplierTexts[i];
+            if (txt) {
+                if (isActive) {
+                    txt.setColor(style.text);
+                    txt.setFontSize(i === 4 ? '12px' : '13px');
+                    txt.setText(i === 4 ? 'x5🔥' : `x${i + 1}`);
+                } else {
+                    txt.setColor('#64748b');
+                    txt.setFontSize('12px');
+                    txt.setText(i === 4 ? 'x5' : `x${i + 1}`);
+                }
+            }
         }
 
-        const colors = this._comboColors || ['#94a3b8', '#38bdf8', '#60a5fa', '#c084fc', '#f87171'];
-        this.multiplierTexts.forEach((txt, idx) => {
-            if (idx + 1 === mul) {
-                txt.setColor('#ffd700');
-                txt.setFontSize('14px');
-                txt.setStroke('#0f172a', 3.5);
-            } else {
-                txt.setColor(colors[idx]);
-                txt.setFontSize('12px');
-                txt.setStroke('#0f172a', 2.5);
-            }
-        });
+        // Тонкая спокойная полоса прогресса внизу виджета (без бегунка и дерганий)
+        this.comboFill.clear();
+        const barX = this.comboX + 8;
+        const barY = this.comboY + 35;
+        const barW = this.comboW - 16;
+        const barH = 3;
+
+        // Желобок
+        this.comboFill.fillStyle(0x1e293b, 0.95);
+        this.comboFill.fillRoundedRect(barX, barY, barW, barH, 1.5);
+
+        // Спокойное заполнение
+        const fillW = Math.floor(barW * (this.comboGauge / 100));
+        if (fillW > 0) {
+            const activeColor = multColors[mul - 1].stroke;
+            this.comboFill.fillStyle(activeColor, 0.9);
+            this.comboFill.fillRoundedRect(barX, barY, fillW, barH, 1.5);
+        }
     }
 
     // ============================================================
@@ -1387,7 +1426,7 @@ class GameScene extends Phaser.Scene {
         const W = CONFIG.WIDTH;
         const H = CONFIG.HEIGHT;
 
-        this._incubatorModal = this.add.container(W / 2, H / 2).setDepth(1000).setVisible(false);
+        this._incubatorModal = this.add.container(W / 2, H / 2).setDepth(200000).setVisible(false);
 
         const overlay = this.add.rectangle(0, 0, W, H, 0x000000, 0.75).setInteractive();
         const bg = this.add.graphics();
@@ -1526,28 +1565,19 @@ class GameScene extends Phaser.Scene {
                     this._incubatorSlotsContainer.add([eggEmoji, batchInfo, countInfo]);
 
                     if (isReady) {
-                        const [cBg, cTxt, cHit] = this._makeButton(x, y + 84, 155, 38, '🐣 ЗАБРАТЬ!', '#2ed573', () => {
-                            for (let i = 0; i < mobCount; i++) {
-                                // 5% шанс на мутанта
-                                if (i === 0 && Math.random() * 100 < 5) {
-                                    const mutantLevel = Math.min(CONFIG.MOB_LEVELS, slot.mobLevel + 1);
-                                    this.mergeField.spawnMob(mutantLevel);
-                                    const mutantMob = getMobByLevel(mutantLevel);
-                                    spawnFloatingText(this, CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, `⚡ МУТАНТ! ${mutantMob.name}! ⭐`, '#ff3838', 24);
-                                } else {
-                                    this.mergeField.spawnMob(slot.mobLevel);
-                                }
-                            }
-                            if (typeof SoundManager !== 'undefined') SoundManager.playVictory();
-                            spawnFloatingText(this, CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, `🥚 Вылупилось ${mobCount}x ${mobInfo.name}!`, '#2ed573', 22);
+                        const claimBtn = createCasualButton(this, x, y + 84, 158, 40, 'ВЫЛУПИТЬ 🥚', {
+                            topColor: 0x22c55e,
+                            bottomColor: 0x15803d,
+                            strokeColor: 0x86efac,
+                            fontSize: '14px',
+                            radius: 12,
+                            lip: 3.5,
+                            pulse: true,
+                        }, () => {
+                            this._openIncubatorHatchModal(slot, idx);
+                        });
 
-                            slot.active = false;
-                            this._renderIncubatorSlots();
-                            this._onFieldChanged();
-                            this._save();
-                        }, '12px');
-
-                        this._incubatorSlotsContainer.add([cBg, cTxt, cHit]);
+                        this._incubatorSlotsContainer.add(claimBtn);
                     } else {
                         const leftSec = Math.ceil((slot.endTime - now) / 1000);
                         const pad = (n) => String(n).padStart(2, '0');
@@ -1636,6 +1666,415 @@ class GameScene extends Phaser.Scene {
                 }
             }
         });
+    }
+
+    // ============================================================
+    // Интерактивное вылупление яйца (3 удара -> трещины -> взрыв -> награда)
+    // ============================================================
+
+    _openIncubatorHatchModal(slot, slotIdx) {
+        if (this._hatchModal) {
+            this._hatchModal.destroy();
+            this._hatchModal = null;
+        }
+
+        const W = CONFIG.WIDTH;
+        const H = CONFIG.HEIGHT;
+        const cx = W / 2;
+        const cy = H / 2;
+
+        this._hatchModal = this.add.container(cx, cy).setDepth(200000);
+
+        // 1. Темный полупрозрачный оверлей фокуса
+        const overlay = this.add.rectangle(0, 0, W, H, 0x050a17, 0.88).setInteractive();
+
+        // 2. Деликатная кнопка закрытия "✕" вверху справа (без потери награды)
+        const closeBtnG = this.add.graphics();
+        closeBtnG.fillStyle(0x334155, 0.95);
+        closeBtnG.fillCircle(380, -215, 16);
+        closeBtnG.lineStyle(2, 0xffffff, 0.85);
+        closeBtnG.strokeCircle(380, -215, 16);
+
+        const closeBtnT = createHDText(this, 380, -215, '✕', {
+            fontSize: '15px', color: '#ffffff', fontStyle: '900'
+        }).setOrigin(0.5);
+
+        const closeBtnHit = this.add.circle(380, -215, 20, 0x000000, 0).setInteractive({ cursor: 'pointer' });
+        closeBtnHit.on('pointerdown', () => {
+            if (typeof SoundManager !== 'undefined') SoundManager.playClick();
+            this._hatchEggContainer = null;
+            this._hatchModal.destroy();
+            this._hatchModal = null;
+        });
+
+        // 3. Заголовок — лента
+        const headerBg = this.add.graphics();
+        drawRoundRect(headerBg, -150, -220, 300, 38, 12, 0x8e44ad, 0.95, 0xd8b4fe, 2);
+        const headerTxt = createHDText(this, 0, -201, '🥚 ВЫЛУПЛЕНИЕ ЯЙЦА 🥚', {
+            fontSize: '15px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#ffffff', fontStyle: '900', stroke: '#0f172a', strokeThickness: 2.5
+        }).setOrigin(0.5);
+
+        // 4. Текст инструкции
+        const instructionTxt = createHDText(this, 0, -165, 'Нажми на яйцо 3 раза, чтобы вылупить награду!', {
+            fontSize: '14px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#ffd700', fontStyle: '800', stroke: '#0f172a', strokeThickness: 2.5
+        }).setOrigin(0.5);
+
+        const mobInfo = getMobByLevel(slot.mobLevel) || getMobByLevel(1);
+        const mobCount = slot.mobCount || 3;
+
+        const subInfoTxt = createHDText(this, 0, -138, `Внутри: ${mobCount}x ${mobInfo.name} (Lv.${mobInfo.level})`, {
+            fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#94a3b8', fontStyle: '700'
+        }).setOrigin(0.5);
+
+        // 5. Контейнер яйца (Герой-объект в центре модалки)
+        const eggCenterY = -12;
+        const eggContainer = this.add.container(0, eggCenterY);
+        this._hatchEggContainer = eggContainer;
+
+        // Мягкая тень под яйцом
+        const eggShadow = this.add.graphics();
+        eggShadow.fillStyle(0x000000, 0.42);
+        eggShadow.fillEllipse(0, 96, 140, 26);
+
+        // Сияние за яйцом — мягкий многослойный радиальный gradient
+        const eggGlow = this.add.graphics();
+        eggGlow.fillStyle(0xffd700, 0.06); eggGlow.fillCircle(0, 0, 130);
+        eggGlow.fillStyle(0xffd700, 0.10); eggGlow.fillCircle(0, 0, 105);
+        eggGlow.fillStyle(0xffe566, 0.13); eggGlow.fillCircle(0, 0, 82);
+        eggGlow.fillStyle(0xfff3a0, 0.16); eggGlow.fillCircle(0, 0, 60);
+        eggGlow.fillStyle(0xffffff, 0.10); eggGlow.fillCircle(0, 0, 38);
+
+        // Крупное яйцо (Hero Object ~195px)
+        const eggImg = this.add.image(0, 0, 'icon_egg').setDisplaySize(195, 195);
+
+        // Графика трещин на яйце
+        const cracksG = this.add.graphics();
+
+        eggContainer.add([eggShadow, eggGlow, eggImg, cracksG]);
+
+        // Анимация легкого покачивания яйца в состоянии покоя
+        const idleTween = this.tweens.add({
+            targets: eggContainer,
+            y: eggCenterY + 6,
+            duration: 900,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+
+        // 6. Индикатор прогресса (прогресс-бар + текст 0/3)
+        const barY = 110;
+        const progressBg = this.add.graphics();
+        drawCasualProgressBar(progressBg, -110, barY, 220, 20, 0, 0x22c55e, 0x15803d);
+
+        const progressTxt = createHDText(this, 0, barY + 10, '0 / 3', {
+            fontSize: '13px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#ffffff', fontStyle: '900', stroke: '#0f172a', strokeThickness: 2
+        }).setOrigin(0.5);
+
+        const hintTxt = createHDText(this, 0, barY + 32, '👆 Нажми на яйцо!', {
+            fontSize: '14px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#6ee7b7', fontStyle: '800', stroke: '#0f172a', strokeThickness: 2
+        }).setOrigin(0.5);
+
+        this._hatchModal.add([
+            overlay, headerBg, headerTxt, instructionTxt, subInfoTxt,
+            eggContainer, progressBg, progressTxt, hintTxt,
+            closeBtnG, closeBtnT, closeBtnHit
+        ]);
+
+        // 7. Интерактивная зона яйца (комфортный мобильный хитбокс)
+        eggContainer.setSize(210, 210).setInteractive({ cursor: 'pointer' });
+
+        let currentTaps = 0;
+        let isDebouncing = false;
+
+        eggContainer.on('pointerdown', () => {
+            if (isDebouncing || currentTaps >= 3) return;
+            isDebouncing = true;
+            this.time.delayedCall(120, () => { isDebouncing = false; });
+
+            currentTaps++;
+
+            if (currentTaps === 1) {
+                if (typeof SoundManager !== 'undefined') SoundManager.playPop();
+
+                // Мягкая вспышка на яйце
+                const flash1 = this.add.graphics();
+                flash1.fillStyle(0xffffff, 0.4);
+                flash1.fillCircle(0, 0, 100);
+                eggContainer.add(flash1);
+                this.tweens.add({ targets: flash1, alpha: 0, duration: 110, onComplete: () => flash1.destroy() });
+
+                // Легкий squash & stretch
+                this.tweens.add({
+                    targets: eggContainer,
+                    scaleX: 1.14, scaleY: 0.88,
+                    duration: 60, yoyo: true,
+                    ease: 'Quad.easeInOut'
+                });
+
+                // Shake
+                shakeObject(this, eggContainer, 5, 100);
+
+                // Трещина 1 — тонкая, слегка неровная (cute cartoon)
+                cracksG.lineStyle(3, 0x1e293b, 1);
+                cracksG.beginPath();
+                cracksG.moveTo(-8, -50);
+                cracksG.lineTo(6, -28);
+                cracksG.lineTo(-4, -8);
+                cracksG.lineTo(14, 18);
+                cracksG.lineTo(2, 38);
+                cracksG.strokePath();
+                // Крошечная боковая ветка
+                cracksG.beginPath();
+                cracksG.moveTo(6, -28);
+                cracksG.lineTo(20, -38);
+                cracksG.lineStyle(2, 0x1e293b, 0.8);
+                cracksG.strokePath();
+                // Светлый highlight-бок для объёма
+                cracksG.lineStyle(1.5, 0xffffff, 0.75);
+                cracksG.beginPath();
+                cracksG.moveTo(-7, -50);
+                cracksG.lineTo(7, -28);
+                cracksG.lineTo(-3, -8);
+                cracksG.strokePath();
+
+                drawCasualProgressBar(progressBg, -110, barY, 220, 20, 1 / 3, 0x22c55e, 0x15803d);
+                progressTxt.setText('1 / 3');
+                instructionTxt.setText('Ещё 2 удара!');
+                hintTxt.setText('Трескается! Продолжай!');
+
+            } else if (currentTaps === 2) {
+                if (typeof SoundManager !== 'undefined') SoundManager.playPop();
+                this._spawnHatchBurst(this._hatchModal, 0, eggCenterY, 12, false);
+
+                // Сильный squash & stretch
+                this.tweens.add({
+                    targets: eggContainer,
+                    scaleX: 1.22, scaleY: 0.78,
+                    duration: 75, yoyo: true,
+                    ease: 'Quad.easeInOut'
+                });
+
+                shakeObject(this, eggContainer, 9, 130);
+
+                // Трещина 2 — широкая разветвлённая сетка (cute cartoon crack)
+                // Первичные трещины темно-серые, чуть толще
+                cracksG.lineStyle(4, 0x1e293b, 1);
+                cracksG.beginPath();
+                // Основная вертикальная трещина с изгибами
+                cracksG.moveTo(-8, -50);
+                cracksG.lineTo(6, -28);
+                cracksG.lineTo(-4, -8);
+                cracksG.lineTo(14, 18);
+                cracksG.lineTo(2, 38);
+                cracksG.strokePath();
+                // Правая ветка от узла (-4, -8)
+                cracksG.lineStyle(3.5, 0x1e293b, 1);
+                cracksG.beginPath();
+                cracksG.moveTo(-4, -8);
+                cracksG.lineTo(32, -20);
+                cracksG.lineTo(52, -6);
+                cracksG.lineTo(60, 10);
+                cracksG.strokePath();
+                // Левая ветка от узла (14, 18)
+                cracksG.beginPath();
+                cracksG.moveTo(14, 18);
+                cracksG.lineTo(-28, 30);
+                cracksG.lineTo(-50, 18);
+                cracksG.lineTo(-58, 4);
+                cracksG.strokePath();
+                // Маленькая ветка от (6, -28) вверх-вправо
+                cracksG.lineStyle(2.5, 0x1e293b, 0.85);
+                cracksG.beginPath();
+                cracksG.moveTo(6, -28);
+                cracksG.lineTo(22, -42);
+                cracksG.lineTo(36, -36);
+                cracksG.strokePath();
+                // Крошечная трещина в нижней части (доп. разлом)
+                cracksG.lineStyle(2, 0x1e293b, 0.75);
+                cracksG.beginPath();
+                cracksG.moveTo(2, 38);
+                cracksG.lineTo(18, 52);
+                cracksG.strokePath();
+                // Highlight-линии на основных ветках
+                cracksG.lineStyle(1.5, 0xffffff, 0.8);
+                cracksG.beginPath();
+                cracksG.moveTo(-7, -50); cracksG.lineTo(7, -28); cracksG.lineTo(-3, -8);
+                cracksG.strokePath();
+                cracksG.lineStyle(1.2, 0xffffff, 0.65);
+                cracksG.beginPath();
+                cracksG.moveTo(-4, -8); cracksG.lineTo(33, -20);
+                cracksG.moveTo(14, 18); cracksG.lineTo(-28, 30);
+                cracksG.strokePath();
+
+                drawCasualProgressBar(progressBg, -110, barY, 220, 20, 2 / 3, 0x22c55e, 0x15803d);
+                progressTxt.setText('2 / 3');
+                instructionTxt.setText('Последний удар! 💥');
+                hintTxt.setText('Вот-вот вылупится!');
+
+            } else if (currentTaps === 3) {
+                // ВЫЛУПЛЕНИЕ!
+                eggContainer.disableInteractive();
+                if (idleTween) idleTween.stop();
+
+                // Скрываем прогресс-бар и подсказку клика, освобождая место для презентации награды
+                progressBg.setVisible(false);
+                progressTxt.setVisible(false);
+                hintTxt.setVisible(false);
+
+                if (typeof SoundManager !== 'undefined') SoundManager.playVictory();
+
+                // Короткая яркая вспышка раскалывания
+                const breakFlash = this.add.graphics();
+                breakFlash.fillStyle(0xffffff, 0.8);
+                breakFlash.fillCircle(0, eggCenterY, 130);
+                this._hatchModal.add(breakFlash);
+                this.tweens.add({ targets: breakFlash, alpha: 0, duration: 180, onComplete: () => breakFlash.destroy() });
+
+                // Прячем целое яйцо и трещины
+                eggImg.setVisible(false);
+                cracksG.clear();
+
+                // Праздничный салют искр и звезд позади моба
+                this._spawnHatchBurst(this._hatchModal, 0, eggCenterY, 20, true);
+
+                instructionTxt.setText('Вылупилось! 🎉');
+                instructionTxt.setColor('#4ade80');
+                subInfoTxt.setText('Отличный улов для твоей армии!');
+                subInfoTxt.setColor('#94a3b8');
+
+                // Появление крупного моба (+25..40% размер) на круглом блюдце-пьедестале
+                const pad = String(mobInfo.level).padStart(2, '0');
+                const mobTex = mobInfo.texture || (mobInfo.level <= 10 ? `mob_${pad}` : 'mob_placeholder');
+
+                const saucer = this.add.graphics();
+                // Тень под блюдцем
+                saucer.fillStyle(0x000000, 0.38);
+                saucer.fillEllipse(0, eggCenterY + 52, 158, 30);
+                // Сама тарелочка / пьедестал (слегка больше)
+                saucer.fillStyle(0xf8fafc, 0.98);
+                saucer.fillEllipse(0, eggCenterY + 42, 150, 32);
+                saucer.lineStyle(3, 0x22c55e, 1);
+                saucer.strokeEllipse(0, eggCenterY + 42, 150, 32);
+
+                // Мягкое радиальное свечение позади моба (замена большому жёлтому диску)
+                const mobGlow = this.add.graphics();
+                mobGlow.fillStyle(0xffd700, 0.04); mobGlow.fillCircle(0, eggCenterY - 26, 125);
+                mobGlow.fillStyle(0xffd700, 0.07); mobGlow.fillCircle(0, eggCenterY - 26, 100);
+                mobGlow.fillStyle(0xffe566, 0.10); mobGlow.fillCircle(0, eggCenterY - 26, 76);
+                mobGlow.fillStyle(0xfff3c0, 0.12); mobGlow.fillCircle(0, eggCenterY - 26, 52);
+                mobGlow.fillStyle(0xffffff, 0.07); mobGlow.fillCircle(0, eggCenterY - 26, 30);
+
+                // Крупный моб 188px, слегка приподнят вверх
+                const mobAvatar = this.add.image(0, eggCenterY - 26, mobTex).setDisplaySize(188, 188);
+                const targetScale = mobAvatar.scaleX;
+                mobAvatar.setScale(targetScale);
+
+                this._hatchModal.add([saucer, mobGlow, mobAvatar]);
+
+                this.tweens.add({
+                    targets: mobAvatar,
+                    scaleX: { from: targetScale * 0.2, to: targetScale },
+                    scaleY: { from: targetScale * 0.2, to: targetScale },
+                    duration: 300,
+                    ease: 'Back.Out'
+                });
+
+                // Четкий читаемый бейдж количества и имени
+                const badgeY = 62;
+                const qtyBadge = this.add.graphics();
+                drawRoundRect(qtyBadge, -135, badgeY, 270, 44, 14, 0x14532d, 0.95, 0x22c55e, 2);
+
+                const qtyTxt = createHDText(this, 0, badgeY + 22, `+${mobCount}x ${mobInfo.name} (Lv.${mobInfo.level})`, {
+                    fontSize: '15px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+                    color: '#86efac', fontStyle: '900', stroke: '#0f172a', strokeThickness: 2.5
+                }).setOrigin(0.5);
+
+                this._hatchModal.add([qtyBadge, qtyTxt]);
+
+                // Кнопка подтверждения получения награды (230x50, 18px font)
+                let rewardClaimed = false;
+                const claimBtn = createCasualButton(this, 0, 144, 230, 50, 'ЗАБРАТЬ 🎁', {
+                    topColor: 0x22c55e,
+                    bottomColor: 0x15803d,
+                    strokeColor: 0x86efac,
+                    fontSize: '18px',
+                    radius: 14,
+                    lip: 4,
+                    pulse: true,
+                }, () => {
+                    if (rewardClaimed) return;
+                    rewardClaimed = true;
+
+                    // Выдача точного сохраненного количества мобов на игровое поле (без мутаций)
+                    for (let i = 0; i < mobCount; i++) {
+                        this.mergeField.spawnMob(slot.mobLevel);
+                    }
+
+                    if (typeof SoundManager !== 'undefined') SoundManager.playVictory();
+
+                    // Освобождение слота
+                    slot.active = false;
+                    delete slot.endTime;
+
+                    this._save();
+                    this._onFieldChanged();
+                    this._renderIncubatorSlots();
+
+                    if (this._hatchModal) {
+                        this._hatchEggContainer = null;
+                        this._hatchModal.destroy();
+                        this._hatchModal = null;
+                    }
+
+                    spawnFloatingText(this, W / 2, H / 2, `🥚 Вылупилось +${mobCount}x ${mobInfo.name}!`, '#22c55e', 24);
+                });
+
+                this._hatchModal.add(claimBtn);
+            }
+        });
+    }
+
+    _spawnHatchBurst(parent, x, y, count, isFinal = false) {
+        const colors = isFinal ? [0xffd700, 0x22c55e, 0x38bdf8, 0xffffff, 0xfbbf24] : [0xffd700, 0xffffff, 0xfbbf24];
+        for (let i = 0; i < count; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = isFinal ? Phaser.Math.Between(55, 125) : Phaser.Math.Between(25, 60);
+            const duration = isFinal ? Phaser.Math.Between(350, 550) : Phaser.Math.Between(200, 350);
+            const color = Phaser.Utils.Array.GetRandom(colors);
+            const size = isFinal ? Phaser.Math.Between(4, 7) : Phaser.Math.Between(3, 5);
+
+            const p = this.add.graphics();
+            p.fillStyle(color, 1);
+            if (isFinal && i % 3 === 0) {
+                p.fillCircle(0, 0, size);
+            } else {
+                p.fillRoundedRect(-size / 2, -size / 2, size, size, 2);
+            }
+            p.setPosition(x, y);
+
+            if (parent && parent.add) {
+                parent.add(p);
+            }
+
+            this.tweens.add({
+                targets: p,
+                x: x + Math.cos(angle) * dist,
+                y: y + Math.sin(angle) * dist + (isFinal ? 15 : 0),
+                alpha: 0,
+                scaleX: 0.2,
+                scaleY: 0.2,
+                angle: Phaser.Math.Between(-180, 180),
+                duration: duration,
+                ease: isFinal ? 'Quad.easeOut' : 'Cubic.easeOut',
+                onComplete: () => p.destroy()
+            });
+        }
     }
 
     // ============================================================

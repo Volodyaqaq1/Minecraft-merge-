@@ -11,11 +11,11 @@ def capture():
     query = ""
     if "?" in target_html:
         target_html, query = target_html.split("?", 1)
-        query = "&" + query
+        query = "?" + query
     html_path = os.path.abspath(target_html).replace("\\", "/")
     out_dir = r"C:\Users\volod\.gemini\antigravity\brain\984a2eb8-6d05-42d2-a48b-e1af6f2e486d"
     out_path = os.path.join(out_dir, target_out_name)
-    file_url = f"file:///{html_path}?debug=1{query}"
+    file_url = f"file:///{html_path}{query}"
 
     cmd = [
         chrome_path,

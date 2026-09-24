@@ -1,301 +1,192 @@
-# Project Handoff
+# AGENT HANDOFF — Minecraft-Merge (Squishy Merge)
 
-## 1. Что это за игра
-
-**«Кубический Бестиарий: Сквиши Мёрдж»** — казуальная веб-игра в жанре merge / clicker / battle, разрабатываемая для платформы **Яндекс Игры** (HTML5 Desktop & Mobile).
-
-### Основные игровые механики и системы:
-1. **Свободное поле мёрджа (MergeField)**:
-   - Игроки перетаскивают милых воксельных/кубических мобов («сквишей») по свободной травяной поляне.
-   - При столкновении двух мобов одинакового уровня они объединяются в моба следующего уровня с эффектами (вспышка, сквиш-анимация сжатия/растяжения, звук, floating text).
-   - Мобы обладают физикой упругого расталкивания (soft elastic collision repulsion), чтобы не слипаться в одну точку.
-2. **Кликер и комбо-множитель**:
-   - Клик по любому мобу на поле приносит изумруды (базовый доход моба * текущий множитель комбо x1..x5).
-   - Быстрые комбо слияний подряд и частые клики заполняют комбо-шкалу множителя, которая плавно остывает со временем.
-3. **Система уровней и прогрессия**:
-   - Уровень игрока строго привязан к максимальному открытому уровню моба (например, при открытии Дракона 30 ур. уровень игрока = 30).
-   - 90 уникальных мобов разделены на 3 тира: Лесной (1-30), Мифический (31-60), Космический (61-90).
-   - Магазин всегда продаёт моба уровня `maxUnlocked - 2` за изумруды.
-   - Рекламный слот даёт моба уровня `maxUnlocked - 1` бесплатно за просмотр рекламы.
-   - Старые мобы, которые больше не могут быть объединены, автоматически продаются за полную стоимость при значительном отрыве прогресса.
-4. **Инкубатор мобов (Мета-механика)**:
-   - 3 слота инкубации, открывающиеся на 5, 15 и 25 уровнях.
-   - Игрок выбирает длительность инкубации (10 мин x3 моба, 30 мин x6, 2 ч x12, 4 ч x18, 8 ч x25 мобов).
-   - Уровень высиживаемого моба автоматически синхронизируется с уровнем магазина при открытии новых мобов.
-   - 5% шанс на вылупление «Мутанта» (+1 уровень выше базового).
-   - Возможность ускорить таймер рекламой.
-5. **Динамические квесты**:
-   - До 3 активных квестов на сбор мобов на поле (например, «Собери 4x Кролика»).
-   - Уровни мобов в квестах всегда `>= уровень магазина + 1`.
-   - Прогресс отслеживает текущее число мобов на поле в реальном времени: если игрок объединил мобов раньше сдачи квеста, прогресс честно уменьшается (например, с 4/4 до 2/4).
-6. **Награды за время в игре (Online Playtime Rewards)**:
-   - 8 временных этапов (от 3 минут до 8 часов) с щедрыми наградами (пачки мобов, мешки и сундуки изумрудов).
-7. **Арена боя (BattleScene — «Гонка прорыва»)**:
-   - Команда игрока (до 3 мобов) соревнуется с командой бота в скорости разрушения деревянных укреплений.
-   - HP стенок рассчитывается от средней силы сторон, давая честный соревновательный шанс.
-   - Динамический множитель победной награды (бегающий ползунок x2..x5 за просмотр рекламы).
-8. **Бестиарий (CollectionScene)**:
-   - Интерактивная прокручиваемая сетка всех мобов с отображением параметров урона, редкости и статуса разблокировки.
+**Last updated:** 2026-09-24  
+**Branch:** `main`  
+**Handoff commit:** `feat(gameplay): polish incubator hatch flow, clean mob sprites, and finalize post-stage-2 UX`
 
 ---
 
-## 2. Технический стек
+## 1. Project Overview
 
-- **Движок**: **Phaser v3.80.1** (WebGL Renderer с Canvas fallback).
-- **Язык**: Чистый современный **JavaScript (ES6+)** без компиляторов и транспиляторов (native browser execution).
-- **Build System**: Не требуется сборщик (No Webpack/Vite/Rollup). Скрипты подключаются напрямую через `index.html`. Это обеспечивает мгновенный запуск и полную совместимость с требованиями Яндекс Игр.
-- **Шрифты**: Google Fonts `'Nunito', sans-serif` (подключен в `index.html`).
-- **Звук**: `SoundManager.js` на базе **Web Audio API** — процедурный синтез звуков на лету (поп, слияние, клик, крит, победа, фанфары), что гарантирует 0 задержек и 0 внешних аудиофайлов.
-- **Сохранение**: `SaveManager.js` с хранением в `localStorage` (ключ `squishy_merge_save_v3`), автосохранением каждые 30 секунд и сохранением по событию `visibilitychange`.
-- **Точка входа**: `index.html` -> `src/main.js`.
-- **Команды запуска**:
-  - Локальный сервер: `python -m http.server 8080` (или любой static server).
-  - Открытие в браузере: `http://localhost:8080`
-- **Команды верификации и тестирования**:
-  - Проверка синтаксиса JS: `python tools/validate_syntax.py`
-  - Запуск полного сьюта верификации (4 вьюпорта в headless Chrome): `python tools/run_all_verifications.py`
-  - Снятие 1080p скриншота: `python tools/capture_screenshot.py tools/render_screenshot.html hidpi_1080p_gameplay.png`
+Casual mobile-style merge game built on **Phaser v3.80.1** (browser, no Node build step).  
+Designed for **mobile landscape** (960×540 logical px), targeting Yandex Games SDK integration in Stage 3+.
+
+- **Main entry:** `src/main.js`
+- **Scenes:** `BootScene` → `GameScene` (always active) | `BattleScene` (launched as overlay) | `CollectionScene` (launched as overlay)
+- **Local save:** `localStorage` via `SaveManager`
+- **No transpile, no bundler** — vanilla JS + CDN Phaser
 
 ---
 
-## 3. Архитектура проекта
+## 2. Architecture — Coordinate System & HiDPI
 
+### Golden Rule: ALL game logic lives in 960×540 logical space.
+
+| Property | Value |
+|---|---|
+| Logical width × height | 960 × 540 px |
+| Backing buffer | 1920 × 1080 px (RENDER_SCALE = 2.0) |
+| `CONFIG.RENDER_SCALE` | auto-computed from DPR and window size (min 1.0, max 2.0) |
+| Pointer coords | Always use `pointer.worldX / pointer.worldY` or `helpers.getLogicalPointer()` |
+| Text rendering | Always use `createHDText()` from `src/utils/helpers.js` |
+| `setScrollFactor(0)` | **Forbidden in GameScene** — use container positioning in logical space |
+
+All four viewports verified by `tools/run_all_verifications.py` (360×640, 768×1024, 1280×720, 1920×1080).
+
+---
+
+## 3. Completed Stages
+
+### Stage 1 — HiDPI Architecture ✅
+- Enforced 960×540 logical coordinate system across all scenes
+- WebGL backing buffer 1920×1080, `RENDER_SCALE = 2.0`, DPR-aware
+- All pointer coords use `worldX/worldY` via `helpers.js`
+- Verified across 4 viewports
+
+### Stage 2 — Visual UI Polish ✅
+- **Combo bar:** Replaced animated slider with 5 discrete pill buttons (x1–x5🔥). Active pill = gradient highlight; inactive = slate-dark. Thin 3px time-to-reset track below.
+- **Quest panel:** Sticker-style cards, round portrait saucer, mini progress bar via `drawCasualProgressBar`, 2/4 counter, completed state, green 3D "ЗАБРАТЬ 🎁" button, pulse only when reward ready.
+- **Shop cards:** Pastel premium casual redesign.
+- **Bottom dock:** Pill-shaped nav, red "В бой!" CTA.
+- **Top bar:** Coins + gem display, level badge.
+- **Field layout:** Mob nameplates + level/count badges with layout protection.
+
+### Post-Stage-2 Corrections ✅
+- **Skeleton (mob_08) & Creeper (mob_10) sprites fixed:**  
+  Root cause: top rows had near-white pixels RGB(238–241) — previous alpha threshold `r > 242` missed them.  
+  Fix: added `(r > 235) & (g > 235) & (b > 235) & (max_diff <= 4)` in `tools/generate_all_mobs.py`.  
+  Regenerated 16 PNG files across all size/directory variants.
+- **Incubator READY state:** Badge, timer complete display, ВЫЛУПИТЬ button.
+- **3-tap egg hatch flow:** Interactive modal `_openIncubatorHatchModal()` — see Section 4.
+- **Dev telemetry confirmed disabled** in all release paths.
+
+---
+
+## 4. Incubator Hatch Flow Architecture
+
+### Entry point
 ```
-Game2/
-├── index.html                  # Главный HTML-документ, стили лоадера, загрузка Phaser и скриптов
-├── AGENT_HANDOFF.md            # Данный документ передачи контекста
-├── NEXT_TASK.md                # Быстрый старт для следующего агента
-├── src/
-│   ├── config.js               # Глобальная конфигурация игры, баланс, RENDER_SCALE, логические размеры 960x540
-│   ├── main.js                 # Инициализация Phaser.Game, расчет размеров канваса, регистрация сцен
-│   ├── components/
-│   │   ├── Economy.js          # Баланс изумрудов, уровни игрока, вычисление стоимости покупок
-│   │   ├── MergeField.js       # Свободное поле, спавн, drag-and-drop, коллизии, объединение мобов
-│   │   ├── BattleSystem.js     # Подбор ботов, генерация команд противников
-│   │   └── SaveManager.js      # Загрузка/сохранение/сброс прогресса игрока в localStorage
-│   ├── data/
-│   │   ├── mobs.js             # База данных 90 мобов (имена, уровни, урон, редкость, формулы)
-│   │   └── bot_names.js        # Пул забавных казуальных имён для ботов на арене
-│   ├── scenes/
-│   │   ├── BootScene.js        # Загрузка текстур, спрайтов 256px, иконок UI, генерация текстур
-│   │   ├── GameScene.js        # Основная сцена: поляна, топ-бар, магазин, квесты, инкубатор, модалки
-│   │   ├── BattleScene.js      # Сцена гонки прорыва: мобы, стенки, сундук, множитель x2..x5
-│   │   └── CollectionScene.js  # Сцена бестиария: прокручиваемая коллекция 90 мобов с характеристиками
-│   └── utils/
-│       ├── helpers.js          # createHDText, setupSceneHiDPICamera, getLogicalPointer, createCasualButton,
-│       │                       # darkenColor, lightenColor, drawCasualCard, drawCasualProgressBar, shakeObject
-│       └── SoundManager.js     # Процедурный синтезатор звуков Web Audio API
-├── assets/
-│   ├── icons/                  # HD UI иконки (gem.png, sword.png, chest.png, egg.png, gear.png)
-│   ├── mobs/
-│   │   ├── sprites/256/        # Прозрачные спрайты мобов без фона для игрового поля и арены (mob_01..mob_10)
-│   │   └── portraits/256/      # Круглые портреты мобов для карточек магазина, квестов, инкубатора (mob_01..mob_90)
-│   └── bg/                     # Фоновые текстуры (зарезервировано)
-└── tools/                      # Автоматизированный инструментарий тестирования и валидации
-    ├── validate_syntax.py      # Быстрая проверка скобок/синтаксиса JS
-    ├── run_all_verifications.py# Полный сьют тестов в 4 вьюпортах (Full HD, 1366, Mobile DPR2, Mobile DPR3)
-    ├── run_chrome_test.py      # Headless Chrome runner с виртуальным временем (Zero Token Waste)
-    ├── capture_screenshot.py   # Одноразовый снимок экрана в 1080p
-    ├── render_screenshot.html  # Тестовая среда для снятия скриншотов сцен
-    └── verify_stage1_1.html    # Тестовая среда верификации масштабирования, хит-тестов и текста
+GameScene._openIncubatorHatchModal(slot, slotIdx)
+```
+Called when player taps "ВЫЛУПИТЬ" on a ready incubator slot.
+
+### Modal structure
+- Container depth: `200000` (above all UI, above telemetry `99999/100000`)
+- `this._hatchModal` — main modal container (stored on scene, destroyed on close/claim)
+- `this._hatchEggContainer` — egg + glow + cracks container (stored for test harness, nulled on close/claim)
+
+### 3-tap sequence
+| Tap | Visual | Sound |
+|---|---|---|
+| 1 | Thin irregular primary crack (3px) + 1 side branch + white highlight | `playPop()` |
+| 2 | Full branching network (4 arms from 2 hubs) + highlights | `playPop()` + particles |
+| 3 | White breakFlash → egg hidden → mob reveal with radial glow | `playVictory()` + 20 particles |
+
+### Crack implementation (GameScene.js ~line 1822, ~1869)
+- Tap 1: 3px dark (`#1e293b`), 5-segment zigzag, 1 tiny branch, 1.5px white highlight
+- Tap 2: 4px main spine + 3.5px right/left branches (3 segments each) + 2.5px upper-right mini-branch + 2px taper + highlights on major paths
+
+### Mob reveal (GameScene.js ~line 1955)
+- **Pedestal:** ellipse 150×32px (shadow 158×30), white fill, 3px green stroke
+- **Radial glow** (`mobGlow`): 5-layer, 125r@4% → 100r@7% → 76r@10% → 52r@12% → 30r@7% — fades naturally
+- **Mob avatar:** 188px (portrait texture)
+- **Badge:** "+Nx MobName (Lv.X)" green card
+- **CTA:** "ЗАБРАТЬ 🎁" 230×50 green button
+
+### Reward grant logic — exact invariants
+- `slot.mobCount` and `slot.mobLevel` are stored at incubation start — NEVER mutated at claim time
+- `rewardClaimed` flag (boolean, local) prevents double-grant
+- Close button `✕` — does NOT consume reward, slot stays active
+- Reopening: guard destroys existing modal first
+- **No mutation mechanic** — `hasMutant`/`mutantLevel` do NOT exist anywhere in codebase
+
+### Guards
+```js
+if (isDebouncing || currentTaps >= 3) return;  // tap debounce
+if (rewardClaimed) return;                       // double-claim guard
 ```
 
 ---
 
-## 4. Что уже реализовано
+## 5. Asset Directory Structure
 
-1. **True HiDPI Renderer Architecture (Stage 1.1 — Полностью завершена и проверена)**:
-   - Логическое разрешение игры зафиксировано строго **960x540**.
-   - Физический WebGL backing buffer динамически масштабируется до **1920x1080** (`CONFIG.RENDER_SCALE = 2.0`) на экранах высокой четкости (Desktop Full HD, Retina, Mobile DPR 3).
-   - Устранен апскейлинг браузера: `upscaleRatio = 0.912x` на Full HD (картинка резкая, crisp 1080p без мыла).
-   - Синхронизирован `TextStyle.resolution` и `frame.source.resolution` во всех надписях через `createHDText`.
-2. **Ввод и физика в условиях HiDPI**:
-   - Хит-тесты, drag-and-drop и позиционирование UI работают в логических координатах `960x540` благодаря `pointer.worldX / worldY` и `getLogicalPointer`.
-3. **Топ-бар в стиле современных казуальных топ-хитов**:
-   - Тактильная 3D-кнопка настроек шестерёнки.
-   - Тактильный 3D-бейдж «Уровень X» с золотой звездой.
-   - Казуальная 3D-кнопка «Подарки 🎁» с пульсирующим красным индикатором уведомления при готовности награды.
-   - Неоновая комбо-шкала в глубоком желобе с динамической сменой цветов (изумрудный, циан, синий, фиолетовый, огненный красный) и глянцевым бликом.
-   - Элегантная белая карточка баланса изумрудов со скругленными углами и покачивающимся кристаллом.
-4. **Инкубатор с выбором времени**:
-   - Слоты на 5, 15 и 25 уровнях.
-   - Выбор длительности (10 мин, 30 мин, 2 ч, 4 ч, 8 ч) и пачек мобов (до x25).
-   - Автоматическая синхронизация уровня моба с уровнем магазина при разблокировке более сильных мобов.
-5. **Динамические квесты с вариативностью до 5 мобов**:
-   - Честный учет мобов на поле: при объединении счетчик динамически пересчитывается (2/4, 3/4).
-   - Задания генерируются только для мобов `>= уровень магазина + 1`.
-6. **Арена боя («Гонка прорыва»)**:
-   - Равное здоровье стенок на основе суммарного DPS матча.
-   - Очередь атак мобов с критами и всплывающим уроном.
-   - Множитель награды x2..x5 с бегающим ползунком.
+### Active runtime paths (loaded by BootScene.js)
+```
+assets/mobs/sprites/256/mob_XX.png   ← sprite textures (mob_01 … mob_10)
+assets/mobs/portraits/256/mob_XX.png ← portrait textures for incubator/quests
+assets/icons/gem.png, sword.png, chest.png, egg.png, gear.png
+```
+
+### Legacy / unreferenced paths
+```
+assets/mobs/256/mob_XX.png     ← legacy pipeline output; NOT referenced in src/
+assets/mobs/512/mob_XX.png     ← high-res legacy; NOT referenced in src/
+```
+> **Do NOT delete legacy directories.** Asset restructuring is deferred to a dedicated maintenance task.
+
+### Sprite extraction pipeline
+- Source skins: `assets/mobs/skins/` (e.g. `Skeleton.jpg`, `crepper.jpg`)
+- Pipeline script: `tools/generate_all_mobs.py`
+- Key fix (mob_08/10): neutral-bg filter `(r > 235) & (g > 235) & (b > 235) & (max_diff <= 4)`
+- Output: all 5 size directories × portraits
 
 ---
 
-## 5. Последние изменения
+## 6. Verification Infrastructure
 
-### Проблема, которая решалась:
-Игра выглядела как размытый прототип «144p», потому что Phaser Scale Manager в режиме FIT создавал canvas 960x540 и браузер через CSS растягивал его билинейной интерполяцией на 1920x1080.
+| Script | Purpose | Expected result |
+|---|---|---|
+| `tools/validate_syntax.py` | JS bracket balance + syntax scan | All 14 files: OK |
+| `tools/audit_coordinates.py` | Grep for `worldX/worldY` usage | Shows all call sites (all correct) |
+| `tools/run_all_verifications.py` | Headless Chrome: logical coords, hit-test, HiDPI text across 4 viewports | All pass |
+| `tools/capture_screenshot.py <html> <out.png>` | Headless Chrome screenshot capture | Used for all regression shots |
 
-### Реализованное решение:
-1. **Декуплированная архитектура HiDPI**:
-   - `CONFIG.RENDER_SCALE` рассчитывается в `src/config.js` как 2.0 для экранов с Full HD / Retina и 1.0 для маломощных мобильных экранов.
-   - Физический канвас создается размером `CONFIG.WIDTH * RENDER_SCALE` x `CONFIG.HEIGHT * RENDER_SCALE` (1920x1080).
-   - Камера масштабируется на `zoom = RENDER_SCALE` и центрируется на `(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2)`.
-   - Вся игровая математика осталась в координатах `960x540`.
-2. **Исправление Phaser Gotchas**:
-   - `createHDText` синхронизирует и стиль, и `frame.source.resolution`.
-   - Объекты не используют `setScrollFactor(0)`, так как в Phaser 3 WebGL это выводит объект из-под зума камеры в сырые пиксели 1920x1080.
-   - Мобы при загрузке сохранения спавнятся сразу с `scale: 1.0` (ранее оставались невидимыми с `scale: 0`).
-3. **Казуальный UI Polish (Начало Stage 2)**:
-   - В `src/utils/helpers.js` добавлены `createCasualButton`, `darkenColor`, `lightenColor`, `drawCasualCard`, `drawCasualProgressBar`.
-   - Переработан Top Bar в `src/scenes/GameScene.js`.
-
----
-
-## 6. Важные архитектурные правила (Invariants)
-
-> [!IMPORTANT]
-> **ПРАВИЛО №1**: Логическая система координат — ВСЕГДА **960x540**.
-> Никогда не используйте числа 1920 или 1080 для позиционирования объектов, UI или в формулах перемещения! Все расчеты ведутся в пространстве 960x540.
-
-> [!IMPORTANT]
-> **ПРАВИЛО №2**: Координаты указателя мыши / тача.
-> Для интерактивных объектов используйте `pointer.worldX` и `pointer.worldY` (или `getLogicalPointer(pointer, scene)`). `pointer.x` и `pointer.y` возвращают экранные физические координаты и приведут к сдвигу в 2 раза при включенном зуме камеры!
-
-> [!WARNING]
-> **ПРАВИЛО №3**: Никакого `setScrollFactor(0)`!
-> В Phaser 3 WebGL вызов `obj.setScrollFactor(0)` заставляет рендерер игнорировать зум и смещение камеры. Поскольку камера у нас статична на (480, 270), `setScrollFactor` вообще не нужен.
-
-> [!TIP]
-> **ПРАВИЛО №4**: Создание текста — только через `createHDText`.
-> Обычный `scene.add.text(...)` может выглядеть мыльно. Функция `createHDText(scene, x, y, text, style)` принудительно синхронизирует разрешение текстуры шрифта с физическим разрешением экрана.
-
-> [!NOTE]
-> **ПРАВИЛО №5**: Спрайты против Портретов.
-> - `mob_sprite_XX`: прозрачные спрайты без рамки. Используются на поле `MergeField` и на арене `BattleScene`.
-> - `mob_portrait_XX`: круглые портреты мобов на белом диске. Используются в магазине, квестах, инкубаторе и бестиарии.
-
-> [!CAUTION]
-> **ПРАВИЛО №6**: Режим ZERO TOKEN WASTE.
-> Запрещено оставлять запущенными постоянные dev-серверы в терминале или писать бесконечные циклы опроса статуса. Тесты в `tools/` запускаются однократно с `--virtual-time-budget` и завершаются детерминированно.
+### Regression render harnesses (in `tools/`)
+- `render_screenshot.html` — main gameplay field
+- `render_battle_screenshot.html` — battle scene
+- `render_battle_modal_screenshot.html` — pre-battle modal
+- `render_battle_flow_modals.html` — victory/defeat modals
+- `render_collection_screenshot.html` — bestiary/collection
+- `render_incubator_ready.html` — incubator READY state
+- `render_incubator_mid.html` — egg hatch mid-flow (tap 2)
+- `render_incubator_reveal.html` — egg hatch reward reveal (tap 3)
 
 ---
 
-## 7. Состояние игровых данных
+## 7. Dev Telemetry
 
-- **Мобы**: 90 уровней прописаны в `src/data/mobs.js`.
-  - Уровни 1–30: Woodland (Цыпа, Кролик, Жабка, Лисичка, Совёнок, Свинка, Панда, Енот, Мишка, Дракоша...).
-  - Уровни 31–60: Mythic (Грифон, Феникс, Цербер, Единорог...).
-  - Уровни 61–90: Cosmic (Звёздный Кит, Астральный Титан, Квазар...).
-- **Ассеты в наличии**:
-  - `assets/mobs/sprites/256/mob_01.png` .. `mob_10.png` — прозрачные HD спрайты 256x256.
-  - `assets/mobs/portraits/256/mob_01.png` .. `mob_90.png` — сгенерированные HD портреты 256x256 для всех 90 мобов.
-  - `assets/icons/`: `gem.png`, `sword.png`, `chest.png`, `egg.png`, `gear.png`.
-  - Placeholder: для спрайтов мобов > 10 пока используется плейсхолдер / портрет.
+- Method: `GameScene._buildDevDebugOverlay()` (~line 2899)
+- Gate: `location.search.includes('debug=1') || CONFIG.DEBUG === true`
+- `CONFIG.DEBUG` is **not defined** in `config.js` — evaluates to `undefined === true` → `false`
+- All render HTML test files explicitly set `CONFIG.DEBUG = false` before Phaser init
+- `capture_screenshot.py` does NOT append `?debug=1` to URLs
+- **Release captures contain zero telemetry**
 
 ---
 
-## 8. Известные проблемы
+## 8. Key File Index
 
-1. **Жёлтый круг позади сундука при победе на арене (`BattleScene.js`)**:
-   - *Проявление*: При победе сундук летит в сторону победителя, а сияние `this.rays` улетает в другую сторону.
-   - *Причина*: `this.rays`, `this.chestIcon` и `this.prizeText` анимировались тремя отдельными твинами, при этом `this.rays` имел локальное смещение внутри Graphics.
-   - *Решение*: Объединить их в единый `this.treasureContainer = this.add.container(cx, cy)` и двигать контейнер целиком.
-2. **Позиция стенок в бою (`BattleScene.js`)**:
-   - *Проявление*: При частых одновременных ударах мобов стенка могла визуально смещаться от исходного положения.
-   - *Причина*: В `shakeObject` переменная `_shakeBaseX` не была задана заранее при инициализации стенки.
-   - *Решение*: Явно прописать `this.pWallGraphics._shakeBaseX = this.pWallX;` при создании.
-3. **Мобильная плашка ориентации**:
-   - *Проявление*: В редких случаях после переворота телефона из портрета в альбом на мобильных устройствах экран может оставаться сероватым до первого тача.
-   - *Причина*: Браузерный resize event не всегда триггерит Phaser resize во фрейме Яндекса.
-   - *Решение*: Вызывать `this.scale.refresh()` по тачу или таймеру ориентации.
-4. **Перекрытие кнопок модальных окон мобами поля (`GameScene.js`)**:
-   - *Проявление*: При открытии модалок (вызов на бой, выбор команды, инкубатор) мобы в нижней части поля (depth до 470) перекрывали кнопки модалок.
-   - *Причина*: Контейнеры модальных окон создавались с depth 300 / 450.
-   - *Решение*: Всем модальным окнам назначен `depth(1000)`, оверлеям `depth(999)`.
-5. **Наложение бейджей и шильдиков мобов на игровом поле (`MergeField.js`)**:
-   - *Проявление*: При близком расположении мобов их имена и бейджи уровней накладывались друг на друга.
-   - *Причина*: Шильдики были широкими и выступали далеко вниз, а бейджи уровней висели снаружи силуэта моба.
-   - *Решение*: Бейдж уровня утоплен внутрь силуэта головы моба (-30% X, -42% Y), ширина шильдика имени сжата до 76% размера моба (высота 18, радиус 9), добавлена система многолучевого спавна с защитой дистанции >= 96px, 3-проходное расталкивание >= 86px и авто-релаксация поля при загрузке.
+| File | Role |
+|---|---|
+| `src/config.js` | All constants: 960×540, RENDER_SCALE, economy, colors |
+| `src/main.js` | Phaser Game config, scene registration |
+| `src/scenes/BootScene.js` | Asset preload; creates color textures |
+| `src/scenes/GameScene.js` | Main game loop, all UI panels, incubator, quests, shop, combo |
+| `src/scenes/BattleScene.js` | Battle arena overlay |
+| `src/scenes/CollectionScene.js` | Bestiary overlay |
+| `src/components/SaveManager.js` | localStorage load/save |
+| `src/components/Economy.js` | Coins, XP, levels |
+| `src/components/MergeField.js` | Drag/drop merge logic |
+| `src/components/BattleSystem.js` | Battle simulation |
+| `src/data/mobs.js` | `BASE_MOBS` array, `getMobByLevel()` |
+| `src/utils/helpers.js` | `createHDText`, `drawRoundRect`, `drawCasualProgressBar`, `createCasualButton`, `shakeObject`, `spawnFloatingText`, `getLogicalPointer` |
+| `tools/generate_all_mobs.py` | Sprite extraction pipeline |
 
 ---
 
-## 9. Состояние выполнения задач
+## 9. Working Tree State at Handoff
 
-### СТАДИЯ 1 (HiDPI & Renderer Architecture) — 100% ВЫПОЛНЕНО
-- WebGL backing buffer 1920x1080 (HD), логические координаты 960x540.
-- `createHDText` с resolution: 2.0.
-- Камера с зумом 2.0 и центром в (480, 270).
-- Все 4 вьюпорта верифицированы (`upscaleRatio` < 1.0 на Full HD).
-
-### СТАДИЯ 2 (Visual UI Polish & Redesign) — 100% ВЫПОЛНЕНО И ВЕРИФИЦИРОВАНО
-- **Библиотека казуальных 3D компонентов (`helpers.js`)**: `createCasualButton`, `drawCasualCard`, `drawCasualProgressBar`.
-- **Top Bar**: тактильные кнопки, бейджи, шкала комбо в желобке, баланс изумрудов.
-- **Панель квестов**: мягкие карточки-стикеры, круглые блюдца под портреты мобов, мини-прогресс-бар `drawCasualProgressBar`, зеленые кнопки `ЗАБРАТЬ 🎁` с мягкой пульсацией.
-- **Магазин**: карточки в мягком стиле (пастельно-голубая и сиреневая), круглые блюдца, парение мобов, 3D-кнопки покупки.
-- **Нижний док**: полупрозрачная стеклянная панель, 4 объемные кнопки с иконками, сочная рубиновая кнопка «В бой! ⚔️».
-- **Диалоги боя**: стилизованные модалки вызова на бой и выбора бойцов (770x430, счетчик 3/3, отметки выбора, saucers, attack pills).
-- **Арена боя (`BattleScene`)**: единый `treasureContainer`, аватары мобов с круглыми подложками и бейджами урона, трещины на стенках при падении HP, глянцевые полосы HP со вспышкой урона, модалка победы с интерактивным бегунком x2..x5 и сочной кнопкой.
-- **Бестиарий (`CollectionScene`)**: шапка с прогресс-баром открытия 90 мобов (`Открыто: X / 90 (X%)`), карточки с цветными рамками редкостей, интерактивный bounce при клике.
-- **Игровое поле**: 100% защита от взаимного перекрытия имен и бейджей мобов.
-
----
-
-## 10. Следующая рекомендуемая задача
-
-### NEXT TASK: Stage 3 — Gameplay Feel, Juice & Retention Polish
-
-- **Цель**: Наполнить игровой процесс максимальным ощущением сочности («Juice»), тактильности и вознаграждения, укрепив удержание игрока (Retention).
-- **Ключевые направления**:
-  1. **Merge & Field Juice**:
-     - Упругий сквош-энд-стретч при перетаскивании и отпускании мобов.
-     - Эффект всплеска травы / волны при падении моба.
-     - Праздничный салют искр и светящихся частиц при слиянии мобов нового уровня.
-     - Плавающие подсказки и множители комбо.
-  2. **Combat Juice**:
-     - Ударная отдача (punch scale) деревянных стенок при попадании снарядов.
-     - Разлетающиеся щепки и дымок при нанесении урона стенкам.
-     - Победный рывок мобов к сокровищу и конфетти при финальном взрыве сундука.
-  3. **Progression & Retention**:
-     - Экран триумфального открытия нового тира мобов (Лес -> Мифика -> Космос).
-     - Полноэкранный модальный бейдж открытия нового персонажа в бестиарии.
-     - Интеграция межстраничной и вознаграждающей рекламы через заглушки / SDK Яндекса.
-
----
-
-## 11. Как проверить проект
-
-1. **Проверка синтаксиса**:
-   ```bash
-   python tools/validate_syntax.py
-   ```
-2. **Проверка рендеринга и разрешения (4 вьюпорта)**:
-   ```bash
-   python tools/run_all_verifications.py
-   ```
-3. **Аудит логических координат**:
-   ```bash
-   python tools/audit_coordinates.py
-   ```
-4. **Снятие снимка экрана**:
-   ```bash
-   python tools/capture_screenshot.py tools/render_screenshot.html test.png
-   ```
-
----
-
-## 12. Последнее проверенное состояние
-
-- **Branch**: `main`
-- **Date**: 2026-09-24
-- **Runtime status**: WebGL 1920x1080 HiDPI backing buffer, логические координаты строго 960x540.
-- **Tests**: Все тесты синтаксиса, координат и 4 вьюпортов верификации пройдены со 100% успехом.
-- **Screenshots verified**:
-  - `final_gameplay_field.png` (чистое поле без перекрытий меток)
-  - `final_prebattle_modal.png` (модалка вызова на бой)
-  - `final_team_selection.png` (модалка выбора команды)
-  - `final_battle_arena.png` (арена боя, аватары, сундук, полосы HP)
-  - `final_victory_modal.png` (модалка победы с множителем x5)
-  - `final_bestiary.png` (бестиарий с шапкой прогресса и рамками редкостей)
-- **Ready for next agent**: **YES** (Stage 2 полностью завершен, готов к Stage 3).
-
+- Branch: `main`
+- All changes committed and pushed
+- Working tree: **clean**
+- No debug flags, no forced states, no test hooks in production code

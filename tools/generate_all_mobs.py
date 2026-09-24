@@ -30,14 +30,19 @@ def draw_star(draw, cx, cy, r_outer, r_inner, fill, outline=None, width=1):
         points.append((cx + r * math.cos(angle), cy + r * math.sin(angle)))
     draw.polygon(points, fill=fill, outline=outline, width=width)
 
-def extract_alpha_sprite(src_path, size=512):
+def extract_alpha_sprite(src_path, size=512, mob_id=1):
     im = Image.open(src_path).convert('RGB')
     im_resized = im.resize((size, size), Image.Resampling.LANCZOS)
     arr = np.array(im_resized, dtype=np.float32)
     
     r, g, b = arr[:, :, 0], arr[:, :, 1], arr[:, :, 2]
-    # Background is near white studio lighting
-    is_bg_candidate = (r > 242) & (g > 242) & (b > 242)
+    max_diff = np.maximum.reduce([np.abs(r - g), np.abs(g - b), np.abs(r - b)])
+    if mob_id in (8, 10):
+        # Skeleton (#8) and Creeper (#10) have darker studio lighting near top edge (RGB 236-242),
+        # but with neutral studio gray/white cyclorama (max_diff <= 4).
+        is_bg_candidate = (r > 235) & (g > 235) & (b > 235) & (max_diff <= 4)
+    else:
+        is_bg_candidate = (r > 242) & (g > 242) & (b > 242)
     
     h, w = is_bg_candidate.shape
     visited = np.zeros((h, w), dtype=bool)
@@ -193,7 +198,7 @@ sprites_256 = {}
 
 for mob_id in range(1, 31):
     if mob_id in SKIN_FILES and os.path.exists(SKIN_FILES[mob_id]):
-        sp512 = extract_alpha_sprite(SKIN_FILES[mob_id], size=512)
+        sp512 = extract_alpha_sprite(SKIN_FILES[mob_id], size=512, mob_id=mob_id)
         sp256 = sp512.resize((256, 256), Image.Resampling.LANCZOS)
     else:
         sp512 = make_placeholder_sprite(size=512, tier=1)
