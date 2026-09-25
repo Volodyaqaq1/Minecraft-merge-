@@ -81,48 +81,47 @@ const CONFIG = {
 
 // ============================================================
 // Таблица экономики: Клик, Стоимость в магазине, АТК для всех 30 мобов
-// Рассчитано по формуле пользователя:
-// Ур. 23: клик 1 млн, покупка 27 млн
-// Ур. 24: клик 2 млн, покупка 60 млн
-// Ур. 25: клик 4 млн, покупка 132 млн
-// и плавный перерасчет для уровней до 23 (ур. 1 = 50 монет)
+// Сбалансированная кривая прогрессии:
+// Ур. 14: клик 8,000, покупка 100,000, соотношение 12.5 тапов
+// Ур. 15: клик 16,000, покупка 240,000, соотношение 15.0 тапов
+// Награда за поражение в бою (ур. 15) = 1.48M, за победу = 3.70M
 // ============================================================
 const MOB_ECONOMY_TABLE = [
     null, // 0-индекс не используется
-    { level: 1,  click: 3,         cost: 50,          atk: 12 },
-    { level: 2,  click: 5,         cost: 85,          atk: 20 },
-    { level: 3,  click: 10,        cost: 175,         atk: 40 },
-    { level: 4,  click: 18,        cost: 320,         atk: 75 },
-    { level: 5,  click: 30,        cost: 550,         atk: 130 },
-    { level: 6,  click: 55,        cost: 1000,        atk: 240 },
-    { level: 7,  click: 100,       cost: 1900,        atk: 450 },
-    { level: 8,  click: 175,       cost: 3500,        atk: 800 },
-    { level: 9,  click: 300,       cost: 6200,        atk: 1500 },
-    { level: 10, click: 550,       cost: 11500,       atk: 2800 },
-    { level: 11, click: 1000,      cost: 21000,       atk: 5200 },
-    { level: 12, click: 1800,      cost: 39000,       atk: 9500 },
-    { level: 13, click: 3200,      cost: 70000,       atk: 17500 },
-    { level: 14, click: 5600,      cost: 125000,      atk: 32000 },
-    { level: 15, click: 10000,     cost: 230000,      atk: 60000 },
-    { level: 16, click: 18000,     cost: 420000,      atk: 110000 },
-    { level: 17, click: 32000,     cost: 760000,      atk: 200000 },
-    { level: 18, click: 56000,     cost: 1380000,     atk: 370000 },
-    { level: 19, click: 100000,    cost: 2500000,     atk: 680000 },
-    { level: 20, click: 180000,    cost: 4600000,     atk: 1250000 },
-    { level: 21, click: 320000,    cost: 8300000,     atk: 2300000 },
-    { level: 22, click: 560000,    cost: 15000000,    atk: 4200000 },
-    { level: 23, click: 1000000,   cost: 27000000,    atk: 7800000 },
-    { level: 24, click: 2000000,   cost: 60000000,    atk: 15600000 },
-    { level: 25, click: 4000000,   cost: 132000000,   atk: 31200000 },
-    { level: 26, click: 8000000,   cost: 288000000,   atk: 62400000 },
-    { level: 27, click: 16000000,  cost: 624000000,   atk: 125000000 },
-    { level: 28, click: 32000000,  cost: 1344000000,  atk: 250000000 },
-    { level: 29, click: 64000000,  cost: 2880000000,  atk: 500000000 },
-    { level: 30, click: 128000000, cost: 6144000000,  atk: 1000000000 },
+    { level: 1,  click: 4,         cost: 50,          atk: 15 },
+    { level: 2,  click: 7,         cost: 90,          atk: 25 },
+    { level: 3,  click: 13,        cost: 165,         atk: 50 },
+    { level: 4,  click: 24,        cost: 310,         atk: 90 },
+    { level: 5,  click: 45,        cost: 580,         atk: 170 },
+    { level: 6,  click: 85,        cost: 1100,        atk: 320 },
+    { level: 7,  click: 160,       cost: 2100,        atk: 600 },
+    { level: 8,  click: 300,       cost: 4000,        atk: 1100 },
+    { level: 9,  click: 550,       cost: 7500,        atk: 2100 },
+    { level: 10, click: 1000,      cost: 14000,       atk: 3800 },
+    { level: 11, click: 1900,      cost: 26000,       atk: 7200 },
+    { level: 12, click: 3500,      cost: 48000,       atk: 13500 },
+    { level: 13, click: 5300,      cost: 70000,       atk: 21000 },
+    { level: 14, click: 8000,      cost: 100000,      atk: 32000 },
+    { level: 15, click: 16000,     cost: 240000,      atk: 64000 },
+    { level: 16, click: 30000,     cost: 460000,      atk: 120000 },
+    { level: 17, click: 55000,     cost: 850000,      atk: 220000 },
+    { level: 18, click: 100000,    cost: 1550000,     atk: 400000 },
+    { level: 19, click: 180000,    cost: 2800000,     atk: 720000 },
+    { level: 20, click: 320000,    cost: 5000000,     atk: 1300000 },
+    { level: 21, click: 580000,    cost: 9000000,     atk: 2300000 },
+    { level: 22, click: 1000000,   cost: 16000000,    atk: 4000000 },
+    { level: 23, click: 1800000,   cost: 28000000,    atk: 7200000 },
+    { level: 24, click: 3200000,   cost: 50000000,    atk: 13000000 },
+    { level: 25, click: 5800000,   cost: 90000000,    atk: 23000000 },
+    { level: 26, click: 10000000,  cost: 160000000,   atk: 40000000 },
+    { level: 27, click: 18000000,  cost: 280000000,   atk: 72000000 },
+    { level: 28, click: 32000000,  cost: 500000000,   atk: 130000000 },
+    { level: 29, click: 58000000,  cost: 900000000,   atk: 230000000 },
+    { level: 30, click: 100000000, cost: 1600000000,  atk: 400000000 },
 ];
 
 /**
- * Расчет цены покупки моба заданного уровня (с поддержкой до 85+ мобов)
+ * Расчет цены покупки моба заданного уровня (с поддержкой до 90 мобов)
  */
 function getMobCost(level) {
     const lvl = Math.max(1, Math.floor(level));
@@ -130,7 +129,7 @@ function getMobCost(level) {
         return MOB_ECONOMY_TABLE[lvl].cost;
     }
     const base = MOB_ECONOMY_TABLE[30].cost;
-    return Math.floor(base * Math.pow(2.15, lvl - 30));
+    return Math.floor(base * Math.pow(1.75, lvl - 30));
 }
 
 /**
@@ -142,7 +141,7 @@ function getMobClickReward(level) {
         return MOB_ECONOMY_TABLE[lvl].click;
     }
     const base = MOB_ECONOMY_TABLE[30].click;
-    return Math.floor(base * Math.pow(2.0, lvl - 30));
+    return Math.floor(base * Math.pow(1.75, lvl - 30));
 }
 
 /**
@@ -154,5 +153,31 @@ function getMobAtk(level) {
         return MOB_ECONOMY_TABLE[lvl].atk;
     }
     const base = MOB_ECONOMY_TABLE[30].atk;
-    return Math.floor(base * Math.pow(2.0, lvl - 30));
+    return Math.floor(base * Math.pow(1.75, lvl - 30));
+}
+
+/**
+ * Стоимость покупки моба в магазине для текущего прогресса игрока
+ */
+function getShopMobCost(playerMaxLevel) {
+    return getMobCost(playerMaxLevel);
+}
+
+/**
+ * Награда за поражение в бою (Defeat reward)
+ * На ур. 15 = ровно 1.48M (1,480,000)
+ */
+function getBattleLossReward(level) {
+    const lvl = Math.max(1, Math.floor(level));
+    const cost = getMobCost(lvl);
+    return Math.round(cost * (1480000 / 240000));
+}
+
+/**
+ * Награда за победу в бою (Victory reward)
+ * Победа в 2.5 раза ценнее поражения (на ур. 15 = 3.70M)
+ */
+function getBattleWinReward(level) {
+    const loss = getBattleLossReward(level);
+    return Math.round(loss * 2.5);
 }

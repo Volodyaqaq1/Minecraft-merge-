@@ -99,9 +99,19 @@ class BattleScene extends Phaser.Scene {
         const W = CONFIG.WIDTH;
         const H = CONFIG.HEIGHT;
 
-        // Приз = сумма АТК всех мобов * множитель
+        // Приз = сбалансированная награда за победу / поражение, привязанная к уровню мобов
+        const battleLevel = Math.max(...this.playerTeam.map(m => m.level || 1), 1);
         const totalAtk = [...this.playerTeam, ...this.botTeam].reduce((s, m) => s + m.atk, 0);
-        this.prize = Math.floor(totalAtk * CONFIG.BATTLE_PRIZE_MULTIPLIER);
+
+        this.winPrize = (typeof getBattleWinReward === 'function')
+            ? getBattleWinReward(battleLevel)
+            : Math.floor(totalAtk * CONFIG.BATTLE_PRIZE_MULTIPLIER);
+
+        this.lossPrize = (typeof getBattleLossReward === 'function')
+            ? getBattleLossReward(battleLevel)
+            : Math.max(1, Math.floor(this.winPrize * 0.4));
+
+        this.prize = this.winPrize;
 
         const cx = W / 2;
         const cy = H / 2 - 10;
@@ -729,7 +739,9 @@ class BattleScene extends Phaser.Scene {
             if (typeof SoundManager !== 'undefined') SoundManager.playDefeat();
         }
 
-        const basePrize = isWin ? this.prize : Math.max(1, Math.floor(this.prize * 0.5));
+        const basePrize = isWin
+            ? (this.winPrize || this.prize)
+            : (this.lossPrize || Math.max(1, Math.floor(this.prize * 0.4)));
 
         const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.72).setDepth(200).setInteractive();
         const modal = this.add.container(W / 2, H / 2).setDepth(201);

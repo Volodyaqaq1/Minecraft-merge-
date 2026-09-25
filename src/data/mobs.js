@@ -80,36 +80,36 @@ const MOB_TIERS = {
 
 // 30 базовых уникальных персонажей в каноническом порядке
 const BASE_MOBS = [
-    { baseId: 1,  name: 'Цыпа',             skinFile: 'Chicken.jpg',        hasSkin: true },
-    { baseId: 2,  name: 'Кролик',           skinFile: 'rabbit.jpg',         hasSkin: true },
-    { baseId: 3,  name: 'Хрюша',            skinFile: 'pig.jpg',            hasSkin: true },
-    { baseId: 4,  name: 'Бурёнка',          skinFile: 'cow.jpg',            hasSkin: true },
-    { baseId: 5,  name: 'Овечка',           skinFile: 'sheep.jpg',          hasSkin: true },
-    { baseId: 6,  name: 'Летучая мышка',    skinFile: 'bat.jpg',            hasSkin: true },
-    { baseId: 7,  name: 'Желейка',          skinFile: 'Slime.jpg',          hasSkin: true },
-    { baseId: 8,  name: 'Паучок',           skinFile: 'Spider.jpg',         hasSkin: true },
-    { baseId: 9,  name: 'Пещерник',         skinFile: 'CaveSpider.jpg',     hasSkin: true },
-    { baseId: 10, name: 'Бумик',            skinFile: 'crepper.jpg',        hasSkin: true },
-    { baseId: 11, name: 'Зомбик',           skinFile: 'Zombie.jpg',         hasSkin: true },
-    { baseId: 12, name: 'Скелетик',         skinFile: 'Skeleton.jpg',       hasSkin: true },
-    { baseId: 13, name: 'Ледяной странник', skinFile: 'Stray.jpg',          hasSkin: true },
-    { baseId: 14, name: 'Снеговик',         skinFile: 'Snow Golem.jpg',     hasSkin: true },
-    { baseId: 15, name: 'Колдунья',         skinFile: 'Witch.jpg',          hasSkin: true },
-    { baseId: 16, name: 'Разбойник',        skinFile: 'Pillager.jpg',       hasSkin: true },
-    { baseId: 17, name: 'Громила',          skinFile: 'PiglinBrute.jpg',    hasSkin: true },
-    { baseId: 18, name: 'Вепрь',            skinFile: 'Hoglin.jpg',         hasSkin: true },
-    { baseId: 19, name: 'Лавовый куб',      skinFile: 'Magma Cube.jpg',     hasSkin: true },
-    { baseId: 20, name: 'Огонёк',           skinFile: 'Blaze.jpg',          hasSkin: true },
-    { baseId: 21, name: 'Призрак',          skinFile: 'Ghast.jpg',          hasSkin: true },
-    { baseId: 22, name: 'Чародей',          skinFile: 'Evoker.jpg',         hasSkin: true },
-    { baseId: 23, name: 'Циклоп',           skinFile: 'Guardian.jpg',       hasSkin: true },
-    { baseId: 24, name: 'Морской титан',    skinFile: 'ElderGuardian.jpg',  hasSkin: true },
-    { baseId: 25, name: 'Ночной крылан',    skinFile: 'Phantom.jpg',        hasSkin: true },
-    { baseId: 26, name: 'Телепорт',         skinFile: 'EnderMan.jpg',       hasSkin: true },
-    { baseId: 27, name: 'Тёмный рыцарь',    skinFile: 'WitherSkeleton.jpg', hasSkin: true },
-    { baseId: 28, name: 'Железный страж',   skinFile: 'Iron Golem.jpg',     hasSkin: true },
-    { baseId: 29, name: 'Трёхглавый',       skinFile: 'Wither.jpg',         hasSkin: true },
-    { baseId: 30, name: 'Древний Дракон',   skinFile: 'EnderDragon.jpg',    hasSkin: true },
+    { baseId: 1,  name: 'Цыпа',             gender: 'f', skinFile: 'Chicken.jpg',        hasSkin: true },
+    { baseId: 2,  name: 'Хрюша',            gender: 'f', skinFile: 'pig.jpg',            hasSkin: true },
+    { baseId: 3,  name: 'Бурёнка',          gender: 'f', skinFile: 'cow.jpg',            hasSkin: true },
+    { baseId: 4,  name: 'Овечка',           gender: 'f', skinFile: 'sheep.jpg',          hasSkin: true },
+    { baseId: 5,  name: 'Кролик',           gender: 'm', skinFile: 'rabbit.jpg',         hasSkin: true },
+    { baseId: 6,  name: 'Ночница',          gender: 'f', skinFile: 'bat.jpg',            hasSkin: true },
+    { baseId: 7,  name: 'Зомбик',           gender: 'm', skinFile: 'zombik.jpg',         hasSkin: true },
+    { baseId: 8,  name: 'Скелетик',         gender: 'm', skinFile: 'Skeleton.jpg',       hasSkin: true },
+    { baseId: 9,  name: 'Паучок',           gender: 'm', skinFile: 'Spider.jpg',         hasSkin: true },
+    { baseId: 10, name: 'Бумяш',            gender: 'm', skinFile: 'boomyash.jpg',       hasSkin: true },
+    { baseId: 11, name: 'Колдунья',         gender: 'f', skinFile: 'Witch.jpg',          hasSkin: true },
+    { baseId: 12, name: 'Циклоп',           gender: 'm', skinFile: 'cyclop.jpg',         hasSkin: true },
+    { baseId: 13, name: 'Костяной рыцарь',  gender: 'm', skinFile: 'skeletonwarrior.jpg',hasSkin: true },
+    { baseId: 14, name: 'Теневик',          gender: 'm', skinFile: 'teleportik.jpg',     hasSkin: true },
+    { baseId: 15, name: 'Огонёк',           gender: 'm', skinFile: 'ogonek.jpg',         hasSkin: true },
+    { baseId: 16, name: 'Облачник',         gender: 'm', skinFile: 'cloudy.jpg',         hasSkin: true },
+    { baseId: 17, name: 'Светопаук',        gender: 'm', skinFile: 'GlowSpider.jpg',     hasSkin: true },
+    { baseId: 18, name: 'Магмовик',         gender: 'm', skinFile: 'fireslime.jpg',      hasSkin: true },
+    { baseId: 19, name: 'Трёхглав',         gender: 'm', skinFile: '3head.jpg',          hasSkin: true },
+    { baseId: 20, name: 'Морской титан',    gender: 'm', skinFile: 'seaTitan.jpg',       hasSkin: true },
+    { baseId: 21, name: 'Громила',          gender: 'm', skinFile: 'bigpig.jpg',         hasSkin: true },
+    { baseId: 22, name: 'Чародей',          gender: 'm', skinFile: 'mag.jpg',            hasSkin: true },
+    { baseId: 23, name: 'Вепрь',            gender: 'm', skinFile: 'vepr.jpg',           hasSkin: true },
+    { baseId: 24, name: 'Налётчик',         gender: 'm', skinFile: 'evilhunter.jpg',     hasSkin: true },
+    { baseId: 25, name: 'Ледяной странник', gender: 'm', skinFile: 'Stray.jpg',          hasSkin: true },
+    { baseId: 26, name: 'Ночнокрыл',        gender: 'm', skinFile: 'nightCrylan.jpg',    hasSkin: true },
+    { baseId: 27, name: 'Желейка',          gender: 'f', skinFile: 'Slime.jpg',          hasSkin: true },
+    { baseId: 28, name: 'Железный страж',   gender: 'm', skinFile: 'golenm.jpg',         hasSkin: true },
+    { baseId: 29, name: 'Снеговик',         gender: 'm', skinFile: 'Snow Golem.jpg',     hasSkin: true },
+    { baseId: 30, name: 'Древний дракон',   gender: 'm', skinFile: 'ancientDragon.jpg',  hasSkin: true },
 ];
 
 // Генерация 90 уровней прогрессии
@@ -124,7 +124,7 @@ for (let lvl = 1; lvl <= 90; lvl++) {
     const base = BASE_MOBS[baseMobId - 1];
 
     // Формирование имени с учетом рода и эволюции
-    const isFeminine = base.name.endsWith('а') || base.name.endsWith('я');
+    const isFeminine = base.gender === 'f';
     let fullName = base.name;
     if (evolutionIndex === 1) {
         fullName = (isFeminine ? 'Стихийная ' : 'Стихийный ') + base.name;

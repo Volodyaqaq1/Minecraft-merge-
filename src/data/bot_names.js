@@ -3,19 +3,19 @@
 // ============================================================
 
 const BOT_NAMES = [
-    'SteveKing',    'CreeperBoy',   'DiamondMiner', 'EnderDragon99',
-    'ZombieLord',   'SkeletonPro',  'NetherWalker', 'CraftMaster',
-    'BlockBreaker', 'SpiderQueen',  'WitchHunter',  'IronGolemX',
-    'PhantomGhost', 'BlazeRunner',  'GhastSlayer',  'SlimeKing',
-    'MagmaJumper',  'WitherBoss',   'GuardianEye',  'PillagerX',
-    'RavagerZ',     'IllusionMage', 'ZoglinRoar',   'WandererSoul',
-    'SnowGolemPro', 'CaveSpider7',  'EndermanDark', 'SkeleWither',
-    'DragonRider',  'EmeraldKing',  'HerobrineX',   'MinerSteve',
-    'NightCrawler', 'SwampWitch',   'LavaWalker',   'IceGolem',
-    'TnTmaster',    'ObsidianKing', 'GoldHunter',   'DiamondSword',
-    'RedstoneGod',  'PistonPro',    'MossyRock',    'SandDragon',
-    'DungeonBoss',  'NetherKing',   'EndPortal99',  'CraftingTable',
-    'AnvilKing',    'FurnaceFire',
+    'SquishyChamp', 'CubeMaster',   'MergeHero',    'DragonRider',
+    'ShadowKnight', 'FrostMage',    'BeastMaster',  'MegaMerger',
+    'StarGamer',    'TitanLord',    'PixelPro',     'GoldenSpark',
+    'StormBringer', 'IronClaw',     'CrystalKing',  'GigaMerge',
+    'SuperSlime',   'FireKnight',   'VoidSeeker',   'NightRanger',
+    'SwiftHunter',  'AncientKeeper','MagicCaster',  'EpicBattler',
+    'ThunderStrike','FlameHeart',   'FrostBite',    'ShadowFang',
+    'ApexPredator', 'MythicBeast',  'CosmicMerger', 'UltraGamer',
+    'BraveWarrior', 'OmegaStrike',  'NovaBurst',    'HyperMerge',
+    'RuneMaster',   'DarkSoul',     'SolarFlare',   'AstralVoyager',
+    'ChronoKnight', 'VortexMage',   'EchoHunter',   'PhantomStriker',
+    'TitanSlayer',  'PrismLord',    'EmberSpirit',  'SkyRider',
+    'AbyssWalker',  'InfinityKing',
 ];
 
 // Получить случайный ник бота

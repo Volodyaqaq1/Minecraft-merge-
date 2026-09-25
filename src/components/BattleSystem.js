@@ -108,9 +108,12 @@ class BattleSystem {
                      : bAlive && !pAlive ? 'bot'
                      : 'draw';
 
-        // Приз: сумма ATK всех участников × multiplier
+        // Приз: сбалансированная награда за победу
+        const maxLvl = Math.max(...this.player.map(m => m.level || 1), 1);
         const totalAtk = [...this.player, ...this.bot].reduce((s, m) => s + m.atk, 0);
-        const prize = Math.floor(totalAtk * CONFIG.BATTLE_PRIZE_MULTIPLIER);
+        const prize = (typeof getBattleWinReward === 'function')
+            ? getBattleWinReward(maxLvl)
+            : Math.floor(totalAtk * CONFIG.BATTLE_PRIZE_MULTIPLIER);
 
         this.log.push({ type: 'end', winner: this.winner, prize });
     }
@@ -119,6 +122,10 @@ class BattleSystem {
      * Статичный метод: вычислить приз не запуская симуляцию
      */
     static calcPrize(playerTeam, botTeam) {
+        const maxLvl = Math.max(...(playerTeam || []).map(m => m.level || 1), 1);
+        if (typeof getBattleWinReward === 'function') {
+            return getBattleWinReward(maxLvl);
+        }
         const totalAtk = [...playerTeam, ...botTeam].reduce((s, m) => s + m.atk, 0);
         return Math.floor(totalAtk * CONFIG.BATTLE_PRIZE_MULTIPLIER);
     }

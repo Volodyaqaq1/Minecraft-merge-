@@ -6,6 +6,8 @@
  * Форматировать большое число: 1234 → "1.23K", 1234567 → "1.23M"
  */
 function formatNumber(n) {
+    if (!Number.isFinite(n) || n <= 0) return '0';
+    if (n >= 1_000_000_000_000_000) return (n / 1_000_000_000_000_000).toFixed(2) + 'Q';
     if (n >= 1_000_000_000_000) return (n / 1_000_000_000_000).toFixed(2) + 'T';
     if (n >= 1_000_000_000)     return (n / 1_000_000_000).toFixed(2) + 'B';
     if (n >= 1_000_000)         return (n / 1_000_000).toFixed(2) + 'M';

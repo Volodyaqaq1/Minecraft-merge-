@@ -1134,7 +1134,7 @@ class GameScene extends Phaser.Scene {
         // 1. Слот 1: Моб за монеты (мягкая пастельная голубая карточка)
         const buyLevel = Math.max(1, maxUnlocked - CONFIG.BUY_LEVEL_OFFSET);
         const buyMob   = getMobByLevel(buyLevel);
-        const cost     = getMobCost(buyLevel);
+        const cost     = (typeof getShopMobCost === 'function') ? getShopMobCost(maxUnlocked) : getMobCost(maxUnlocked);
 
         const cardY1 = 130;
 
@@ -3649,38 +3649,47 @@ class GameScene extends Phaser.Scene {
         }).setOrigin(0.5);
 
         const mobLevels = isElemental ? [31, 40, 42] : [61, 70, 72];
-        const showcaseY = -40;
         const offsets = [-140, 0, 140];
 
         mobLevels.forEach((lvl, idx) => {
             const mob = (typeof getMobByLevel === 'function') ? getMobByLevel(lvl) : null;
             const x = offsets[idx];
-            const size = (idx === 1) ? 96 : 80;
+            const isCenter = (idx === 1);
+            const size = isCenter ? 94 : 80;
+            const mobY = isCenter ? -48 : -44;
+            const circleY = isCenter ? -6 : -4;
+            const radius = isCenter ? 36 : 30;
 
             const plat = this.add.graphics();
-            plat.fillStyle(glowColor, 0.3);
-            plat.fillCircle(x, showcaseY + size / 2 - 4, size / 2 + 6);
-            plat.fillStyle(0x0f172a, 0.8);
-            plat.fillCircle(x, showcaseY + size / 2 - 4, size / 2 + 2);
-            plat.lineStyle(2, borderColor, 0.8);
-            plat.strokeCircle(x, showcaseY + size / 2 - 4, size / 2 + 2);
+            // Мягкое внешнее свечение
+            plat.fillStyle(glowColor, 0.20);
+            plat.fillCircle(x, circleY, radius + 5);
+            // Темный постамент
+            plat.fillStyle(0x0f172a, 0.90);
+            plat.fillCircle(x, circleY, radius);
+            // Четкий контур
+            plat.lineStyle(2, borderColor, 0.95);
+            plat.strokeCircle(x, circleY, radius);
+            // Внутренний блик
+            plat.fillStyle(glowColor, 0.25);
+            plat.fillCircle(x, circleY, radius - 6);
 
-            const tex = (mob && mob.portraitKey && this.textures.exists(mob.portraitKey))
-                ? mob.portraitKey
-                : (mob && mob.texture ? mob.texture : 'mob_portrait_placeholder');
-            const img = this.add.image(x, showcaseY, tex).setDisplaySize(size, size);
+            const tex = (mob && mob.spriteKey && this.textures.exists(mob.spriteKey))
+                ? mob.spriteKey
+                : ((mob && mob.texture && this.textures.exists(mob.texture)) ? mob.texture : (mob ? mob.portraitKey : 'mob_placeholder'));
+            const img = this.add.image(x, mobY, tex).setDisplaySize(size, size);
 
             this.tweens.add({
                 targets: img,
-                y: showcaseY - 8,
+                y: mobY - 8,
                 duration: 1200 + idx * 200,
                 yoyo: true,
                 repeat: -1,
                 ease: 'Sine.easeInOut'
             });
 
-            const name = createHDText(this, x, showcaseY + size / 2 + 16, mob ? mob.name : '', {
-                fontSize: '11px',
+            const name = createHDText(this, x, 32, mob ? mob.name : '', {
+                fontSize: isCenter ? '12px' : '11px',
                 fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
                 color: '#ffffff',
                 stroke: '#0f172a',

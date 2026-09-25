@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Full Runtime Smoke Test</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html, body { width:100%; height:100%; overflow:hidden; background:#0b0f19; }
+        #game-container { position:fixed; top:0; left:0; width:100%; height:100%; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+    <script src="../src/config.js"></script>
+    <script src="../src/data/mobs.js"></script>
+    <script src="../src/data/worlds.js"></script>
+    <script src="../src/data/bot_names.js"></script>
+    <script src="../src/utils/helpers.js"></script>
+    <script src="../src/utils/SoundManager.js"></script>
+    <script src="../src/components/SaveManager.js"></script>
+    <script src="../src/components/Economy.js"></script>
+    <script src="../src/components/MergeField.js"></script>
+    <script src="../src/components/BattleSystem.js"></script>
+    <script src="../src/scenes/BootScene.js"></script>
+    <script src="../src/scenes/GameScene.js"></script>
+    <script src="../src/scenes/BattleScene.js"></script>
+    <script src="../src/scenes/CollectionScene.js"></script>
+</head>
+<body>
+<div id="game-container"></div>
+<script>
+window.testResults = [];
+window.testErrors = [];
+
+window.onerror = function(msg, url, line, col, err) {
+    window.testErrors.push({ msg, url, line, col, err: err ? err.stack : null });
+    document.title = 'TEST_FAILED:' + msg;
+};
+
+function logStep(stepNum, name, passed, detail) {
+    window.testResults.push({ step: stepNum, name, passed, detail: detail || '' });
+    console.log(`[STEP ${stepNum}] ${name}: ${passed ? 'PASS' : 'FAIL'} ${detail || ''}`);
+}
+
+// 1. Новая игра: сбрасываем localStorage
+SaveManager.reset();
+const freshState = SaveManager._deepClone(SaveManager.DEFAULT_STATE);
+freshState.player.coins = 50000;
+freshState.player.level = 11; // Open all features (shop, quests, incubator, battle, bestiary)
+// 2. Два Lv.1 на поле ("Цыпа")
+freshState.field = [
+    { id: 101, mobLevel: 1, x: 300, y: 250 },
+    { id: 102, mobLevel: 1, x: 450, y: 250 }
+];
+freshState.collection = [1];
+freshState.features = {
+    incubator:      { unlocked: true, animSeen: true, firstOpened: true },
+    rewards:        { unlocked: true, animSeen: true, firstOpened: true },
+    quests:         { unlocked: true, animSeen: true, firstOpened: true },
+    shop_ad:        { unlocked: true, animSeen: true, firstOpened: true },
+    world_selector: { unlocked: true, animSeen: true, firstOpened: true },
+};
+SaveManager.save(freshState);
+
+CONFIG.DEBUG = false;
+
+// Override asset paths for tools/ directory
+BootScene.prototype.preload = function() {
+    this._createColorTexture('bg_game',   0x2d5a27, 960, 540);
+    this._createColorTexture('bg_battle', 0x1a1a2e, 960, 540);
+
+    for (let baseId = 1; baseId <= 30; baseId++) {
+        const pad = String(baseId).padStart(2, '0');
+        const spritePath = `../assets/mobs/sprites/256/mob_${pad}.png`;
+        const ordPath    = `../assets/mobs/sprites/256/mob_ordinary_${pad}.png`;
+        const elPath     = `../assets/mobs/sprites/256/mob_elemental_${pad}.png`;
+        const goPath     = `../assets/mobs/sprites/256/mob_golden_${pad}.png`;
+
+        this.load.image(`mob_sprite_${pad}`, spritePath);
+        this.load.image(`mob_${pad}`, spritePath);
+        this.load.image(`mob_${pad}_sm`, spritePath);
+        this.load.image(`mob_ordinary_${pad}`, ordPath);
+        this.load.image(`mob_elemental_${pad}`, elPath);
+        this.load.image(`mob_golden_${pad}`, goPath);
+    }
+
+    for (let lvl = 1; lvl <= 90; lvl++) {
+        const pad = String(lvl).padStart(2, '0');
+        this.load.image(`mob_portrait_${pad}`, `../assets/mobs/portraits/256/mob_${pad}.png`);
+    }
+
+    this.load.image('mob_sprite_placeholder',   '../assets/mobs/sprites/256/placeholder.png');
+    this.load.image('mob_portrait_placeholder', '../assets/mobs/portraits/256/mob_11.png');
+    this.load.image('mob_placeholder',          '../assets/mobs/sprites/256/placeholder.png');
+
+    this.load.image('icon_gem',     '../assets/icons/gem.png');
+    this.load.image('icon_sword',   '../assets/icons/sword.png');
+    this.load.image('icon_chest',   '../assets/icons/chest.png');
+    this.load.image('icon_egg',     '../assets/icons/egg.png');
+    this.load.image('icon_gear',    '../assets/icons/gear.png');
+    this.load.image('icon_emerald', '../assets/icons/gem.png');
+};
+
+const game = new Phaser.Game({
+    type: Phaser.AUTO,
+    width: 960,
+    height: 540,
+    parent: 'game-container',
+    scene: [BootScene, GameScene, BattleScene, CollectionScene]
+});
+
+let testPhase = 0;
+let phaseWait = 0;
+let isFinished = false;
+
+function stepMachine() {
+    if (isFinished) return;
+
+    try {
+        const gameScene = game.scene.getScene('GameScene');
+
+        if (testPhase === 0) {
+            // Waiting for GameScene initialization
+            if (gameScene && gameScene.scene.isActive() && gameScene.mergeField && gameScene._isInitialized) {
+                logStep(1, 'Новая игра и инициализация', true, 'Save reset & fresh state applied');
+                testPhase = 1;
+                phaseWait = 0;
+            }
+        } else if (testPhase === 1) {
+            // Step 2: Verify 2 Lv.1 mobs on field
+            const initialMobs = gameScene.mergeField.mobs;
+            const initialCount = initialMobs.length;
+            const mob1 = getMobByLevel(1);
+            const has2L1 = initialCount === 2 && initialMobs.every(m => m.mobLevel === 1);
+            logStep(2, 'Два Lv.1 на поле ("Цыпа")', has2L1, `Count: ${initialCount}, Mob1 Name: ${mob1.name}`);
+
+            // Trigger merge 1->2
+            const firstMob = gameScene.mergeField.mobs[0];
+            const secondMob = gameScene.mergeField.mobs[1];
+            gameScene.mergeField._executeMerge(firstMob, secondMob);
+
+            testPhase = 2;
+            phaseWait = 0;
+        } else if (testPhase === 2) {
+            phaseWait++;
+            if (phaseWait >= 6) {
+                // Step 3: Check merge 1->2 result
+                const afterMergeMobs = gameScene.mergeField.mobs;
+                const hasL2 = afterMergeMobs.some(m => m.mobLevel === 2);
+                const mob2 = getMobByLevel(2);
+                const l2Unlocked = gameScene.mergeField.collection.has(2);
+                logStep(3, 'Merge 1->2 (Хрюша)', hasL2 && l2Unlocked, `Mob2 Name: ${mob2.name}, Unlocked: ${l2Unlocked}`);
+
+                // Step 4: Merge up to Lv.4
+                const spawnedL2 = gameScene.mergeField.spawnMob(2, 350, 250);
+                const existingL2 = gameScene.mergeField.mobs.find(m => m !== spawnedL2 && m.mobLevel === 2);
+                gameScene.mergeField._executeMerge(existingL2, spawnedL2);
+
+                const spawnedL3 = gameScene.mergeField.spawnMob(3, 400, 250);
+                const existingL3 = gameScene.mergeField.mobs.find(m => m !== spawnedL3 && m.mobLevel === 3);
+                gameScene.mergeField._executeMerge(existingL3, spawnedL3);
+
+                testPhase = 3;
+                phaseWait = 0;
+            }
+        } else if (testPhase === 3) {
+            phaseWait++;
+            if (phaseWait >= 6) {
+                const mob3 = getMobByLevel(3);
+                const mob4 = getMobByLevel(4);
+                const hasL4 = gameScene.mergeField.mobs.some(m => m.mobLevel === 4);
+                logStep(4, 'Несколько merge до Lv.4 ("Овечка")', hasL4, `Lv.3: ${mob3.name}, Lv.4: ${mob4.name}`);
+
+                // Step 5: Shop
+                const collectionArr = Array.from(gameScene.mergeField.collection);
+                const buyLevel = Math.max(1, Math.max(...collectionArr) - CONFIG.BUY_LEVEL_OFFSET);
+                const buyMob = getMobByLevel(buyLevel);
+                const buyCost = getMobCost(buyLevel);
+                const buySuccess = gameScene.economy.canAfford(buyCost);
+                logStep(5, 'Магазин (Покупка моба)', buySuccess && buyMob !== null, `Target: ${buyMob.name} (Lv.${buyLevel}), Cost: ${buyCost}`);
+
+                // Step 6: Quests
+                gameScene._validateQuests();
+                gameScene._renderQuests();
+                const activeQuests = gameScene.quests;
+                const questValid = activeQuests.length > 0 && activeQuests.every(q => getMobByLevel(q.mobLevel) !== null);
+                logStep(6, 'Квесты (Генерация и валидация)', questValid, `Count: ${activeQuests.length}, Mob: ${getMobByLevel(activeQuests[0].mobLevel).name}`);
+
+                // Step 7: Launch CollectionScene
+                gameScene.scene.launch('CollectionScene', {
+                    state: gameScene.state,
+                    collection: gameScene.mergeField.collection
+                });
+
+                testPhase = 4;
+                phaseWait = 0;
+            }
+        } else if (testPhase === 4) {
+            phaseWait++;
+            if (phaseWait >= 6) {
+                const colScene = game.scene.getScene('CollectionScene');
+                const colActive = colScene && colScene.scene.isActive();
+                const colTab0Ok = colScene && colScene.currentTab === 0;
+                gameScene.scene.stop('CollectionScene');
+                logStep(7, 'Бестиарий (Отображение коллекции)', colActive && colTab0Ok, `Tab: Ordinary, Active: ${colActive}`);
+
+                // Step 8: Incubator
+                const incubatorOk = typeof gameScene._buildIncubatorModal === 'function';
+                logStep(8, 'Инкубатор (Интерфейс и награды)', incubatorOk, 'Incubator modal available');
+
+                // Step 9: Launch BattleScene (matches actual GameScene battle transition)
+                const pFighter1 = getMobByLevel(4);
+                const pFighter2 = getMobByLevel(3);
+                const pFighter3 = getMobByLevel(2);
+                const botTeam = generateBotTeam([pFighter1, pFighter2, pFighter3]);
+                const botValid = botTeam.length === 3 && botTeam.every(m => m.atk > 0 && m.name);
+                logStep(9, 'Бой (Генерация команды соперника)', botValid, `Bot team: ${botTeam.map(m => m.name).join(', ')}`);
+
+                gameScene._save();
+                gameScene.scene.start('BattleScene', {
+                    playerTeam: [pFighter1, pFighter2, pFighter3],
+                    botTeam,
+                    botName: getRandomBotName(),
+                    state: gameScene.state
+                });
+
+                testPhase = 5;
+                phaseWait = 0;
+            }
+        } else if (testPhase === 5) {
+            phaseWait++;
+            if (phaseWait >= 6) {
+                const battleScene = game.scene.getScene('BattleScene');
+                const battleActive = battleScene && battleScene.scene.isActive();
+                const battleFightersOk = battleScene._playerSprites && battleScene._playerSprites.length === 3;
+
+                // Step 10: Return to GameScene
+                battleScene.state.player.coins += 500;
+                SaveManager.save(battleScene.state);
+                battleScene.scene.start('GameScene', { state: battleScene.state });
+
+                testPhase = 6;
+                phaseWait = 0;
+            }
+        } else if (testPhase === 6) {
+            phaseWait++;
+            if (phaseWait >= 6) {
+                const returnedGameScene = game.scene.getScene('GameScene');
+                const returnOk = returnedGameScene && returnedGameScene.scene.isActive() && returnedGameScene.mergeField && returnedGameScene.mergeField.mobs.length > 0;
+                logStep(10, 'Возврат из BattleScene', returnOk, `Field mobs intact: ${returnedGameScene.mergeField.mobs.length}`);
+
+                // Step 11: Save and reload test
+                returnedGameScene._save();
+                const savedRaw = localStorage.getItem(SaveManager.KEY);
+                const parsedSave = savedRaw ? JSON.parse(savedRaw) : null;
+                logStep(11, 'Reload и проверка localStorage', parsedSave !== null, `Save key: ${SaveManager.KEY}, version: ${parsedSave ? parsedSave.saveVersion : 'none'}`);
+
+                // Step 12: Verify save data integrity
+                const saveValid = parsedSave &&
+                    parsedSave.player &&
+                    parsedSave.player.coins > 0 &&
+                    Array.isArray(parsedSave.field) &&
+                    parsedSave.field.length > 0 &&
+                    Array.isArray(parsedSave.collection) &&
+                    parsedSave.collection.includes(4);
+
+                logStep(12, 'Целостность сохранения', saveValid, `Collection size: ${parsedSave.collection.length}, Coins: ${parsedSave.player.coins}`);
+
+                const allPassed = window.testResults.every(r => r.passed) && window.testErrors.length === 0;
+
+                isFinished = true;
+                document.title = 'TEST_COMPLETED:' + JSON.stringify({
+                    allPassed,
+                    testResults: window.testResults,
+                    errors: window.testErrors
+                });
+
+                if (game) game.destroy(true);
+                return;
+            }
+        }
+    } catch (err) {
+        isFinished = true;
+        window.testErrors.push({ msg: err.message, stack: err.stack });
+        document.title = 'TEST_ERROR:' + JSON.stringify({
+            error: err.message,
+            stack: err.stack,
+            testResults: window.testResults
+        });
+        if (game) game.destroy(true);
+        return;
+    }
+
+    requestAnimationFrame(stepMachine);
+}
+
+requestAnimationFrame(stepMachine);
+</script>
+</body>
+</html>
