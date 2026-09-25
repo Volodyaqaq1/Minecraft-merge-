@@ -1,4 +1,5 @@
 import os
+import math
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 import collections
@@ -7,22 +8,78 @@ os.makedirs('assets/mobs/sprites/256', exist_ok=True)
 os.makedirs('assets/mobs/sprites/512', exist_ok=True)
 os.makedirs('assets/mobs/portraits/256', exist_ok=True)
 os.makedirs('assets/mobs/portraits/512', exist_ok=True)
+os.makedirs('assets/mobs/256', exist_ok=True)
+os.makedirs('assets/mobs/512', exist_ok=True)
 
-SKIN_FILES = {
-    1: 'skins/Chicken.jpg',
-    2: 'skins/pig.jpg',
-    3: 'skins/cow.jpg',
-    4: 'skins/sheep.jpg',
-    5: 'skins/rabbit.jpg',
-    6: 'skins/bat.jpg',
-    7: 'skins/Zombie.jpg',
-    8: 'skins/Skeleton.jpg',
-    9: 'skins/Spider.jpg',
-    10: 'skins/crepper.jpg',
+# 30 Canonical Base Mobs in exact required progression order
+CANONICAL_MOBS = [
+    (1,  'Цыпа',             'skins/Chicken.jpg'),
+    (2,  'Кролик',           'skins/rabbit.jpg'),
+    (3,  'Хрюша',            'skins/pig.jpg'),
+    (4,  'Бурёнка',          'skins/cow.jpg'),
+    (5,  'Овечка',           'skins/sheep.jpg'),
+    (6,  'Летучая мышка',    'skins/bat.jpg'),
+    (7,  'Желейка',          'skins/Slime.jpg'),
+    (8,  'Паучок',           'skins/Spider.jpg'),
+    (9,  'Пещерник',         'skins/CaveSpider.jpg'),
+    (10, 'Бумик',            'skins/crepper.jpg'),
+    (11, 'Зомбик',           'skins/Zombie.jpg'),
+    (12, 'Скелетик',         'skins/Skeleton.jpg'),
+    (13, 'Ледяной странник', 'skins/Stray.jpg'),
+    (14, 'Снеговик',         'skins/Snow Golem.jpg'),
+    (15, 'Колдунья',         'skins/Witch.jpg'),
+    (16, 'Разбойник',        'skins/Pillager.jpg'),
+    (17, 'Громила',          'skins/PiglinBrute.jpg'),
+    (18, 'Вепрь',            'skins/Hoglin.jpg'),
+    (19, 'Лавовый куб',      'skins/Magma Cube.jpg'),
+    (20, 'Огонёк',           'skins/Blaze.jpg'),
+    (21, 'Призрак',          'skins/Ghast.jpg'),
+    (22, 'Чародей',          'skins/Evoker.jpg'),
+    (23, 'Циклоп',           'skins/Guardian.jpg'),
+    (24, 'Морской титан',    'skins/ElderGuardian.jpg'),
+    (25, 'Ночной крылан',    'skins/Phantom.jpg'),
+    (26, 'Телепорт',         'skins/EnderMan.jpg'),
+    (27, 'Тёмный рыцарь',    'skins/WitherSkeleton.jpg'),
+    (28, 'Железный страж',   'skins/Iron Golem.jpg'),
+    (29, 'Трёхглавый',       'skins/Wither.jpg'),
+    (30, 'Древний Дракон',   'skins/EnderDragon.jpg'),
+]
+
+# Elemental theme data for each base mob (for individual elemental identity)
+ELEMENTAL_THEMES = {
+    1:  {'element': 'fire',       'rgb': (249, 115, 22), 'bg': (38, 22, 12)},
+    2:  {'element': 'wind',       'rgb': (16, 185, 129), 'bg': (12, 36, 26)},
+    3:  {'element': 'magma',      'rgb': (234, 88, 12),  'bg': (36, 18, 10)},
+    4:  {'element': 'nature',     'rgb': (34, 197, 94),  'bg': (14, 38, 20)},
+    5:  {'element': 'ice',        'rgb': (56, 189, 248), 'bg': (12, 32, 48)},
+    6:  {'element': 'shadow',     'rgb': (99, 102, 241), 'bg': (22, 20, 48)},
+    7:  {'element': 'toxic',      'rgb': (132, 204, 22), 'bg': (22, 34, 10)},
+    8:  {'element': 'poison',     'rgb': (168, 85, 247), 'bg': (32, 16, 48)},
+    9:  {'element': 'crystal',    'rgb': (6, 182, 212),  'bg': (10, 32, 42)},
+    10: {'element': 'electric',   'rgb': (14, 165, 233), 'bg': (10, 28, 46)},
+    11: {'element': 'plague',     'rgb': (101, 163, 13), 'bg': (20, 30, 10)},
+    12: {'element': 'spectral',   'rgb': (147, 197, 253),'bg': (18, 28, 46)},
+    13: {'element': 'frost',      'rgb': (103, 232, 249),'bg': (12, 34, 46)},
+    14: {'element': 'ancient_ice','rgb': (125, 211, 252),'bg': (14, 32, 46)},
+    15: {'element': 'arcane',     'rgb': (192, 132, 252),'bg': (32, 18, 48)},
+    16: {'element': 'storm',      'rgb': (59, 130, 246), 'bg': (14, 24, 48)},
+    17: {'element': 'lava',       'rgb': (239, 68, 68),  'bg': (40, 14, 16)},
+    18: {'element': 'magma',      'rgb': (217, 119, 6),  'bg': (38, 22, 10)},
+    19: {'element': 'infernal',   'rgb': (245, 158, 11), 'bg': (40, 26, 10)},
+    20: {'element': 'solar',      'rgb': (251, 191, 36), 'bg': (42, 30, 10)},
+    21: {'element': 'spectral',   'rgb': (224, 231, 255),'bg': (24, 26, 44)},
+    22: {'element': 'arcane',     'rgb': (168, 85, 247), 'bg': (30, 16, 46)},
+    23: {'element': 'ocean',      'rgb': (2, 132, 199),  'bg': (10, 28, 44)},
+    24: {'element': 'abyss',      'rgb': (15, 118, 110), 'bg': (8, 28, 28)},
+    25: {'element': 'void',       'rgb': (124, 58, 237), 'bg': (24, 14, 46)},
+    26: {'element': 'void',       'rgb': (147, 51, 234), 'bg': (28, 12, 48)},
+    27: {'element': 'cursed',     'rgb': (71, 85, 105),  'bg': (18, 22, 30)},
+    28: {'element': 'earth',      'rgb': (5, 150, 105),  'bg': (10, 30, 24)},
+    29: {'element': 'nether',     'rgb': (67, 56, 202),  'bg': (18, 16, 42)},
+    30: {'element': 'cosmic',     'rgb': (109, 40, 217), 'bg': (24, 10, 48)},
 }
 
 def draw_star(draw, cx, cy, r_outer, r_inner, fill, outline=None, width=1):
-    import math
     points = []
     for i in range(10):
         r = r_outer if i % 2 == 0 else r_inner
@@ -30,19 +87,15 @@ def draw_star(draw, cx, cy, r_outer, r_inner, fill, outline=None, width=1):
         points.append((cx + r * math.cos(angle), cy + r * math.sin(angle)))
     draw.polygon(points, fill=fill, outline=outline, width=width)
 
-def extract_alpha_sprite(src_path, size=512, mob_id=1):
+def extract_alpha_sprite(src_path, size=512):
     im = Image.open(src_path).convert('RGB')
     im_resized = im.resize((size, size), Image.Resampling.LANCZOS)
     arr = np.array(im_resized, dtype=np.float32)
     
     r, g, b = arr[:, :, 0], arr[:, :, 1], arr[:, :, 2]
     max_diff = np.maximum.reduce([np.abs(r - g), np.abs(g - b), np.abs(r - b)])
-    if mob_id in (8, 10):
-        # Skeleton (#8) and Creeper (#10) have darker studio lighting near top edge (RGB 236-242),
-        # but with neutral studio gray/white cyclorama (max_diff <= 4).
-        is_bg_candidate = (r > 235) & (g > 235) & (b > 235) & (max_diff <= 4)
-    else:
-        is_bg_candidate = (r > 242) & (g > 242) & (b > 242)
+    # Clean studio white cyclorama background threshold
+    is_bg_candidate = (r > 225) & (g > 225) & (b > 225) & (max_diff <= 16)
     
     h, w = is_bg_candidate.shape
     visited = np.zeros((h, w), dtype=bool)
@@ -73,37 +126,90 @@ def extract_alpha_sprite(src_path, size=512, mob_id=1):
     rgba.putalpha(mask_im)
     return rgba
 
-def make_portrait(sprite_rgba, size=256, tier=1, rarity_idx=0):
-    # Create canvas
+def create_elemental_sprite(base_rgba, base_id):
+    # Magical elemental transformation adhering to Part 5 rules:
+    # Controlled subtle tint, glowing eye/accent highlight, preserved silhouette
+    theme = ELEMENTAL_THEMES.get(base_id, {'rgb': (56, 189, 248), 'bg': (12, 32, 48)})
+    el_rgb = theme['rgb']
+    
+    arr = np.array(base_rgba, dtype=np.float32)
+    alpha = arr[:, :, 3]
+    mask = alpha > 20
+    
+    r, g, b = arr[:, :, 0], arr[:, :, 1], arr[:, :, 2]
+    luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0
+    
+    # Blend with elemental accent color based on luminance
+    target_r = el_rgb[0]
+    target_g = el_rgb[1]
+    target_b = el_rgb[2]
+    
+    # 25% elemental color shift preserving underlying texture and character identity
+    arr[mask, 0] = np.clip(r[mask] * 0.72 + target_r * 0.28 * (0.6 + 0.4 * luminance[mask]), 0, 255)
+    arr[mask, 1] = np.clip(g[mask] * 0.72 + target_g * 0.28 * (0.6 + 0.4 * luminance[mask]), 0, 255)
+    arr[mask, 2] = np.clip(b[mask] * 0.72 + target_b * 0.28 * (0.6 + 0.4 * luminance[mask]), 0, 255)
+    
+    return Image.fromarray(arr.astype(np.uint8), mode='RGBA')
+
+def create_golden_sprite(base_rgba):
+    # Elite, prestigious, luxurious gold transformation adhering to Part 6 rules:
+    # Premium polished gold surfaces, warm metallic sheen, clean silhouette
+    arr = np.array(base_rgba, dtype=np.float32)
+    alpha = arr[:, :, 3]
+    mask = alpha > 20
+    
+    r, g, b = arr[:, :, 0], arr[:, :, 1], arr[:, :, 2]
+    luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0
+    
+    # Polished gold material (warm golden highlights + dark bronze shadows)
+    gold_r = np.clip(luminance * 240 + 35, 0, 255)
+    gold_g = np.clip(luminance * 200 + 15, 0, 255)
+    gold_b = np.clip(luminance * 70, 0, 255)
+    
+    # 45% blend with original identity so eyes and distinct shapes remain recognizable
+    arr[mask, 0] = np.clip(r[mask] * 0.50 + gold_r[mask] * 0.50, 0, 255)
+    arr[mask, 1] = np.clip(g[mask] * 0.50 + gold_g[mask] * 0.50, 0, 255)
+    arr[mask, 2] = np.clip(b[mask] * 0.40 + gold_b[mask] * 0.60, 0, 255)
+    
+    return Image.fromarray(arr.astype(np.uint8), mode='RGBA')
+
+def make_portrait(sprite_rgba, size=256, evolution_tier=1, base_id=1):
     canvas = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(canvas)
     
     cx, cy = size // 2, size // 2
     r = size // 2 - 4
     
+    theme = ELEMENTAL_THEMES.get(base_id, {'rgb': (56, 189, 248), 'bg': (12, 32, 48)})
+    el_rgb = theme['rgb']
+    el_bg = theme['bg']
+    
     # 1. Background gradient disk
-    if tier == 1:
+    if evolution_tier == 1:
+        # Ordinary: Clean dark slate
         bg_color = (24, 32, 54, 255)
         border_color = (100, 116, 139, 255)
         inner_ring = (51, 65, 85, 255)
-    elif tier == 2: # Gold
-        bg_color = (45, 34, 12, 255)
+    elif evolution_tier == 2:
+        # Elemental: Individual elemental color palette
+        bg_color = (el_bg[0], el_bg[1], el_bg[2], 255)
+        border_color = (el_rgb[0], el_rgb[1], el_rgb[2], 255)
+        inner_ring = (int(el_rgb[0] * 0.7), int(el_rgb[1] * 0.7), int(el_rgb[2] * 0.7), 255)
+    else:
+        # Golden: Elite royal obsidian & polished gold
+        bg_color = (32, 24, 10, 255)
         border_color = (255, 215, 0, 255)
         inner_ring = (218, 165, 32, 255)
-    else: # Diamond
-        bg_color = (12, 38, 55, 255)
-        border_color = (0, 230, 255, 255)
-        inner_ring = (56, 189, 248, 255)
         
     draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=bg_color)
     
     # Soft radial highlight on top half of disk
     highlight = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     hdraw = ImageDraw.Draw(highlight)
-    if tier == 2:
-        hdraw.ellipse((cx - r + 10, cy - r + 6, cx + r - 10, cy + 10), fill=(255, 235, 120, 60))
-    elif tier == 3:
-        hdraw.ellipse((cx - r + 10, cy - r + 6, cx + r - 10, cy + 10), fill=(140, 240, 255, 60))
+    if evolution_tier == 2:
+        hdraw.ellipse((cx - r + 10, cy - r + 6, cx + r - 10, cy + 10), fill=(el_rgb[0], el_rgb[1], el_rgb[2], 55))
+    elif evolution_tier == 3:
+        hdraw.ellipse((cx - r + 10, cy - r + 6, cx + r - 10, cy + 10), fill=(255, 235, 120, 70))
     else:
         hdraw.ellipse((cx - r + 10, cy - r + 6, cx + r - 10, cy + 10), fill=(255, 255, 255, 30))
     highlight = highlight.filter(ImageFilter.GaussianBlur(8))
@@ -111,28 +217,11 @@ def make_portrait(sprite_rgba, size=256, tier=1, rarity_idx=0):
     draw = ImageDraw.Draw(canvas)
     
     # 2. Inscribe character sprite inside circle
-    # Inset by ~16px
     char_size = int(size * 0.82)
     char_resized = sprite_rgba.resize((char_size, char_size), Image.Resampling.LANCZOS)
     
-    # Tier tint effect for character
-    if tier == 2:
-        # Gold tint
-        char_arr = np.array(char_resized, dtype=np.float32)
-        char_arr[:, :, 0] = np.clip(char_arr[:, :, 0] * 1.15 + 15, 0, 255)
-        char_arr[:, :, 1] = np.clip(char_arr[:, :, 1] * 1.05 + 10, 0, 255)
-        char_arr[:, :, 2] = np.clip(char_arr[:, :, 2] * 0.75, 0, 255)
-        char_resized = Image.fromarray(char_arr.astype(np.uint8), mode='RGBA')
-    elif tier == 3:
-        # Diamond / Cosmic tint
-        char_arr = np.array(char_resized, dtype=np.float32)
-        char_arr[:, :, 0] = np.clip(char_arr[:, :, 0] * 0.85 + 10, 0, 255)
-        char_arr[:, :, 1] = np.clip(char_arr[:, :, 1] * 1.1 + 15, 0, 255)
-        char_arr[:, :, 2] = np.clip(char_arr[:, :, 2] * 1.3 + 30, 0, 255)
-        char_resized = Image.fromarray(char_arr.astype(np.uint8), mode='RGBA')
-
     paste_x = (size - char_size) // 2
-    paste_y = (size - char_size) // 2 + int(size * 0.03) # slightly lower for grounding
+    paste_y = (size - char_size) // 2 + int(size * 0.03)
     
     # Clip to circular mask so legs or head don't bleed outside frame
     circ_mask = Image.new('L', (size, size), 0)
@@ -149,69 +238,74 @@ def make_portrait(sprite_rgba, size=256, tier=1, rarity_idx=0):
     draw.ellipse((cx - r, cy - r, cx + r, cy + r), outline=border_color, width=border_w)
     draw.ellipse((cx - r + border_w, cy - r + border_w, cx + r - border_w, cy + r - border_w), outline=inner_ring, width=2)
     
-    # Tier badge emblem (small star/diamond at bottom)
-    if tier == 2:
+    # Evolution tier badge emblem at bottom
+    if evolution_tier == 2:
+        badge_r = 10 if size <= 256 else 20
+        bx, by = cx, cy + r - border_w
+        draw.ellipse((bx - badge_r, by - badge_r, bx + badge_r, by + badge_r), fill=border_color, outline=(255, 255, 255, 255), width=2)
+        # 4-point elemental diamond
+        draw.polygon([(bx, by - badge_r * 0.65), (bx + badge_r * 0.65, by), (bx, by + badge_r * 0.65), (bx - badge_r * 0.65, by)], fill=(15, 23, 42, 255))
+    elif evolution_tier == 3:
         badge_r = 10 if size <= 256 else 20
         bx, by = cx, cy + r - border_w
         draw.ellipse((bx - badge_r, by - badge_r, bx + badge_r, by + badge_r), fill=(255, 215, 0, 255), outline=(255, 255, 255, 255), width=2)
         draw_star(draw, bx, by, badge_r * 0.7, badge_r * 0.35, fill=(120, 60, 0, 255))
-    elif tier == 3:
-        badge_r = 10 if size <= 256 else 20
-        bx, by = cx, cy + r - border_w
-        draw.ellipse((bx - badge_r, by - badge_r, bx + badge_r, by + badge_r), fill=(0, 230, 255, 255), outline=(255, 255, 255, 255), width=2)
-        draw_star(draw, bx, by, badge_r * 0.7, badge_r * 0.35, fill=(0, 40, 80, 255))
         
     return canvas
 
-def make_placeholder_sprite(size=256, tier=1):
+def make_placeholder_sprite(size=256):
     im = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(im)
     cx, cy = size // 2, size // 2
     r = int(size * 0.36)
-    
-    # Squishy rounded cube body
     corner_r = int(r * 0.45)
     box = (cx - r, cy - r + 4, cx + r, cy + r + 4)
-    
-    if tier == 1:
-        color = (55, 65, 81, 255)
-        border = (107, 114, 128, 255)
-    elif tier == 2:
-        color = (180, 130, 20, 255)
-        border = (255, 215, 0, 255)
-    else:
-        color = (14, 116, 144, 255)
-        border = (56, 189, 248, 255)
-        
-    draw.rounded_rectangle(box, radius=corner_r, fill=color, outline=border, width=3)
-    # Cute eye slits
+    draw.rounded_rectangle(box, radius=corner_r, fill=(55, 65, 81, 255), outline=(107, 114, 128, 255), width=3)
     eye_y = cy - 2
     draw.ellipse((cx - 20, eye_y - 8, cx - 8, eye_y + 8), fill=(255, 255, 255, 220))
     draw.ellipse((cx + 8, eye_y - 8, cx + 20, eye_y + 8), fill=(255, 255, 255, 220))
     return im
 
-print("Building all 90 mob assets...")
+print("Starting generation of all 30 base mobs across 3 evolutions (90 progression tiers)...")
 
-# 1. Generate transparent sprites (512 & 256) for the 10 skins
-sprites_512 = {}
-sprites_256 = {}
+base_sprites_512 = {}
+base_sprites_256 = {}
+elemental_sprites_256 = {}
+golden_sprites_256 = {}
 
-for mob_id in range(1, 31):
-    if mob_id in SKIN_FILES and os.path.exists(SKIN_FILES[mob_id]):
-        sp512 = extract_alpha_sprite(SKIN_FILES[mob_id], size=512, mob_id=mob_id)
+# 1. Process 30 canonical base mob skins
+for base_id, name, skin_path in CANONICAL_MOBS:
+    pad = str(base_id).zfill(2)
+    if os.path.exists(skin_path):
+        sp512 = extract_alpha_sprite(skin_path, size=512)
         sp256 = sp512.resize((256, 256), Image.Resampling.LANCZOS)
     else:
-        sp512 = make_placeholder_sprite(size=512, tier=1)
-        sp256 = make_placeholder_sprite(size=256, tier=1)
+        print(f"WARNING: Skin {skin_path} not found! Using fallback.")
+        sp512 = make_placeholder_sprite(512)
+        sp256 = make_placeholder_sprite(256)
         
-    sprites_512[mob_id] = sp512
-    sprites_256[mob_id] = sp256
+    base_sprites_512[base_id] = sp512
+    base_sprites_256[base_id] = sp256
     
-    # Save base sprite
-    sp512.save(f'assets/mobs/sprites/512/mob_{str(mob_id).zfill(2)}.png', 'PNG', optimize=True)
-    sp256.save(f'assets/mobs/sprites/256/mob_{str(mob_id).zfill(2)}.png', 'PNG', optimize=True)
+    # Save Ordinary gameplay sprites
+    sp512.save(f'assets/mobs/sprites/512/mob_{pad}.png', 'PNG', optimize=True)
+    sp256.save(f'assets/mobs/sprites/256/mob_{pad}.png', 'PNG', optimize=True)
+    sp256.save(f'assets/mobs/sprites/256/mob_ordinary_{pad}.png', 'PNG', optimize=True)
+    
+    # Generate and save Elemental & Golden gameplay sprites
+    el256 = create_elemental_sprite(sp256, base_id)
+    go256 = create_golden_sprite(sp256)
+    elemental_sprites_256[base_id] = el256
+    golden_sprites_256[base_id] = go256
+    
+    el256.save(f'assets/mobs/sprites/256/mob_elemental_{pad}.png', 'PNG', optimize=True)
+    go256.save(f'assets/mobs/sprites/256/mob_golden_{pad}.png', 'PNG', optimize=True)
+    
+    # Also save to legacy paths for backwards compatibility
+    sp256.save(f'assets/mobs/256/mob_{pad}.png', 'PNG')
+    sp512.save(f'assets/mobs/512/mob_{pad}.png', 'PNG')
 
-# Also create placeholder sprite
+# Placeholder sprites
 ph512 = make_placeholder_sprite(512)
 ph256 = make_placeholder_sprite(256)
 ph512.save('assets/mobs/sprites/512/placeholder.png', 'PNG')
@@ -220,21 +314,22 @@ ph256.save('assets/mobs/sprites/256/placeholder.png', 'PNG')
 # 2. Generate portraits for all 90 levels
 for level in range(1, 91):
     base_id = ((level - 1) % 30) + 1
-    tier = (level - 1) // 30 + 1 # 1: Normal, 2: Gold, 3: Diamond
-    sp = sprites_512[base_id]
+    evolution_tier = (level - 1) // 30 + 1 # 1: Ordinary, 2: Elemental, 3: Golden
+    pad_lvl = str(level).zfill(2)
     
-    # 256 portrait (used in-game for quests, shop, collection)
-    p256 = make_portrait(sp, size=256, tier=tier)
-    p256.save(f'assets/mobs/portraits/256/mob_{str(level).zfill(2)}.png', 'PNG', optimize=True)
+    if evolution_tier == 1:
+        sprite_for_portrait = base_sprites_512[base_id]
+    elif evolution_tier == 2:
+        sprite_for_portrait = create_elemental_sprite(base_sprites_512[base_id], base_id)
+    else:
+        sprite_for_portrait = create_golden_sprite(base_sprites_512[base_id])
+        
+    p256 = make_portrait(sprite_for_portrait, size=256, evolution_tier=evolution_tier, base_id=base_id)
+    p256.save(f'assets/mobs/portraits/256/mob_{pad_lvl}.png', 'PNG', optimize=True)
     
-    # 512 portrait (only for first 10 + tier milestones, saving disk/VRAM)
-    if level <= 10 or level == 31 or level == 60 or level == 61 or level == 90:
-        p512 = make_portrait(sp, size=512, tier=tier)
-        p512.save(f'assets/mobs/portraits/512/mob_{str(level).zfill(2)}.png', 'PNG', optimize=True)
+    # 512 portrait for milestones
+    if level in (1, 30, 31, 60, 61, 90) or level <= 10:
+        p512 = make_portrait(sprite_for_portrait, size=512, evolution_tier=evolution_tier, base_id=base_id)
+        p512.save(f'assets/mobs/portraits/512/mob_{pad_lvl}.png', 'PNG', optimize=True)
 
-# Also legacy compatibility paths for existing scene references (assets/mobs/256/mob_01.png etc.)
-for mob_id in range(1, 11):
-    sprites_256[mob_id].save(f'assets/mobs/256/mob_{str(mob_id).zfill(2)}.png', 'PNG')
-    sprites_512[mob_id].save(f'assets/mobs/512/mob_{str(mob_id).zfill(2)}.png', 'PNG')
-
-print("All mob sprites & portraits generated successfully!")
+print("SUCCESS: All 30 base mobs and 90 evolution portraits successfully generated!")

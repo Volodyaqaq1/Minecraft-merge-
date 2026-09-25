@@ -159,10 +159,7 @@ class BattleScene extends Phaser.Scene {
         this._drawWoodenWall(this.pWallGraphics, -wallW / 2, -wallH / 2, wallW, wallH, 0);
 
         const pTotalAtk = this.playerTeam.reduce((s, m) => s + m.atk, 0);
-        const botPowerRatio = (this.botTeam.length > 0 && this.playerTeam.length > 0)
-            ? (this.playerTeam.length / this.botTeam.length)
-            : 1.0;
-        const bTotalAtk = this.botTeam.reduce((s, m) => s + m.atk, 0) * botPowerRatio;
+        const bTotalAtk = this.botTeam.reduce((s, m) => s + m.atk, 0);
         const avgAtk = Math.max(10, (pTotalAtk + bTotalAtk) / 2);
         const matchWallHP = Math.max(80, Math.round(avgAtk * CONFIG.BATTLE_WALL_HP_FACTOR));
 
@@ -333,11 +330,7 @@ class BattleScene extends Phaser.Scene {
             const atkPill = this.add.graphics();
             drawRoundRect(atkPill, cx - 34, y + 38, 68, 17, 8, isPlayer ? 0x14532d : 0x7f1d1d, 0.9, isPlayer ? 0x22c55e : 0xef4444, 1);
 
-            const isBot = !isPlayer;
-            const botPowerRatio = (isBot && this.botTeam.length > 0 && this.playerTeam.length > 0)
-                ? (this.playerTeam.length / this.botTeam.length)
-                : 1.0;
-            const effectiveAtk = isPlayer ? mob.atk : Math.max(1, Math.round(mob.atk * botPowerRatio));
+            const effectiveAtk = mob.atk;
 
             const atkT = createHDText(this, cx, y + 46, `⚔ ${formatNumber(effectiveAtk)}`, {
                 fontSize: '10.5px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
@@ -460,10 +453,7 @@ class BattleScene extends Phaser.Scene {
         if (this.battleEnded) return;
 
         const isPlayer = side === 'player';
-        const botPowerRatio = (!isPlayer && this.botTeam.length > 0 && this.playerTeam.length > 0)
-            ? (this.playerTeam.length / this.botTeam.length)
-            : 1.0;
-        const effectiveAtk = isPlayer ? mob.atk : Math.max(1, Math.round(mob.atk * botPowerRatio));
+        const effectiveAtk = mob.atk;
         const damage = Math.round(effectiveAtk * (isCrit ? 1.75 : 1.0));
 
         // 1. Звук удара (обычный панч или сочный крит со звоном)
@@ -742,7 +732,7 @@ class BattleScene extends Phaser.Scene {
         const modal = this.add.container(W / 2, H / 2).setDepth(201);
 
         const cardW = 460;
-        const cardH = 330;
+        const cardH = 360;
 
         // Мягкая внешняя тень модального окна
         const shadowG = this.add.graphics();
@@ -832,7 +822,7 @@ class BattleScene extends Phaser.Scene {
         let currentMult = 3;
 
         // Большая сочная 3D кнопка множителя
-        const claimBtn = createCasualButton(this, 0, cardH / 2 - 58, 280, 48, `🎬 ЗАБРАТЬ x3 (💎 ${formatNumber(basePrize * 3)})`, {
+        const claimBtn = createCasualButton(this, 0, 52, 280, 48, `🎬 ЗАБРАТЬ x3 (💎 ${formatNumber(basePrize * 3)})`, {
             topColor: 0x22c55e,
             bottomColor: 0x15803d,
             strokeColor: 0x86efac,
@@ -861,18 +851,16 @@ class BattleScene extends Phaser.Scene {
             });
         });
 
-        // Вторичная кнопка "Забрать без рекламы (1x)"
-        const skipContainer = this.add.container(0, cardH / 2 - 18);
-        const skipBg = this.add.graphics();
-        drawRoundRect(skipBg, -100, -12, 200, 24, 12, 0xf1f5f9, 0.95, 0xcbd5e1, 1);
-        const skipTxt = createHDText(this, 0, 0, 'Забрать без рекламы (1x)', {
-            fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
-            color: '#64748b', fontStyle: '800'
-        }).setOrigin(0.5);
-        const skipHit = this.add.rectangle(0, 0, 200, 24, 0, 0).setInteractive({ cursor: 'pointer' });
-        skipContainer.add([skipBg, skipTxt, skipHit]);
-
-        skipHit.on('pointerdown', () => {
+        // Вторичная полноразмерная казуальная кнопка "ЗАБРАТЬ БЕЗ РЕКЛАМЫ (x1)"
+        const skipBtn = createCasualButton(this, 0, 110, 280, 44, 'ЗАБРАТЬ БЕЗ РЕКЛАМЫ (x1)', {
+            topColor: 0x475569,
+            bottomColor: 0x334155,
+            strokeColor: 0x64748b,
+            textColor: '#f8fafc',
+            fontSize: '15px',
+            radius: 12,
+            lip: 4,
+        }, () => {
             if (!sliderActive) return;
             sliderActive = false;
 
@@ -886,13 +874,20 @@ class BattleScene extends Phaser.Scene {
             this.scene.start('GameScene', { state: this.state });
         });
 
+        claimBtn.btnWidth = 280;
+        claimBtn.btnHeight = 48;
+        skipBtn.btnWidth = 280;
+        skipBtn.btnHeight = 44;
+        this._claimBtn = claimBtn;
+        this._skipBtn = skipBtn;
+
         modal.add([
             shadowG, bg, headerBg, title, sub,
             prizePill, prizeTxt, adTitle,
             trackBg, lX2Left, lX3Left, lX5Mid, lX3Right, lX2Right,
             knobContainer,
             claimBtn,
-            skipContainer
+            skipBtn
         ]);
 
         // Анимация бегающего ползунка с комфортной скоростью (~1.8 сек проход)

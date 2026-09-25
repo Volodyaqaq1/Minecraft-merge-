@@ -19,14 +19,23 @@ class BootScene extends Phaser.Scene {
         this._createColorTexture('bg_battle', 0x1a1a2e, 960, 540);
 
         // ─── Мобы: 256px Sprites и Portraits для максимальной четкости без раздувания VRAM ───
-        for (let baseId = 1; baseId <= 10; baseId++) {
+        for (let baseId = 1; baseId <= 30; baseId++) {
             const pad = String(baseId).padStart(2, '0');
             const spritePath = `assets/mobs/sprites/256/mob_${pad}.png`;
+            const ordPath = `assets/mobs/sprites/256/mob_ordinary_${pad}.png`;
+            const elPath  = `assets/mobs/sprites/256/mob_elemental_${pad}.png`;
+            const goPath  = `assets/mobs/sprites/256/mob_golden_${pad}.png`;
+
             // HD Спрайт (прозрачный персонаж для поля и арены)
             this.load.image(`mob_sprite_${pad}`, spritePath);
             // Обратная совместимость с легаси-ключами
             this.load.image(`mob_${pad}`, spritePath);
             this.load.image(`mob_${pad}_sm`, spritePath);
+
+            // Эволюционные ключи
+            this.load.image(`mob_ordinary_${pad}`, ordPath);
+            this.load.image(`mob_elemental_${pad}`, elPath);
+            this.load.image(`mob_golden_${pad}`, goPath);
         }
 
         // Портреты для всех 90 уровней (для квестов, магазина, коллекции)

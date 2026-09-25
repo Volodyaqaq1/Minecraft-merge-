@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Battle Balance & Mobile UX Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+    <script src="../src/config.js"></script>
+    <script src="../src/data/mobs.js"></script>
+    <script src="../src/data/bot_names.js"></script>
+    <script src="../src/utils/helpers.js"></script>
+    <script src="../src/utils/SoundManager.js"></script>
+    <script src="../src/components/SaveManager.js"></script>
+    <script src="../src/components/Economy.js"></script>
+    <script src="../src/components/MergeField.js"></script>
+    <script src="../src/components/BattleSystem.js"></script>
+    <script src="../src/scenes/BootScene.js"></script>
+    <script src="../src/scenes/GameScene.js"></script>
+    <script src="../src/scenes/BattleScene.js"></script>
+    <script src="../src/scenes/CollectionScene.js"></script>
+</head>
+<body>
+<div id="game-container"></div>
+<script>
+window.onerror = function(msg, url, line, col, err) {
+    document.title = 'TEST_RESULT:' + JSON.stringify({ pass: false, error: `${msg} at ${line}:${col}` });
+};
+
+CONFIG.DEBUG = false;
+
+BootScene.prototype.preload = function() {
+    this._createColorTexture('bg_game',   0x2d5a27, 960, 540);
+    this._createColorTexture('bg_battle', 0x1a1a2e, 960, 540);
+
+    for (let baseId = 1; baseId <= 10; baseId++) {
+        const pad = String(baseId).padStart(2, '0');
+        const spritePath = `../assets/mobs/sprites/256/mob_${pad}.png`;
+        const portraitPath = `../assets/mobs/portraits/256/mob_${pad}.png`;
+        this.load.image(`mob_sprite_${pad}`, spritePath);
+        this.load.image(`mob_${pad}`, spritePath);
+        this.load.image(`mob_${pad}_sm`, spritePath);
+        this.load.image(`mob_portrait_${pad}`, portraitPath);
+    }
+    for (let lvl = 11; lvl <= 90; lvl++) {
+        const pad = String(lvl).padStart(2, '0');
+        this.load.image(`mob_portrait_${pad}`, `../assets/mobs/portraits/256/mob_11.png`);
+    }
+    this.load.image('mob_sprite_placeholder',   '../assets/mobs/sprites/256/placeholder.png');
+    this.load.image('mob_portrait_placeholder', '../assets/mobs/portraits/256/mob_11.png');
+    this.load.image('mob_placeholder',          '../assets/mobs/sprites/256/placeholder.png');
+
+    this.load.image('icon_gem',   '../assets/icons/gem.png');
+    this.load.image('icon_sword', '../assets/icons/sword.png');
+    this.load.image('icon_chest', '../assets/icons/chest.png');
+    this.load.image('icon_egg',   '../assets/icons/egg.png');
+    this.load.image('icon_gear',  '../assets/icons/gear.png');
+    this.load.image('icon_emerald', '../assets/icons/gem.png');
+};
+
+const startState = SaveManager._deepClone(SaveManager.DEFAULT_STATE);
+startState.player.coins = 2000;
+startState.player.level = 8;
+startState.field = [
+    { id: 101, mobLevel: 8, x: 280, y: 240 },
+    { id: 102, mobLevel: 7, x: 380, y: 240 }
+];
+SaveManager.save(startState);
+
+const game = new Phaser.Game({
+    type: Phaser.AUTO,
+    width: 960,
+    height: 540,
+    parent: 'game-container',
+    scene: [BootScene, GameScene, BattleScene, CollectionScene]
+});
+
+window.testResults = [];
+
+function assert(condition, message) {
+    if (!condition) {
+        console.error("FAIL: " + message);
+        window.testResults.push({ pass: false, message });
+        throw new Error(message);
+    } else {
+        console.log("PASS: " + message);
+        window.testResults.push({ pass: true, message });
+    }
+}
+
+let phase = 0;
+let phaseTimer = 0;
+
+function pump() {
+    try {
+        phaseTimer++;
+
+        if (phase === 0) {
+            const gameScene = game.scene.getScene('GameScene');
+            if (gameScene && gameScene.scene.isActive() && gameScene.mergeField && gameScene._isInitialized && phaseTimer > 5) {
+                // Check A, B, C: Bot team size is always 3
+                const mobL8 = getMobByLevel(8); // Skeleton, Lv.8, atk = 800
+                const mobL4 = getMobByLevel(4); // Lv.4, atk = 70
+                const mobL2 = getMobByLevel(2); // Lv.2, atk = 20
+
+                assert(mobL8 && mobL8.atk === 800, "CHECK_D0: Lv.8 Skeleton atk is 800");
+
+                const botTeam1 = generateBotTeam([mobL8]);
+                assert(botTeam1.length === 3, "CHECK_A: 1 player fighter -> botTeam has 3 mobs");
+
+                const botTeam2 = generateBotTeam([mobL8, mobL4]);
+                assert(botTeam2.length === 3, "CHECK_B: 2 player fighters -> botTeam has 3 mobs");
+
+                const botTeam3 = generateBotTeam([mobL8, mobL4, mobL2]);
+                assert(botTeam3.length === 3, "CHECK_C: 3 player fighters -> botTeam has 3 mobs");
+
+                // Check D: 1 fighter power 800 -> bot total power in 920..1080 across 60 trials
+                let minPower = 999999;
+                let maxPower = 0;
+                let inRangeCount = 0;
+                for (let i = 0; i < 60; i++) {
+                    const t = generateBotTeam([mobL8]);
+                    const sumPower = t.reduce((s, m) => s + m.atk, 0);
+                    if (sumPower < minPower) minPower = sumPower;
+                    if (sumPower > maxPower) maxPower = sumPower;
+                    if (sumPower >= 920 && sumPower <= 1080) {
+                        inRangeCount++;
+                    }
+                }
+                assert(inRangeCount === 60, `CHECK_D: All 60 trials in [920..1080] (min=${minPower}, max=${maxPower})`);
+
+                // Check 2 fighters and 3 fighters budget ratios
+                let twoFightersOk = true;
+                const p2Power = mobL8.atk + mobL4.atk;
+                for (let i = 0; i < 30; i++) {
+                    const t = generateBotTeam([mobL8, mobL4]);
+                    const p = t.reduce((s, m) => s + m.atk, 0);
+                    if (p < Math.floor(p2Power * 1.05) || p > Math.ceil(p2Power * 1.20)) twoFightersOk = false;
+                }
+                assert(twoFightersOk, "CHECK_D2: 2 fighters targetBotPower in 1.05..1.20");
+
+                let threeFightersOk = true;
+                const p3Power = mobL8.atk + mobL4.atk + mobL2.atk;
+                for (let i = 0; i < 30; i++) {
+                    const t = generateBotTeam([mobL8, mobL4, mobL2]);
+                    const p = t.reduce((s, m) => s + m.atk, 0);
+                    if (p < Math.floor(p3Power * 0.95) || p > Math.ceil(p3Power * 1.10)) threeFightersOk = false;
+                }
+                assert(threeFightersOk, "CHECK_D3: 3 fighters targetBotPower in 0.95..1.10");
+
+                // Now start BattleScene to verify modal and persistence
+                phase = 1;
+                phaseTimer = 0;
+                gameScene.scene.start('BattleScene', {
+                    playerTeam: [mobL8],
+                    botTeam: botTeam1,
+                    botName: 'Лесной Страж',
+                    state: gameScene.state
+                });
+            }
+        } else if (phase === 1) {
+            const battleScene = game.scene.getScene('BattleScene');
+            if (battleScene && battleScene.scene.isActive() && phaseTimer > 5) {
+                // Show victory modal
+                battleScene._showResultModal(true);
+
+                const skipBtn = battleScene._skipBtn;
+                const claimBtn = battleScene._claimBtn;
+
+                assert(!!skipBtn, "CHECK_E1: Secondary skip button exists on BattleScene");
+                assert(!!claimBtn, "CHECK_E2: Primary claim button exists on BattleScene");
+
+                assert(skipBtn.btnHeight >= 44, `CHECK_E3: Secondary button height >= 44px (got ${skipBtn.btnHeight}px)`);
+                assert(skipBtn.btnWidth >= 270 && skipBtn.btnWidth <= 300, `CHECK_E4: Secondary button width in [270..300]px (got ${skipBtn.btnWidth}px)`);
+                assert(skipBtn.label && skipBtn.label.text === 'ЗАБРАТЬ БЕЗ РЕКЛАМЫ (x1)', `CHECK_E5: Secondary button text matches 'ЗАБРАТЬ БЕЗ РЕКЛАМЫ (x1)' (got '${skipBtn.label ? skipBtn.label.text : ""}')`);
+
+                const claimBottom = claimBtn.y + claimBtn.btnHeight / 2;
+                const skipTop = skipBtn.y - skipBtn.btnHeight / 2;
+                const gap = skipTop - claimBottom;
+                assert(gap >= 8 && gap <= 14, `CHECK_E6: Vertical gap between buttons is 8..14px (got ${gap}px)`);
+
+                // Check F: Trigger return to GameScene via secondary button
+                phase = 2;
+                phaseTimer = 0;
+
+                // Simulate clicking skip button
+                battleScene.state.player.coins = (battleScene.state.player.coins || 0) + battleScene.prize;
+                SaveManager.save(battleScene.state);
+                battleScene.scene.start('GameScene', { state: battleScene.state });
+            }
+        } else if (phase === 2) {
+            const gameScene = game.scene.getScene('GameScene');
+            if (gameScene && gameScene.scene.isActive() && gameScene.mergeField && gameScene._isInitialized && phaseTimer > 5) {
+                assert(gameScene.mergeField.mobs.length === 2, `CHECK_F: Field mobs preserved after BattleScene return (${gameScene.mergeField.mobs.length} == 2)`);
+
+                const testResult = {
+                    pass: true,
+                    totalTests: window.testResults.length,
+                    results: window.testResults
+                };
+                document.title = 'TEST_RESULT:' + JSON.stringify(testResult);
+                if (game) game.destroy(true);
+                return;
+            }
+        }
+    } catch (e) {
+        const testResult = {
+            pass: false,
+            error: e.message,
+            stack: e.stack,
+            results: window.testResults
+        };
+        document.title = 'TEST_RESULT:' + JSON.stringify(testResult);
+        if (game) game.destroy(true);
+        return;
+    }
+    requestAnimationFrame(pump);
+}
+
+requestAnimationFrame(pump);
+</script>
+</body>
+</html>

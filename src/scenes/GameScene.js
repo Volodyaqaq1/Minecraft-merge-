@@ -63,6 +63,7 @@ class GameScene extends Phaser.Scene {
             this._onFieldChanged();
             if (isNew) {
                 this._showNewMobUnlockModal(newMob);
+                this._checkEvolutionMilestone(newMob.level);
             }
         };
 
@@ -70,6 +71,7 @@ class GameScene extends Phaser.Scene {
         this.mergeField.onNewMobDiscovered = (newMob) => {
             this._onFieldChanged();
             this._showNewMobUnlockModal(newMob);
+            this._checkEvolutionMilestone(newMob.level);
         };
 
         // Быстрое комбо слияний подряд повышает шкалу множителя
@@ -100,6 +102,8 @@ class GameScene extends Phaser.Scene {
         this._buildPlaytimeModal();
         this._buildIncubatorModal();
         this._buildSettingsModal();
+        this._buildWorldSelectorModal();
+        this._buildEvolutionMilestoneModal();
 
         // ─── 8. Привязка событий экономики к UI ───
         this.economy.onCoinsChange = (val) => this._setCoinsText(val);
@@ -162,6 +166,16 @@ class GameScene extends Phaser.Scene {
         // ─── 13. Dev Debug Telemetry Overlay (?debug=1 или CONFIG.DEBUG) ───
         this._buildDevDebugOverlay();
         this._isInitialized = true;
+
+        window.__gameScene = this;
+        window.testOpenWorldSelector = () => this._openWorldSelectorModal();
+        window.testShowMilestone = (tier) => this._showEvolutionMilestoneModal(tier);
+        window.testOpenCollection = (tab) => this.scene.launch('CollectionScene', {
+            collection: [...this.mergeField.collection],
+            initialTab: tab !== undefined ? tab : 0,
+            elementalUnlocked: !!this.state.elementalEvolutionUnlocked,
+            goldenUnlocked: !!this.state.goldenEvolutionUnlocked
+        });
     }
 
     // ============================================================
@@ -176,12 +190,39 @@ class GameScene extends Phaser.Scene {
         const W = CONFIG.WIDTH;
         const H = CONFIG.HEIGHT;
 
+        if (this._bgContainer) {
+            this._bgContainer.removeAll(true);
+        } else {
+            this._bgContainer = this.add.container(0, 0).setDepth(-100);
+        }
+
+        const worldId = (this.state && this.state.selectedWorld) || 'green_hills';
+        const world = (typeof getWorldById === 'function') ? getWorldById(worldId) : {
+            skyTop: 0x5cbcf6, skyBottom: 0xc8eeff, hillsColor: 0x82ce42,
+            lawnTop: 0x9ee54f, lawnBottom: 0x6dbf2b, treeTrunk: 0x785332,
+            treeCrown: 0x4e9c2b, foliageColor: 0x438622, sunbeamAlpha: 0.10, hasStars: false
+        };
+
         // 1. Нежное градиентное небо
         const sky = this.add.graphics();
-        sky.fillGradientStyle(0x5cbcf6, 0x5cbcf6, 0xc8eeff, 0xc8eeff, 1);
+        sky.fillGradientStyle(world.skyTop, world.skyTop, world.skyBottom, world.skyBottom, 1);
         sky.fillRect(0, 0, W, H * 0.44);
+        this._bgContainer.add(sky);
 
-        // 2. Пушистые процедурные облака (медленно плывут)
+        // 2. Звезды (если мир ночной/космический)
+        if (world.hasStars) {
+            const stars = this.add.graphics();
+            stars.fillStyle(0xffffff, 0.85);
+            for (let i = 0; i < 45; i++) {
+                const sx = (i * 23 + 17) % W;
+                const sy = (i * 19 + 7) % Math.floor(H * 0.38);
+                const sr = (i % 3 === 0) ? 1.5 : 1.0;
+                stars.fillCircle(sx, sy, sr);
+            }
+            this._bgContainer.add(stars);
+        }
+
+        // 3. Пушистые процедурные облака (медленно плывут)
         this._clouds = [];
         const cloudData = [
             { x: 120, y: 38, s: 1.0, speed: 0.12 },
@@ -191,7 +232,8 @@ class GameScene extends Phaser.Scene {
         ];
         cloudData.forEach(c => {
             const cg = this.add.graphics();
-            cg.fillStyle(0xffffff, 0.85);
+            const cloudAlpha = world.hasStars ? 0.3 : 0.85;
+            cg.fillStyle(0xffffff, cloudAlpha);
             cg.fillCircle(0, 0, 22 * c.s);
             cg.fillCircle(-16 * c.s, 4 * c.s, 16 * c.s);
             cg.fillCircle(16 * c.s, 4 * c.s, 16 * c.s);
@@ -199,59 +241,59 @@ class GameScene extends Phaser.Scene {
             cg.x = c.x;
             cg.y = c.y;
             this._clouds.push({ g: cg, speed: c.speed, s: c.s });
+            this._bgContainer.add(cg);
         });
 
-        // 3. Дальние мягкие холмы
+        // 4. Дальние мягкие холмы
         const hills = this.add.graphics();
-        hills.fillStyle(0x82ce42, 1);
+        hills.fillStyle(world.hillsColor, 1);
         hills.beginPath();
         hills.arc(150, H * 0.43 + 60, 210, Math.PI, 0, false);
         hills.arc(520, H * 0.43 + 80, 280, Math.PI, 0, false);
         hills.arc(840, H * 0.43 + 60, 240, Math.PI, 0, false);
         hills.fillPath();
+        this._bgContainer.add(hills);
 
-        // 4. Деревья на горизонте
+        // 5. Деревья на горизонте
         for (let i = 0; i < 9; i++) {
             const tx = 40 + i * 115 + (i % 2 === 0 ? 15 : -10);
             const ty = H * 0.34 + (i % 3) * 6;
             const tree = this.add.graphics();
-            tree.fillStyle(0x785332, 0.9);
+            tree.fillStyle(world.treeTrunk, 0.9);
             tree.fillRect(tx - 4, ty, 8, 22);
-            tree.fillStyle(0x4e9c2b, 0.95);
+            tree.fillStyle(world.treeCrown, 0.95);
             tree.fillCircle(tx, ty - 12, 28);
-            tree.fillStyle(0x62b738, 0.95);
+            tree.fillStyle(world.treeCrown, 0.95);
             tree.fillCircle(tx - 6, ty - 16, 20);
-            tree.fillStyle(0x3d8220, 0.95);
+            tree.fillStyle(world.treeCrown, 0.95);
             tree.fillCircle(tx + 8, ty - 10, 18);
+            this._bgContainer.add(tree);
         }
 
-        // 5. Тёплый фисташковый луг (основная поляна без ядовитых полос)
+        // 6. Тёплый луг (основная поляна)
         const lawn = this.add.graphics();
-        lawn.fillGradientStyle(0x9ee54f, 0x9ee54f, 0x6dbf2b, 0x6dbf2b, 1);
+        lawn.fillGradientStyle(world.lawnTop, world.lawnTop, world.lawnBottom, world.lawnBottom, 1);
         lawn.fillRect(0, H * 0.36, W, H * 0.64);
+        this._bgContainer.add(lawn);
 
-        // 6. Мягкое солнечное пятно в центре
+        // 7. Мягкое солнечное пятно в центре
         const sunbeam = this.add.graphics();
-        sunbeam.fillStyle(0xffffff, 0.10);
+        sunbeam.fillStyle(0xffffff, world.sunbeamAlpha || 0.10);
         sunbeam.fillEllipse(W / 2, H * 0.58, 520, 230);
-        sunbeam.fillStyle(0xffffff, 0.05);
+        sunbeam.fillStyle(0xffffff, (world.sunbeamAlpha || 0.10) * 0.5);
         sunbeam.fillEllipse(W / 2, H * 0.58, 680, 310);
+        this._bgContainer.add(sunbeam);
 
-        // 7. Декоративная листва по верхним углам
+        // 8. Декоративная листва по верхним углам
         const foliage = this.add.graphics();
-        foliage.fillStyle(0x438622, 0.85);
+        foliage.fillStyle(world.foliageColor, 0.85);
         foliage.fillCircle(0, 0, 75);
         foliage.fillCircle(65, 0, 55);
         foliage.fillCircle(0, 55, 50);
-        foliage.fillStyle(0x56a62f, 0.9);
-        foliage.fillCircle(30, 25, 45);
-
-        foliage.fillStyle(0x438622, 0.85);
         foliage.fillCircle(W, 0, 85);
         foliage.fillCircle(W - 70, 0, 60);
         foliage.fillCircle(W, 60, 55);
-        foliage.fillStyle(0x56a62f, 0.9);
-        foliage.fillCircle(W - 35, 30, 50);
+        this._bgContainer.add(foliage);
     }
 
     // ============================================================
@@ -293,6 +335,7 @@ class GameScene extends Phaser.Scene {
         // Кнопка настроек с шестерёнкой (голубой тактильный скругленный куб)
         const gearSize = 44;
         const gearContainer = this.add.container(x + gearSize / 2, y + gearSize / 2);
+        this._gearContainer = gearContainer;
 
         const gearShadow = this.add.graphics();
         gearShadow.fillStyle(0x1d4ed8, 1);
@@ -1127,11 +1170,16 @@ class GameScene extends Phaser.Scene {
             fontSize: '13px',
             radius: 11,
             lip: 3,
-        }, () => this.scene.launch('CollectionScene', { collection: [...this.mergeField.collection] }));
+        }, () => this.scene.launch('CollectionScene', {
+            collection: [...this.mergeField.collection],
+            elementalUnlocked: !!this.state.elementalEvolutionUnlocked,
+            goldenUnlocked: !!this.state.goldenEvolutionUnlocked
+        }));
         this._dockButtonsGroup.push(bestiaryBtn);
 
         // 2. Кнопка "🥚 Инкубатор" (открывается на Player Lv.6)
         if (this.economy && this.economy.level >= 6) {
+            const incFeat = this.state.features?.incubator;
             const incubatorBtn = createCasualButton(this, 255, btnY, 145, 42, '🥚 Инкубатор', {
                 topColor: 0x7c3aed,
                 bottomColor: 0x5b21b6,
@@ -1139,14 +1187,40 @@ class GameScene extends Phaser.Scene {
                 fontSize: '13px',
                 radius: 11,
                 lip: 3,
-            }, () => this._openIncubatorModal());
+            }, () => {
+                if (incFeat && !incFeat.firstOpened) {
+                    incFeat.firstOpened = true;
+                    if (incubatorBtn._featureDot) {
+                        incubatorBtn._featureDot.destroy();
+                        incubatorBtn._featureDot = null;
+                    }
+                    this._save();
+                }
+                this._openIncubatorModal();
+            });
 
-            this._dockIncubatorBadge = this._createNotificationBadge(255 + 56, btnY - 14);
-            this._dockButtonsGroup.push(incubatorBtn, this._dockIncubatorBadge);
+            this._dockButtonsGroup.push(incubatorBtn);
+
+            if (incFeat && !incFeat.animSeen) {
+                this._animateFeatureFlyIn(incubatorBtn, 255, btnY, () => {
+                    incFeat.animSeen = true;
+                    this._save();
+                });
+            }
+
+            if (incFeat && !incFeat.firstOpened) {
+                const dot = this._createFeatureNotificationDot(255 + 56, btnY - 14);
+                incubatorBtn._featureDot = dot;
+                this._dockButtonsGroup.push(dot);
+            } else {
+                this._dockIncubatorBadge = this._createNotificationBadge(255 + 56, btnY - 14);
+                this._dockButtonsGroup.push(this._dockIncubatorBadge);
+            }
         }
 
         // 3. Кнопка "🎁 Награды" (открывается на Player Lv.9)
         if (this.economy && this.economy.level >= 9) {
+            const rewFeat = this.state.features?.rewards;
             const rewardBtn = createCasualButton(this, 415, btnY, 145, 42, '🎁 Награды', {
                 topColor: 0x0d9488,
                 bottomColor: 0x115e59,
@@ -1154,10 +1228,35 @@ class GameScene extends Phaser.Scene {
                 fontSize: '13px',
                 radius: 11,
                 lip: 3,
-            }, () => this._openPlaytimeModal());
+            }, () => {
+                if (rewFeat && !rewFeat.firstOpened) {
+                    rewFeat.firstOpened = true;
+                    if (rewardBtn._featureDot) {
+                        rewardBtn._featureDot.destroy();
+                        rewardBtn._featureDot = null;
+                    }
+                    this._save();
+                }
+                this._openPlaytimeModal();
+            });
 
-            this._dockRewardBadge = this._createNotificationBadge(415 + 56, btnY - 14);
-            this._dockButtonsGroup.push(rewardBtn, this._dockRewardBadge);
+            this._dockButtonsGroup.push(rewardBtn);
+
+            if (rewFeat && !rewFeat.animSeen) {
+                this._animateFeatureFlyIn(rewardBtn, 415, btnY, () => {
+                    rewFeat.animSeen = true;
+                    this._save();
+                });
+            }
+
+            if (rewFeat && !rewFeat.firstOpened) {
+                const dot = this._createFeatureNotificationDot(415 + 56, btnY - 14);
+                rewardBtn._featureDot = dot;
+                this._dockButtonsGroup.push(dot);
+            } else {
+                this._dockRewardBadge = this._createNotificationBadge(415 + 56, btnY - 14);
+                this._dockButtonsGroup.push(this._dockRewardBadge);
+            }
         }
 
         this._updateDockBadges();
@@ -1207,15 +1306,97 @@ class GameScene extends Phaser.Scene {
         return badge;
     }
 
+    _createFeatureNotificationDot(x, y) {
+        const dot = this.add.container(x, y).setDepth(45);
+        const g = this.add.graphics();
+        g.fillStyle(0xef4444, 0.35);
+        g.fillCircle(0, 0, 9);
+        g.fillStyle(0xef4444, 1);
+        g.fillCircle(0, 0, 6);
+        g.lineStyle(1.8, 0xffffff, 1);
+        g.strokeCircle(0, 0, 6);
+        dot.add(g);
+
+        this.tweens.add({
+            targets: dot,
+            scaleX: 1.25,
+            scaleY: 1.25,
+            duration: 550,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+        return dot;
+    }
+
+    _animateFeatureFlyIn(btn, targetX, targetY, onComplete) {
+        btn.setPosition(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2);
+        btn.setScale(0.35);
+        btn.setAlpha(0);
+        btn.setDepth(60);
+
+        this.tweens.add({
+            targets: btn,
+            scaleX: 1.2,
+            scaleY: 1.2,
+            alpha: 1,
+            duration: 320,
+            ease: 'Back.easeOut',
+            onComplete: () => {
+                this.tweens.add({
+                    targets: btn,
+                    x: targetX,
+                    y: targetY,
+                    scaleX: 1.0,
+                    scaleY: 1.0,
+                    duration: 520,
+                    ease: 'Cubic.easeInOut',
+                    onComplete: () => {
+                        btn.setDepth(0);
+                        if (typeof onComplete === 'function') onComplete();
+                    }
+                });
+            }
+        });
+    }
+
     _refreshFeatureUnlocks() {
+        const lvl = (this.economy && this.economy.level) || 1;
+        const maxUnlocked = Math.max(...this.mergeField.collection, 1);
+        this.state.features = this.state.features || {};
+
+        if (maxUnlocked >= 4 && !this.state.features.shop_ad?.unlocked) {
+            this.state.features.shop_ad = this.state.features.shop_ad || { unlocked: false, animSeen: false, firstOpened: false };
+            this.state.features.shop_ad.unlocked = true;
+        }
+        if (lvl >= 5 && !this.state.features.world_selector?.unlocked) {
+            this.state.features.world_selector = this.state.features.world_selector || { unlocked: false, animSeen: false, firstOpened: false };
+            this.state.features.world_selector.unlocked = true;
+        }
+        if (lvl >= 6 && !this.state.features.incubator?.unlocked) {
+            this.state.features.incubator = this.state.features.incubator || { unlocked: false, animSeen: false, firstOpened: false };
+            this.state.features.incubator.unlocked = true;
+        }
+        if (lvl >= 9 && !this.state.features.rewards?.unlocked) {
+            this.state.features.rewards = this.state.features.rewards || { unlocked: false, animSeen: false, firstOpened: false };
+            this.state.features.rewards.unlocked = true;
+        }
+        if (lvl >= 11 && !this.state.features.quests?.unlocked) {
+            this.state.features.quests = this.state.features.quests || { unlocked: false, animSeen: false, firstOpened: false };
+            this.state.features.quests.unlocked = true;
+        }
+
         // 1. Правая панель (Моб за рекламу доступен после открытия Mob Lv.4)
         this._updateShopButton();
 
         // 2. Нижний dock (Инкубатор с Lv.6, Награды с Lv.9)
         this._refreshBottomDock();
 
-        // 3. Панель заданий (Задания доступны с Lv.11)
-        if (this.economy && this.economy.level >= 11) {
+        // 3. Индикатор смены мира в настройках
+        this._updateSettingsNotificationDot();
+
+        // 4. Панель заданий (Задания доступны с Lv.11)
+        if (lvl >= 11) {
             if (this.quests.length === 0) {
                 this._validateQuests();
             }
@@ -1224,7 +1405,7 @@ class GameScene extends Phaser.Scene {
             this._renderQuests();
         }
 
-        // 4. Слоты инкубатора (если окно открыто)
+        // 5. Слоты инкубатора (если окно открыто)
         if (this._incubatorModal && this._incubatorModal.visible) {
             this._renderIncubatorSlots();
         }
@@ -2805,17 +2986,17 @@ class GameScene extends Phaser.Scene {
         overlay.on('pointerdown', () => this._settingsModal.setVisible(false));
 
         const cardW = 340;
-        const cardH = 260;
+        const cardH = 320;
 
-        // Фон карточки настроек (кремовый с двойной декоративной рамкой как на скриншоте 5)
+        // Фон карточки настроек (кремовый с двойной декоративной рамкой)
         const bg = this.add.graphics();
         drawRoundRect(bg, -cardW / 2, -cardH / 2, cardW, cardH, 20, 0xfffcf0, 0.98, 0xdfcfb4, 3.5);
         bg.lineStyle(1.5, 0xd4bfa0, 0.7);
         bg.strokeRoundedRect(-cardW / 2 + 8, -cardH / 2 + 8, cardW - 16, cardH - 16, 14);
 
         // Заголовок "Настройки"
-        const title = this.add.text(0, -cardH / 2 + 38, 'Настройки', {
-            fontSize: '24px',
+        const title = this.add.text(0, -cardH / 2 + 32, 'Настройки', {
+            fontSize: '22px',
             fontFamily: 'monospace',
             color: '#3d312a',
             fontStyle: 'bold'
@@ -2845,15 +3026,22 @@ class GameScene extends Phaser.Scene {
         // Контейнер для кнопок аудио (Музыка и Звук)
         this._settingsAudioContainer = this.add.container(0, 0);
 
-        // Кнопка "Сброс прогресса"
-        const [resetBg, resetTxt, resetHit] = this._makeButton(0, 70, 170, 48, 'Сброс\nпрогресса', '#c0392b', () => {
-            this._onResetProgress();
+        // Кнопка "🌍 Сменить мир / фон"
+        const [worldBg, worldTxt, worldHit] = this._makeButton(0, 48, 220, 42, '🌍 Сменить мир / фон', '#0284c7', () => {
+            this._settingsModal.setVisible(false);
+            this._openWorldSelectorModal();
         }, '14px');
+
+        // Кнопка "Сброс прогресса"
+        const [resetBg, resetTxt, resetHit] = this._makeButton(0, 106, 170, 36, 'Сброс прогресса', '#c0392b', () => {
+            this._onResetProgress();
+        }, '13px');
 
         this._settingsModal.add([
             overlay, bg, title,
             closeBtnG, closeBtnTxt, closeBtnHit,
             this._settingsAudioContainer,
+            worldBg, worldTxt, worldHit,
             resetBg, resetTxt, resetHit
         ]);
     }
@@ -2878,10 +3066,10 @@ class GameScene extends Phaser.Scene {
         const musicOn = (this.state.musicEnabled !== false);
 
         const btnW = 96;
-        const btnH = 76;
+        const btnH = 72;
         const mX = -62;
         const sX = 62;
-        const y = -14;
+        const y = -36;
 
         // 1. Кнопка "Музыка"
         const mBg = this.add.graphics();
@@ -2929,6 +3117,12 @@ class GameScene extends Phaser.Scene {
         });
 
         this._settingsAudioContainer.add([mBg, mIcon, mLabel, mHit, sBg, sIcon, sLabel, sHit]);
+
+        // Индикатор "НОВОЕ" на кнопке смены мира
+        if (this.state.features?.world_selector?.unlocked && !this.state.features?.world_selector?.firstOpened) {
+            const dot = this._createFeatureNotificationDot(96, 40);
+            this._settingsAudioContainer.add(dot);
+        }
     }
 
     _onResetProgress() {
@@ -2938,6 +3132,423 @@ class GameScene extends Phaser.Scene {
             SoundManager.playPop();
         }
         this.scene.restart();
+    }
+
+    _updateSettingsNotificationDot() {
+        const hasUnopenedWorld = this.state.features?.world_selector?.unlocked && !this.state.features?.world_selector?.firstOpened;
+        if (hasUnopenedWorld) {
+            if (!this._gearNotifDot && this._gearContainer) {
+                this._gearNotifDot = this._createFeatureNotificationDot(this._gearContainer.x + 16, this._gearContainer.y - 16);
+            }
+        } else {
+            if (this._gearNotifDot) {
+                this._gearNotifDot.destroy();
+                this._gearNotifDot = null;
+            }
+        }
+    }
+
+    _buildWorldSelectorModal() {
+        const W = CONFIG.WIDTH;
+        const H = CONFIG.HEIGHT;
+
+        this._worldSelectorModal = this.add.container(W / 2, H / 2).setDepth(600).setVisible(false);
+
+        const overlay = this.add.rectangle(0, 0, W * 3, H * 3, 0x000000, 0.75).setInteractive();
+        overlay.on('pointerdown', () => this._worldSelectorModal.setVisible(false));
+
+        const cardW = 760;
+        const cardH = 470;
+
+        const bg = this.add.graphics();
+        bg.fillStyle(0x000000, 0.45);
+        bg.fillRoundedRect(-cardW / 2 + 5, -cardH / 2 + 8, cardW, cardH, 22);
+        drawRoundRect(bg, -cardW / 2, -cardH / 2, cardW, cardH, 22, 0x0f172a, 0.98, 0x334155, 3);
+
+        // Header strip
+        bg.fillStyle(0x090d16, 0.65);
+        bg.fillRoundedRect(-cardW / 2 + 3, -cardH / 2 + 3, cardW - 6, 68, { tl: 20, tr: 20, bl: 0, br: 0 });
+        bg.lineStyle(1.5, 0x1e293b, 0.85);
+        bg.lineBetween(-cardW / 2 + 3, -cardH / 2 + 71, cardW / 2 - 3, -cardH / 2 + 71);
+
+        const title = createHDText(this, 0, -cardH / 2 + 28, '🌍 ВЫБОР МИРА И ФОНА', {
+            fontSize: '22px',
+            fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#ffd700',
+            stroke: '#0f172a',
+            strokeThickness: 3.5,
+            fontStyle: '900'
+        }).setOrigin(0.5);
+
+        const subtitle = createHDText(this, 0, -cardH / 2 + 52, 'Открывайте новые биомы и фоны, повышая уровень игрока', {
+            fontSize: '12px',
+            fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#94a3b8',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        // Close button '✖'
+        const closeX = cardW / 2 - 20;
+        const closeY = -cardH / 2 + 24;
+        const closeBtnG = this.add.graphics();
+        closeBtnG.fillStyle(0xef4444, 1);
+        closeBtnG.fillCircle(closeX, closeY, 16);
+        closeBtnG.lineStyle(2, 0xffffff, 1);
+        closeBtnG.strokeCircle(closeX, closeY, 16);
+
+        const closeBtnTxt = this.add.text(closeX, closeY, '✖', {
+            fontSize: '16px',
+            color: '#ffffff',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        const closeBtnHit = this.add.circle(closeX, closeY, 22, 0, 0).setInteractive({ cursor: 'pointer' });
+        closeBtnHit.on('pointerdown', () => {
+            if (typeof SoundManager !== 'undefined') SoundManager.playClick();
+            this._worldSelectorModal.setVisible(false);
+        });
+
+        this._worldCardsContainer = this.add.container(0, 0);
+
+        this._worldSelectorModal.add([
+            overlay, bg, title, subtitle,
+            closeBtnG, closeBtnTxt, closeBtnHit,
+            this._worldCardsContainer
+        ]);
+    }
+
+    _openWorldSelectorModal() {
+        if (this.state.features && this.state.features.world_selector) {
+            this.state.features.world_selector.firstOpened = true;
+            this._save();
+            this._updateSettingsNotificationDot();
+        }
+        this._renderWorldCards();
+        this._worldSelectorModal.setScale(0.7);
+        this._worldSelectorModal.setVisible(true);
+        this.tweens.add({
+            targets: this._worldSelectorModal,
+            scaleX: 1,
+            scaleY: 1,
+            duration: 220,
+            ease: 'Back.Out'
+        });
+    }
+
+    _renderWorldCards() {
+        this._worldCardsContainer.removeAll(true);
+        const playerLevel = (this.economy && this.economy.level) || 1;
+        const curWorldId  = (this.state && this.state.selectedWorld) || 'green_hills';
+
+        const worldsList = (typeof WORLDS !== 'undefined') ? WORLDS : [];
+        const cardW = 162;
+        const cardH = 162;
+        const gap = 16;
+
+        const row1Count = 4;
+        const row1TotalW = row1Count * cardW + (row1Count - 1) * gap;
+        const row1StartX = -row1TotalW / 2 + cardW / 2;
+        const row1Y = -42;
+
+        const row2Count = 3;
+        const row2TotalW = row2Count * cardW + (row2Count - 1) * gap;
+        const row2StartX = -row2TotalW / 2 + cardW / 2;
+        const row2Y = 138;
+
+        worldsList.forEach((w, idx) => {
+            let cx, cy;
+            if (idx < 4) {
+                cx = row1StartX + idx * (cardW + gap);
+                cy = row1Y;
+            } else {
+                cx = row2StartX + (idx - 4) * (cardW + gap);
+                cy = row2Y;
+            }
+
+            const isUnlocked = playerLevel >= w.unlockLevel;
+            const isSelected = curWorldId === w.id;
+
+            const card = this.add.container(cx, cy);
+            const cardBg = this.add.graphics();
+
+            if (!isUnlocked) {
+                drawRoundRect(cardBg, -cardW / 2, -cardH / 2, cardW, cardH, 14, 0x1e293b, 0.75, 0x334155, 1.5);
+                const lockIcon = this.add.text(0, -18, '🔒', { fontSize: '28px' }).setOrigin(0.5);
+                const lockName = createHDText(this, 0, 16, w.name, {
+                    fontSize: '12px',
+                    fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+                    color: '#64748b',
+                    fontStyle: 'bold'
+                }).setOrigin(0.5);
+                const lockReq = createHDText(this, 0, 48, `Ур. ${w.unlockLevel}`, {
+                    fontSize: '12px',
+                    fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+                    color: '#f87171',
+                    stroke: '#450a0a',
+                    strokeThickness: 2,
+                    fontStyle: '900'
+                }).setOrigin(0.5);
+
+                card.add([cardBg, lockIcon, lockName, lockReq]);
+            } else {
+                const strokeCol = isSelected ? 0x10b981 : 0x475569;
+                const strokeThick = isSelected ? 3 : 1.5;
+
+                cardBg.fillStyle(w.skyTop, 1);
+                cardBg.fillRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH * 0.52, { tl: 14, tr: 14, bl: 0, br: 0 });
+                cardBg.fillStyle(w.lawnTop, 1);
+                cardBg.fillRoundedRect(-cardW / 2, -cardH / 2 + cardH * 0.48, cardW, cardH * 0.52, { tl: 0, tr: 0, bl: 14, br: 14 });
+                cardBg.lineStyle(strokeThick, strokeCol, 1);
+                cardBg.strokeRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, 14);
+
+                const badge = this.add.graphics();
+                badge.fillStyle(0x0f172a, 0.65);
+                badge.fillCircle(0, -32, 22);
+                badge.lineStyle(1.5, 0xffffff, 0.4);
+                badge.strokeCircle(0, -32, 22);
+
+                const icon = this.add.text(0, -32, w.icon || '🌍', { fontSize: '22px' }).setOrigin(0.5);
+
+                const name = createHDText(this, 0, 4, w.name, {
+                    fontSize: '12px',
+                    fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+                    color: '#ffffff',
+                    stroke: '#0f172a',
+                    strokeThickness: 3,
+                    fontStyle: '900'
+                }).setOrigin(0.5);
+
+                if (isSelected) {
+                    const selPill = this.add.graphics();
+                    drawRoundRect(selPill, -55, 34, 110, 26, 12, 0x10b981, 1, 0x34d399, 1.5);
+                    const selTxt = createHDText(this, 0, 47, '✓ ВЫБРАН', {
+                        fontSize: '11px',
+                        fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+                        color: '#ffffff',
+                        stroke: '#064e3b',
+                        strokeThickness: 2,
+                        fontStyle: '900'
+                    }).setOrigin(0.5);
+                    card.add([cardBg, badge, icon, name, selPill, selTxt]);
+                } else {
+                    const [pickBg, pickTxt, pickHit] = this._makeButton(0, 47, 100, 26, 'Выбрать', '#2563eb', () => {
+                        this.state.selectedWorld = w.id;
+                        if (!this.state.unlockedWorlds.includes(w.id)) {
+                            this.state.unlockedWorlds.push(w.id);
+                        }
+                        this._buildBackground();
+                        this._renderWorldCards();
+                        this._save();
+                        if (typeof SoundManager !== 'undefined') SoundManager.playClick();
+                        spawnFloatingText(this, 480, 270, `Мир изменён: ${w.name}!`, '#38bdf8');
+                    }, '11px');
+                    card.add([cardBg, badge, icon, name, pickBg, pickTxt, pickHit]);
+
+                    const hit = this.add.rectangle(0, 0, cardW, cardH, 0, 0).setInteractive({ cursor: 'pointer' });
+                    hit.on('pointerdown', () => {
+                        this.state.selectedWorld = w.id;
+                        if (!this.state.unlockedWorlds.includes(w.id)) {
+                            this.state.unlockedWorlds.push(w.id);
+                        }
+                        this._buildBackground();
+                        this._renderWorldCards();
+                        this._save();
+                        if (typeof SoundManager !== 'undefined') SoundManager.playClick();
+                        spawnFloatingText(this, 480, 270, `Мир изменён: ${w.name}!`, '#38bdf8');
+                    });
+                    card.add(hit);
+                }
+            }
+
+            this._worldCardsContainer.add(card);
+        });
+    }
+
+    _buildEvolutionMilestoneModal() {
+        const W = CONFIG.WIDTH;
+        const H = CONFIG.HEIGHT;
+
+        this._evolutionMilestoneModal = this.add.container(W / 2, H / 2).setDepth(1100).setVisible(false);
+
+        const overlay = this.add.rectangle(0, 0, W * 3, H * 3, 0x000000, 0.85).setInteractive();
+
+        const cardW = 600;
+        const cardH = 430;
+
+        const bg = this.add.graphics();
+        this._evolutionBg = bg;
+
+        this._evolutionRays = this.add.graphics();
+        this._evolutionContent = this.add.container(0, 0);
+
+        this._evolutionMilestoneModal.add([
+            overlay, this._evolutionRays, bg, this._evolutionContent
+        ]);
+    }
+
+    _showEvolutionMilestoneModal(tier = 'elemental') {
+        this._evolutionContent.removeAll(true);
+        const cardW = 600;
+        const cardH = 430;
+
+        const isElemental = (tier === 'elemental');
+        const borderColor = isElemental ? 0x8b5cf6 : 0xf59e0b;
+        const glowColor   = isElemental ? 0x06b6d4 : 0xfde047;
+        const bgColor     = isElemental ? 0x1e1b4b : 0x271900;
+        const titleText   = isElemental ? '✨ СТИХИЙНАЯ ЭРА! ✨' : '👑 ЗОЛОТАЯ ЭРА! 👑';
+        const subtitleText = isElemental ? 'НОВЫЙ ЭТАП ЭВОЛЮЦИИ (УРОВНИ 31–60)' : 'ВЕРШИНА МАСТЕРСТВА (УРОВНИ 61–90)';
+        const btnText     = isElemental ? 'В БОЙ К ВЕРШИНАМ! ⚔️' : 'ВЕЛИКОЛЕПНО! ⭐';
+        const btnColor    = isElemental ? '#8b5cf6' : '#f59e0b';
+
+        this._evolutionBg.clear();
+        this._evolutionBg.fillStyle(0x000000, 0.5);
+        this._evolutionBg.fillRoundedRect(-cardW / 2 + 6, -cardH / 2 + 10, cardW, cardH, 24);
+        drawRoundRect(this._evolutionBg, -cardW / 2, -cardH / 2, cardW, cardH, 24, bgColor, 0.98, borderColor, 3.5);
+        this._evolutionBg.lineStyle(1.5, glowColor, 0.6);
+        this._evolutionBg.strokeRoundedRect(-cardW / 2 + 7, -cardH / 2 + 7, cardW - 14, cardH - 14, 18);
+
+        this._evolutionRays.clear();
+        const rayColors = isElemental ? [0x8b5cf6, 0x06b6d4] : [0xf59e0b, 0xfde047];
+        const numRays = 16;
+        for (let i = 0; i < numRays; i++) {
+            const angle1 = (i / numRays) * Math.PI * 2;
+            const angle2 = ((i + 0.5) / numRays) * Math.PI * 2;
+            this._evolutionRays.fillStyle(rayColors[i % 2], 0.08);
+            this._evolutionRays.beginPath();
+            this._evolutionRays.moveTo(0, -20);
+            this._evolutionRays.lineTo(Math.cos(angle1) * 360, Math.sin(angle1) * 360 - 20);
+            this._evolutionRays.lineTo(Math.cos(angle2) * 360, Math.sin(angle2) * 360 - 20);
+            this._evolutionRays.closePath();
+            this._evolutionRays.fillPath();
+        }
+
+        const title = createHDText(this, 0, -cardH / 2 + 42, titleText, {
+            fontSize: '24px',
+            fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: isElemental ? '#a78bfa' : '#ffd700',
+            stroke: '#0f172a',
+            strokeThickness: 4,
+            fontStyle: '900'
+        }).setOrigin(0.5);
+
+        const sub = createHDText(this, 0, -cardH / 2 + 74, subtitleText, {
+            fontSize: '12px',
+            fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: isElemental ? '#c4b5fd' : '#fef08a',
+            stroke: '#0f172a',
+            strokeThickness: 2,
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        const mobLevels = isElemental ? [31, 40, 42] : [61, 70, 72];
+        const showcaseY = -40;
+        const offsets = [-140, 0, 140];
+
+        mobLevels.forEach((lvl, idx) => {
+            const mob = (typeof getMobByLevel === 'function') ? getMobByLevel(lvl) : null;
+            const x = offsets[idx];
+            const size = (idx === 1) ? 96 : 80;
+
+            const plat = this.add.graphics();
+            plat.fillStyle(glowColor, 0.3);
+            plat.fillCircle(x, showcaseY + size / 2 - 4, size / 2 + 6);
+            plat.fillStyle(0x0f172a, 0.8);
+            plat.fillCircle(x, showcaseY + size / 2 - 4, size / 2 + 2);
+            plat.lineStyle(2, borderColor, 0.8);
+            plat.strokeCircle(x, showcaseY + size / 2 - 4, size / 2 + 2);
+
+            const tex = (mob && mob.portraitKey && this.textures.exists(mob.portraitKey))
+                ? mob.portraitKey
+                : (mob && mob.texture ? mob.texture : 'mob_portrait_placeholder');
+            const img = this.add.image(x, showcaseY, tex).setDisplaySize(size, size);
+
+            this.tweens.add({
+                targets: img,
+                y: showcaseY - 8,
+                duration: 1200 + idx * 200,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut'
+            });
+
+            const name = createHDText(this, x, showcaseY + size / 2 + 16, mob ? mob.name : '', {
+                fontSize: '11px',
+                fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+                color: '#ffffff',
+                stroke: '#0f172a',
+                strokeThickness: 2.5,
+                fontStyle: 'bold'
+            }).setOrigin(0.5);
+
+            this._evolutionContent.add([plat, img, name]);
+        });
+
+        const pillText = isElemental
+            ? '🔥 Огонь   •   💧 Вода   •   ⚡ Молния   •   🌪️ Воздух'
+            : '🏆 Максимальная Мощь   •   💎 Истинное Золото';
+        const pillG = this.add.graphics();
+        drawRoundRect(pillG, -220, 56, 440, 28, 14, isElemental ? 0x312e81 : 0x451a03, 0.9, borderColor, 1.5);
+        const pillLabel = createHDText(this, 0, 70, pillText, {
+            fontSize: '11px',
+            fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: isElemental ? '#e0e7ff' : '#fef08a',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        const descText = isElemental
+            ? 'Все 30 существ теперь обретают могущественные стихийные формы!\nОткрывайте магические облики и покоряйте новые арены!'
+            : 'Вы достигли вершин кубического мастерства!\nЛегендарные создания из чистого золота обладают величайшей силой!';
+        const desc = this.add.text(0, 118, descText, {
+            fontSize: '12.5px',
+            fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#e2e8f0',
+            stroke: '#000000',
+            strokeThickness: 2,
+            align: 'center',
+            lineSpacing: 5
+        }).setOrigin(0.5);
+
+        const [btnBg, btnTxt, btnHit] = this._makeButton(0, 168, 260, 46, btnText, btnColor, () => {
+            if (typeof SoundManager !== 'undefined') SoundManager.playClick();
+            this._evolutionMilestoneModal.setVisible(false);
+        }, '15px');
+
+        this._evolutionContent.add([
+            title, sub, pillG, pillLabel, desc, btnBg, btnTxt, btnHit
+        ]);
+
+        this._evolutionMilestoneModal.setScale(0.7);
+        this._evolutionMilestoneModal.setVisible(true);
+        this.tweens.add({
+            targets: this._evolutionMilestoneModal,
+            scaleX: 1,
+            scaleY: 1,
+            duration: 250,
+            ease: 'Back.Out'
+        });
+
+        if (typeof SoundManager !== 'undefined' && typeof SoundManager.playFanfare === 'function') {
+            SoundManager.playFanfare();
+        }
+    }
+
+    _checkEvolutionMilestone(mobLevel) {
+        this.state.milestonesSeen = this.state.milestonesSeen || {};
+        if (mobLevel >= 30 && !this.state.milestonesSeen.elemental) {
+            this.state.milestonesSeen.elemental = true;
+            this.state.elementalEvolutionUnlocked = true;
+            this._save();
+            this.time.delayedCall(750, () => {
+                this._showEvolutionMilestoneModal('elemental');
+            });
+        } else if (mobLevel >= 60 && !this.state.milestonesSeen.golden) {
+            this.state.milestonesSeen.golden = true;
+            this.state.goldenEvolutionUnlocked = true;
+            this._save();
+            this.time.delayedCall(750, () => {
+                this._showEvolutionMilestoneModal('golden');
+            });
+        }
     }
 
     _makeButton(cx, cy, w, h, label, color, callback, fontSize = '13px') {

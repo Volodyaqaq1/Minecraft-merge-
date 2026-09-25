@@ -39,8 +39,8 @@ window.onerror = function(msg, url, line, col, error) {
 CONFIG.DEBUG = false;
 
 const startState = SaveManager._deepClone(SaveManager.DEFAULT_STATE);
-startState.player.level = 4;
-startState.player.coins = 1500;
+startState.player.level = 8;
+startState.player.coins = 5000;
 SaveManager.save(startState);
 
 BootScene.prototype.preload = function() {
@@ -64,8 +64,8 @@ BootScene.prototype.preload = function() {
 };
 
 BootScene.prototype.create = function() {
-    const pMob = getMobByLevel(4); // 1 player fighter (Овечка)
-    const botTeam = generateBotTeam([pMob]); // Returns exactly 3 bot mobs!
+    const pMob = getMobByLevel(8); // 1 player fighter: Скелет (Lv.8, 800 atk)
+    const botTeam = generateBotTeam([pMob]); // Returns exactly 3 bot mobs matching 920..1080 budget!
 
     this.scene.start('BattleScene', {
         playerTeam: [pMob],

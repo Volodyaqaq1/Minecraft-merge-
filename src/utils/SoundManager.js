@@ -323,5 +323,9 @@ const SoundManager = (function () {
                 osc.stop(st + note.dur);
             });
         },
+
+        playFanfare() {
+            this.playNewMobFanfare();
+        },
     };
 })();

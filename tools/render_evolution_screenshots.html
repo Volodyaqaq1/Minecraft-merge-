@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evolution Screenshot Renderer</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html, body { width:100%; height:100%; overflow:hidden; background:#0b0f19; display:flex; align-items:center; justify-content:center; }
+        #game-container { position:fixed; top:0; left:0; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+    <script src="../src/config.js"></script>
+    <script src="../src/data/mobs.js"></script>
+    <script src="../src/data/worlds.js"></script>
+    <script src="../src/data/bot_names.js"></script>
+    <script src="../src/utils/helpers.js"></script>
+    <script src="../src/utils/SoundManager.js"></script>
+    <script src="../src/components/SaveManager.js"></script>
+    <script src="../src/components/Economy.js"></script>
+    <script src="../src/components/MergeField.js"></script>
+    <script src="../src/components/BattleSystem.js"></script>
+    <script src="../src/scenes/BootScene.js"></script>
+    <script src="../src/scenes/GameScene.js"></script>
+    <script src="../src/scenes/BattleScene.js"></script>
+    <script src="../src/scenes/CollectionScene.js"></script>
+</head>
+<body>
+<div id="game-container"></div>
+<div id="snapshot"></div>
+<script>
+window.onerror = function(msg, url, line) {
+    document.title = 'ERR: ' + msg + ' at ' + line;
+};
+
+CONFIG.DEBUG = false;
+
+// Parse scenario
+const params = new URLSearchParams(window.location.search);
+const scenario = params.get('scenario') || 'main_gameplay_new_skins';
+
+// Setup save state for the scenario
+const state = SaveManager._deepClone(SaveManager.DEFAULT_STATE);
+
+if (scenario === 'main_gameplay_new_skins') {
+    state.player.level = 8;
+    state.player.coins = 2450;
+    state.collection = [1, 2, 3, 4, 5, 7, 8, 10, 11, 12];
+    state.field = [
+        { id: 1, mobLevel: 1, x: 260, y: 220 }, // Цыпа
+        { id: 2, mobLevel: 2, x: 380, y: 220 }, // Кролик
+        { id: 3, mobLevel: 3, x: 500, y: 220 }, // Хрюша
+        { id: 4, mobLevel: 4, x: 620, y: 220 }, // Бурёнка
+        { id: 5, mobLevel: 5, x: 260, y: 320 }, // Овечка
+        { id: 6, mobLevel: 7, x: 380, y: 320 }, // Слизень
+        { id: 7, mobLevel: 10, x: 500, y: 320 }, // Крипер
+        { id: 8, mobLevel: 12, x: 620, y: 320 }  // Скелетик
+    ];
+    state.features = {
+        incubator:      { unlocked: true, animSeen: true, firstOpened: true },
+        rewards:        { unlocked: false, animSeen: false, firstOpened: false },
+        quests:         { unlocked: false, animSeen: false, firstOpened: false },
+        shop_ad:        { unlocked: true, animSeen: true, firstOpened: true },
+        world_selector: { unlocked: true, animSeen: true, firstOpened: true },
+    };
+    state.selectedWorld = 'green_hills';
+} else if (scenario === 'bestiary_ordinary_tab') {
+    state.player.level = 15;
+    state.collection = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+    state.elementalEvolutionUnlocked = false;
+    state.goldenEvolutionUnlocked = false;
+} else if (scenario === 'bestiary_elemental_locked') {
+    state.player.level = 20;
+    state.collection = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+    state.elementalEvolutionUnlocked = false;
+    state.goldenEvolutionUnlocked = false;
+} else if (scenario === 'bestiary_elemental_unlocked') {
+    state.player.level = 35;
+    state.collection = [
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+        31, 32, 33, 34, 35, 40, 42
+    ];
+    state.elementalEvolutionUnlocked = true;
+    state.goldenEvolutionUnlocked = false;
+} else if (scenario === 'bestiary_golden_locked') {
+    state.player.level = 45;
+    state.collection = [
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+        31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45
+    ];
+    state.elementalEvolutionUnlocked = true;
+    state.goldenEvolutionUnlocked = false;
+} else if (scenario === 'world_selector') {
+    state.player.level = 12;
+    state.collection = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    state.selectedWorld = 'green_hills';
+    state.unlockedWorlds = ['green_hills', 'sunset_valley', 'night_meadow'];
+} else if (scenario === 'feature_notification_dot') {
+    state.player.level = 6;
+    state.collection = [1, 2, 3, 4, 5, 6];
+    state.field = [
+        { id: 1, mobLevel: 1, x: 380, y: 250 },
+        { id: 2, mobLevel: 2, x: 500, y: 250 }
+    ];
+    state.features = {
+        incubator:      { unlocked: true, animSeen: true, firstOpened: false }, // Red dot on incubator!
+        rewards:        { unlocked: false, animSeen: false, firstOpened: false },
+        quests:         { unlocked: false, animSeen: false, firstOpened: false },
+        shop_ad:        { unlocked: true, animSeen: true, firstOpened: true },
+        world_selector: { unlocked: true, animSeen: true, firstOpened: false }, // Red dot on settings gear!
+    };
+} else if (scenario === 'evolution_unlock_modal') {
+    state.player.level = 31;
+    state.collection = [1, 2, 3, 4, 5, 30, 31];
+    state.elementalEvolutionUnlocked = true;
+}
+
+SaveManager.save(state);
+
+// Preload override for relative paths
+BootScene.prototype.preload = function() {
+    this._createColorTexture('bg_game',   0x2d5a27, 960, 540);
+    this._createColorTexture('bg_battle', 0x1a1a2e, 960, 540);
+
+    for (let baseId = 1; baseId <= 30; baseId++) {
+        const pad = String(baseId).padStart(2, '0');
+        const spritePath = `../assets/mobs/sprites/256/mob_${pad}.png`;
+        const ordPath    = `../assets/mobs/sprites/256/mob_ordinary_${pad}.png`;
+        const elPath     = `../assets/mobs/sprites/256/mob_elemental_${pad}.png`;
+        const goPath     = `../assets/mobs/sprites/256/mob_golden_${pad}.png`;
+
+        this.load.image(`mob_sprite_${pad}`, spritePath);
+        this.load.image(`mob_${pad}`, spritePath);
+        this.load.image(`mob_${pad}_sm`, spritePath);
+        this.load.image(`mob_ordinary_${pad}`, ordPath);
+        this.load.image(`mob_elemental_${pad}`, elPath);
+        this.load.image(`mob_golden_${pad}`, goPath);
+    }
+
+    for (let lvl = 1; lvl <= 90; lvl++) {
+        const pad = String(lvl).padStart(2, '0');
+        this.load.image(`mob_portrait_${pad}`, `../assets/mobs/portraits/256/mob_${pad}.png`);
+    }
+
+    this.load.image('mob_sprite_placeholder',   '../assets/mobs/sprites/256/placeholder.png');
+    this.load.image('mob_portrait_placeholder', '../assets/mobs/portraits/256/mob_11.png');
+    this.load.image('mob_placeholder',          '../assets/mobs/sprites/256/placeholder.png');
+
+    this.load.image('icon_gem',     '../assets/icons/gem.png');
+    this.load.image('icon_sword',   '../assets/icons/sword.png');
+    this.load.image('icon_chest',   '../assets/icons/chest.png');
+    this.load.image('icon_egg',     '../assets/icons/egg.png');
+    this.load.image('icon_gear',    '../assets/icons/gear.png');
+    this.load.image('icon_emerald', '../assets/icons/gem.png');
+};
+
+const renderScale = CONFIG.RENDER_SCALE || 2.0;
+const config = {
+    type: Phaser.AUTO,
+    width: Math.round(CONFIG.WIDTH * renderScale),
+    height: Math.round(CONFIG.HEIGHT * renderScale),
+    parent: 'game-container',
+    scale: {
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+    },
+    backgroundColor: '#0b0f19',
+    render: {
+        pixelArt: false,
+        antialias: true,
+        antialiasGL: true,
+        roundPixels: false,
+        powerPreference: 'high-performance',
+    },
+    scene: [BootScene, GameScene, BattleScene, CollectionScene]
+};
+
+window.game = new Phaser.Game(config);
+
+let frameCount = 0;
+let triggered = false;
+let captured = false;
+
+function pollCapture() {
+    const gameScene = window.game && window.game.scene ? window.game.scene.getScene('GameScene') : null;
+    if (gameScene && gameScene.scene.isActive() && gameScene._isInitialized) {
+        if (!triggered) {
+            triggered = true;
+            if (scenario === 'bestiary_ordinary_tab') {
+                window.testOpenCollection(0);
+            } else if (scenario === 'bestiary_elemental_locked') {
+                window.testOpenCollection(1);
+            } else if (scenario === 'bestiary_elemental_unlocked') {
+                window.testOpenCollection(1);
+            } else if (scenario === 'bestiary_golden_locked') {
+                window.testOpenCollection(2);
+            } else if (scenario === 'world_selector') {
+                window.testOpenWorldSelector();
+            } else if (scenario === 'evolution_unlock_modal') {
+                window.testShowMilestone('elemental');
+            }
+        }
+
+        frameCount++;
+        if (frameCount >= 18 && !captured) {
+            captured = true;
+            window.game.renderer.snapshot((image) => {
+                document.getElementById('snapshot').textContent = image.src;
+                document.title = 'SNAPSHOT_DONE';
+                window.game.destroy(true);
+            });
+            return;
+        }
+    }
+    requestAnimationFrame(pollCapture);
+}
+requestAnimationFrame(pollCapture);
+</script>
+</body>
+</html>

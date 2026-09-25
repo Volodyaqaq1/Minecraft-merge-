@@ -1,6 +1,9 @@
 // ============================================================
 // data/mobs.js — Data-driven манифест персонажей Бестиария
-// 90 уровней прогрессии: 30 базовых мобов × 3 тира (Обычный, Золотой, Алмазный)
+// 90 уровней прогрессии: 30 базовых мобов × 3 эволюции
+// 1. Обычная (Lv. 1–30)
+// 2. Стихийная (Lv. 31–60)
+// 3. Золотая (Lv. 61–90)
 // ============================================================
 
 // Цвета рамки карточки по редкости (каждые 5 уровней — новая редкость)
@@ -25,45 +28,88 @@ const MOB_RARITY_COLORS = [
     0xffffff, // Lv 86-90: Абсолют (алмазный перламутр)
 ];
 
-// Тиры персонажей
-const MOB_TIERS = {
-    1: { id: 1, name: 'Обычный',  prefix: '',          color: 0x94a3b8, auraColor: null },
-    2: { id: 2, name: 'Золотой',  prefix: 'Золотой ',  color: 0xffd700, auraColor: 0xffd700 },
-    3: { id: 3, name: 'Алмазный', prefix: 'Алмазный ', color: 0x00e6ff, auraColor: 0x00e6ff },
+// 3 Эры Эволюции
+const EVOLUTIONS = {
+    ordinary: {
+        id: 'ordinary',
+        tier: 1,
+        index: 0,
+        name: 'Обычная',
+        tabName: 'ОБЫЧНЫЕ',
+        levelRange: [1, 30],
+        prefix: '',
+        color: 0x94a3b8,
+        auraColor: null,
+    },
+    elemental: {
+        id: 'elemental',
+        tier: 2,
+        index: 1,
+        name: 'Стихийная',
+        tabName: 'СТИХИЙНЫЕ',
+        levelRange: [31, 60],
+        prefix: 'Стихийная ',
+        color: 0x38bdf8,
+        auraColor: 0x38bdf8,
+    },
+    golden: {
+        id: 'golden',
+        tier: 3,
+        index: 2,
+        name: 'Золотая',
+        tabName: 'ЗОЛОТЫЕ',
+        levelRange: [61, 90],
+        prefix: 'Золотая ',
+        color: 0xffd700,
+        auraColor: 0xffd700,
+    },
 };
 
-// 30 базовых уникальных персонажей
+const EVOLUTION_LIST = [
+    EVOLUTIONS.ordinary,
+    EVOLUTIONS.elemental,
+    EVOLUTIONS.golden
+];
+
+// Обратная совместимость для компонентов, ожидающих MOB_TIERS
+const MOB_TIERS = {
+    1: EVOLUTIONS.ordinary,
+    2: EVOLUTIONS.elemental,
+    3: EVOLUTIONS.golden,
+};
+
+// 30 базовых уникальных персонажей в каноническом порядке
 const BASE_MOBS = [
-    { baseId: 1,  name: 'Цыпа',             skinFile: 'Chicken.jpg',  hasSkin: true },
-    { baseId: 2,  name: 'Хрюша',            skinFile: 'pig.jpg',      hasSkin: true },
-    { baseId: 3,  name: 'Бурёнка',          skinFile: 'cow.jpg',      hasSkin: true },
-    { baseId: 4,  name: 'Овечка',           skinFile: 'sheep.jpg',    hasSkin: true },
-    { baseId: 5,  name: 'Кролик',           skinFile: 'rabbit.jpg',   hasSkin: true },
-    { baseId: 6,  name: 'Летучая мышка',    skinFile: 'bat.jpg',      hasSkin: true },
-    { baseId: 7,  name: 'Зомбик',           skinFile: 'Zombie.jpg',   hasSkin: true },
-    { baseId: 8,  name: 'Скелетик',         skinFile: 'Skeleton.jpg', hasSkin: true },
-    { baseId: 9,  name: 'Паучок',           skinFile: 'Spider.jpg',   hasSkin: true },
-    { baseId: 10, name: 'Бумик',            skinFile: 'crepper.jpg',  hasSkin: true },
-    { baseId: 11, name: 'Колдунья',         skinFile: null,           hasSkin: false },
-    { baseId: 12, name: 'Циклоп',           skinFile: null,           hasSkin: false },
-    { baseId: 13, name: 'Тёмный рыцарь',    skinFile: null,           hasSkin: false },
-    { baseId: 14, name: 'Телепорт',         skinFile: null,           hasSkin: false },
-    { baseId: 15, name: 'Огонёк',           skinFile: null,           hasSkin: false },
-    { baseId: 16, name: 'Призрак',          skinFile: null,           hasSkin: false },
-    { baseId: 17, name: 'Пещерник',         skinFile: null,           hasSkin: false },
-    { baseId: 18, name: 'Лавовый куб',      skinFile: null,           hasSkin: false },
-    { baseId: 19, name: 'Трёхглавый',       skinFile: null,           hasSkin: false },
-    { baseId: 20, name: 'Морской титан',    skinFile: null,           hasSkin: false },
-    { baseId: 21, name: 'Громила',          skinFile: null,           hasSkin: false },
-    { baseId: 22, name: 'Чародей',          skinFile: null,           hasSkin: false },
-    { baseId: 23, name: 'Вепрь',            skinFile: null,           hasSkin: false },
-    { baseId: 24, name: 'Разбойник',        skinFile: null,           hasSkin: false },
-    { baseId: 25, name: 'Ледяной странник', skinFile: null,           hasSkin: false },
-    { baseId: 26, name: 'Ночной крылан',    skinFile: null,           hasSkin: false },
-    { baseId: 27, name: 'Желейка',          skinFile: null,           hasSkin: false },
-    { baseId: 28, name: 'Железный страж',   skinFile: null,           hasSkin: false },
-    { baseId: 29, name: 'Снеговик',         skinFile: null,           hasSkin: false },
-    { baseId: 30, name: 'Древний Дракон',   skinFile: null,           hasSkin: false },
+    { baseId: 1,  name: 'Цыпа',             skinFile: 'Chicken.jpg',        hasSkin: true },
+    { baseId: 2,  name: 'Кролик',           skinFile: 'rabbit.jpg',         hasSkin: true },
+    { baseId: 3,  name: 'Хрюша',            skinFile: 'pig.jpg',            hasSkin: true },
+    { baseId: 4,  name: 'Бурёнка',          skinFile: 'cow.jpg',            hasSkin: true },
+    { baseId: 5,  name: 'Овечка',           skinFile: 'sheep.jpg',          hasSkin: true },
+    { baseId: 6,  name: 'Летучая мышка',    skinFile: 'bat.jpg',            hasSkin: true },
+    { baseId: 7,  name: 'Желейка',          skinFile: 'Slime.jpg',          hasSkin: true },
+    { baseId: 8,  name: 'Паучок',           skinFile: 'Spider.jpg',         hasSkin: true },
+    { baseId: 9,  name: 'Пещерник',         skinFile: 'CaveSpider.jpg',     hasSkin: true },
+    { baseId: 10, name: 'Бумик',            skinFile: 'crepper.jpg',        hasSkin: true },
+    { baseId: 11, name: 'Зомбик',           skinFile: 'Zombie.jpg',         hasSkin: true },
+    { baseId: 12, name: 'Скелетик',         skinFile: 'Skeleton.jpg',       hasSkin: true },
+    { baseId: 13, name: 'Ледяной странник', skinFile: 'Stray.jpg',          hasSkin: true },
+    { baseId: 14, name: 'Снеговик',         skinFile: 'Snow Golem.jpg',     hasSkin: true },
+    { baseId: 15, name: 'Колдунья',         skinFile: 'Witch.jpg',          hasSkin: true },
+    { baseId: 16, name: 'Разбойник',        skinFile: 'Pillager.jpg',       hasSkin: true },
+    { baseId: 17, name: 'Громила',          skinFile: 'PiglinBrute.jpg',    hasSkin: true },
+    { baseId: 18, name: 'Вепрь',            skinFile: 'Hoglin.jpg',         hasSkin: true },
+    { baseId: 19, name: 'Лавовый куб',      skinFile: 'Magma Cube.jpg',     hasSkin: true },
+    { baseId: 20, name: 'Огонёк',           skinFile: 'Blaze.jpg',          hasSkin: true },
+    { baseId: 21, name: 'Призрак',          skinFile: 'Ghast.jpg',          hasSkin: true },
+    { baseId: 22, name: 'Чародей',          skinFile: 'Evoker.jpg',         hasSkin: true },
+    { baseId: 23, name: 'Циклоп',           skinFile: 'Guardian.jpg',       hasSkin: true },
+    { baseId: 24, name: 'Морской титан',    skinFile: 'ElderGuardian.jpg',  hasSkin: true },
+    { baseId: 25, name: 'Ночной крылан',    skinFile: 'Phantom.jpg',        hasSkin: true },
+    { baseId: 26, name: 'Телепорт',         skinFile: 'EnderMan.jpg',       hasSkin: true },
+    { baseId: 27, name: 'Тёмный рыцарь',    skinFile: 'WitherSkeleton.jpg', hasSkin: true },
+    { baseId: 28, name: 'Железный страж',   skinFile: 'Iron Golem.jpg',     hasSkin: true },
+    { baseId: 29, name: 'Трёхглавый',       skinFile: 'Wither.jpg',         hasSkin: true },
+    { baseId: 30, name: 'Древний Дракон',   skinFile: 'EnderDragon.jpg',    hasSkin: true },
 ];
 
 // Генерация 90 уровней прогрессии
@@ -71,51 +117,51 @@ const MOBS = [];
 
 for (let lvl = 1; lvl <= 90; lvl++) {
     const baseMobId = ((lvl - 1) % 30) + 1;
-    const tierId = Math.floor((lvl - 1) / 30) + 1;
-    const tier = MOB_TIERS[tierId];
+    const localLevel = baseMobId;
+    const evolutionIndex = Math.floor((lvl - 1) / 30);
+    const evolutionTier = evolutionIndex + 1;
+    const evolution = EVOLUTION_LIST[evolutionIndex];
     const base = BASE_MOBS[baseMobId - 1];
-    
-    // Формирование имени с учетом рода и тира
+
+    // Формирование имени с учетом рода и эволюции
+    const isFeminine = base.name.endsWith('а') || base.name.endsWith('я');
     let fullName = base.name;
-    if (tierId === 2) {
-        if (base.name.endsWith('а') || base.name.endsWith('я')) {
-            fullName = 'Золотая ' + base.name;
-        } else {
-            fullName = 'Золотой ' + base.name;
-        }
-    } else if (tierId === 3) {
-        if (base.name.endsWith('а') || base.name.endsWith('я')) {
-            fullName = 'Алмазная ' + base.name;
-        } else {
-            fullName = 'Алмазный ' + base.name;
-        }
+    if (evolutionIndex === 1) {
+        fullName = (isFeminine ? 'Стихийная ' : 'Стихийный ') + base.name;
+    } else if (evolutionIndex === 2) {
+        fullName = (isFeminine ? 'Золотая ' : 'Золотой ') + base.name;
     }
 
     const rarityIdx = Math.min(MOB_RARITY_COLORS.length - 1, Math.floor((lvl - 1) / 5));
-    
+
     // Ключи текстур
     const padBase = String(baseMobId).padStart(2, '0');
     const padLvl = String(lvl).padStart(2, '0');
-    
-    // Sprite: прозрачный полный персонаж для поля/боя
-    const spriteKey = base.hasSkin ? `mob_sprite_${padBase}` : 'mob_sprite_placeholder';
-    // Portrait: оформленный круглый портрет для магазина/квестов/коллекции
+
+    // Sprite: эволюционный прозрачный спрайт
+    const spriteKey = `mob_${evolution.id}_${padBase}`;
+    // Portrait: оформленный круглый портрет
     const portraitKey = `mob_portrait_${padLvl}`;
-    
-    // Legacy textureKey для обратной совместимости
-    const legacyKey = base.hasSkin ? `mob_${padBase}` : 'mob_placeholder';
+    // Legacy textureKey для совместимости
+    const legacyKey = `mob_${padBase}`;
 
     MOBS.push({
         id: lvl,
         level: lvl,
+        globalLevel: lvl,
+        localLevel,
         baseMobId,
-        tier: tierId,
-        tierName: tier.name,
-        tierColor: tier.color,
-        auraColor: tier.auraColor,
-        name: fullName,
         baseName: base.name,
-        hasSkin: base.hasSkin,
+        evolutionTier,
+        evolutionId: evolution.id,
+        evolutionName: evolution.name,
+        evolutionIndex,
+        tier: evolutionTier,
+        tierName: evolution.name,
+        tierColor: evolution.color,
+        auraColor: evolution.auraColor,
+        name: fullName,
+        hasSkin: true,
         skinFile: base.skinFile,
         // Специфические HD ключи
         spriteKey,
@@ -145,6 +191,22 @@ function getMobByLevel(level) {
 }
 
 /**
+ * Получить эволюцию по уровню (1-90)
+ */
+function getEvolutionByLevel(level) {
+    const lvl = Math.max(1, Math.min(90, Math.floor(level || 1)));
+    const idx = Math.floor((lvl - 1) / 30);
+    return EVOLUTION_LIST[idx] || EVOLUTIONS.ordinary;
+}
+
+/**
+ * Получить эволюцию по ID
+ */
+function getEvolutionById(id) {
+    return EVOLUTIONS[id] || EVOLUTIONS.ordinary;
+}
+
+/**
  * Получить следующего моба
  */
 function getNextMob(level) {
@@ -153,23 +215,22 @@ function getNextMob(level) {
 
 /**
  * Ленивая загрузка 512px HD текстуры для окна открытия моба или детального просмотра
- * Предотвращает переполнение VRAM
  */
 function ensureMob512Loaded(scene, level, callback) {
     const mob = getMobByLevel(level);
-    if (!mob || !mob.hasSkin) {
+    if (!mob) {
         if (callback) callback('mob_sprite_placeholder');
         return;
     }
-    
+
     const padBase = String(mob.baseMobId).padStart(2, '0');
     const key512 = `mob_sprite_512_${padBase}`;
-    
+
     if (scene.textures.exists(key512)) {
         if (callback) callback(key512);
         return;
     }
-    
+
     scene.load.image(key512, `assets/mobs/sprites/512/mob_${padBase}.png`);
     scene.load.once('complete', () => {
         if (callback) callback(key512);

@@ -1,11 +1,12 @@
 // ============================================================
-// components/SaveManager.js — сохранение в localStorage
+// components/SaveManager.js — сохранение в localStorage с миграцией v2
 // ============================================================
 
 const SaveManager = {
     KEY: 'bestiary_squishy_save_v1',
 
     DEFAULT_STATE: {
+        saveVersion: 2,
         player: {
             level: 1,
             xp: 0,
@@ -13,8 +14,20 @@ const SaveManager = {
             multiplier: 1,
         },
         field: [],          // [{ id, mobLevel, x, y }, ...]
-        collection: [1],    // открытые уровни мобов
+        collection: [1],    // открытые уровни мобов (1..90)
         freeSpawnTime: 0,   // timestamp когда можно брать бесплатного
+        currentEvolution: 'ordinary',
+        elementalEvolutionUnlocked: false,
+        goldenEvolutionUnlocked: false,
+        selectedWorld: 'green_hills',
+        unlockedWorlds: ['green_hills'],
+        features: {
+            incubator:      { unlocked: false, animSeen: false, firstOpened: false },
+            rewards:        { unlocked: false, animSeen: false, firstOpened: false },
+            quests:         { unlocked: false, animSeen: false, firstOpened: false },
+            shop_ad:        { unlocked: false, animSeen: false, firstOpened: false },
+            world_selector: { unlocked: false, animSeen: false, firstOpened: false },
+        },
         incubatorSlots: [
             { id: 0, unlockLevel: 6, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0, adSpeedupUsed: false },
             { id: 1, unlockLevel: 15, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0, adSpeedupUsed: false },
@@ -30,14 +43,15 @@ const SaveManager = {
     },
 
     /**
-     * Загрузить сохранение (возвращает объект состояния)
+     * Загрузить сохранение (возвращает объект состояния с миграцией)
      */
     load() {
         try {
             const raw = localStorage.getItem(this.KEY);
             if (!raw) return this._deepClone(this.DEFAULT_STATE);
             const saved = JSON.parse(raw);
-            return this._merge(this._deepClone(this.DEFAULT_STATE), saved);
+            const merged = this._merge(this._deepClone(this.DEFAULT_STATE), saved);
+            return this._migrate(merged);
         } catch (e) {
             console.warn('SaveManager: ошибка загрузки, сброс', e);
             return this._deepClone(this.DEFAULT_STATE);
@@ -65,6 +79,88 @@ const SaveManager = {
             localStorage.removeItem('mc_merge_save_v2');
             localStorage.removeItem('mc_merge_save_v1');
         } catch (e) {}
+    },
+
+    /**
+     * Безопасная миграция сохранений на канонический порядок и 3 эволюции
+     */
+    _migrate(state) {
+        if (!state || typeof state !== 'object') return this._deepClone(this.DEFAULT_STATE);
+
+        // Миграция со старого порядка (v1 -> v2)
+        if (!state.saveVersion || state.saveVersion < 2) {
+            const oldToNewMap = {
+                1: 1,   // Цыпа -> Цыпа
+                2: 3,   // Хрюша -> Хрюша (теперь #3)
+                3: 4,   // Бурёнка -> Бурёнка (теперь #4)
+                4: 5,   // Овечка -> Овечка (теперь #5)
+                5: 2,   // Кролик -> Кролик (теперь #2)
+                6: 6,   // Летучая мышка -> Летучая мышка (#6)
+                7: 11,  // Зомбик -> Зомбик (теперь #11)
+                8: 12,  // Скелетик -> Скелетик (теперь #12)
+                9: 8,   // Паучок -> Паучок (теперь #8)
+                10: 10, // Бумик -> Бумик (#10)
+            };
+
+            if (Array.isArray(state.field)) {
+                state.field.forEach(mob => {
+                    if (mob && mob.mobLevel && oldToNewMap[mob.mobLevel]) {
+                        mob.mobLevel = oldToNewMap[mob.mobLevel];
+                    }
+                });
+            }
+
+            if (Array.isArray(state.collection)) {
+                const newCol = new Set();
+                state.collection.forEach(lvl => {
+                    if (oldToNewMap[lvl]) newCol.add(oldToNewMap[lvl]);
+                    else if (lvl > 0 && lvl <= 90) newCol.add(lvl);
+                });
+                if (!newCol.has(1)) newCol.add(1);
+                state.collection = Array.from(newCol).sort((a, b) => a - b);
+            }
+
+            if (Array.isArray(state.quests)) {
+                state.quests.forEach(q => {
+                    if (q && q.mobLevel && oldToNewMap[q.mobLevel]) {
+                        q.mobLevel = oldToNewMap[q.mobLevel];
+                    }
+                });
+            }
+
+            // Для старых игроков, у которых уже открыты фичи, не показываем стартовую анимацию повторно
+            if (state.player && state.player.level) {
+                state.features = state.features || {};
+                if (state.player.level >= 6)  state.features.incubator = { unlocked: true, animSeen: true, firstOpened: true };
+                if (state.player.level >= 9)  state.features.rewards   = { unlocked: true, animSeen: true, firstOpened: true };
+                if (state.player.level >= 11) state.features.quests    = { unlocked: true, animSeen: true, firstOpened: true };
+            }
+
+            state.saveVersion = 2;
+        }
+
+        // Гарантируем наличие новых полей
+        if (!state.currentEvolution) state.currentEvolution = 'ordinary';
+        if (state.elementalEvolutionUnlocked === undefined) {
+            state.elementalEvolutionUnlocked = Array.isArray(state.collection) && state.collection.some(lvl => lvl >= 30);
+        }
+        if (state.goldenEvolutionUnlocked === undefined) {
+            state.goldenEvolutionUnlocked = Array.isArray(state.collection) && state.collection.some(lvl => lvl >= 60);
+        }
+        if (!state.selectedWorld) state.selectedWorld = 'green_hills';
+        if (!Array.isArray(state.unlockedWorlds)) state.unlockedWorlds = ['green_hills'];
+        if (!state.features || typeof state.features !== 'object') {
+            const pLvl = (state.player && state.player.level) || 1;
+            state.features = {
+                incubator:      { unlocked: pLvl >= 6,  animSeen: pLvl >= 6,  firstOpened: pLvl >= 6 },
+                rewards:        { unlocked: pLvl >= 9,  animSeen: pLvl >= 9,  firstOpened: pLvl >= 9 },
+                quests:         { unlocked: pLvl >= 11, animSeen: pLvl >= 11, firstOpened: pLvl >= 11 },
+                shop_ad:        { unlocked: false, animSeen: true, firstOpened: true },
+                world_selector: { unlocked: false, animSeen: true, firstOpened: true },
+            };
+        }
+
+        return state;
     },
 
     _deepClone(obj) {

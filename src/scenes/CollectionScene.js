@@ -1,7 +1,7 @@
 // ============================================================
-// scenes/CollectionScene.js — Бестиарий (коллекция всех мобов)
-// Casual UI Redesign: Rarity borders, collection progress bar,
-// 3D casual cards, mysterious locked states, tactile scroll.
+// scenes/CollectionScene.js — Бестиарий с 3 Эрами Эволюций
+// Вкладки: 1. ОБЫЧНЫЕ | 2. СТИХИЙНЫЕ | 3. ЗОЛОТЫЕ
+// Замки, счётчики X/90 и X/30, статус завершения (30/30 ✓)
 // ============================================================
 
 class CollectionScene extends Phaser.Scene {
@@ -9,6 +9,9 @@ class CollectionScene extends Phaser.Scene {
 
     init(data) {
         this.unlockedSet = new Set(data && data.collection ? data.collection : []);
+        this.elementalUnlocked = !!(data && (data.elementalUnlocked || data.elementalEvolutionUnlocked || [...this.unlockedSet].some(lvl => lvl >= 30)));
+        this.goldenUnlocked = !!(data && (data.goldenUnlocked || data.goldenEvolutionUnlocked || [...this.unlockedSet].some(lvl => lvl >= 60)));
+        this.currentTab = (data && data.initialTab !== undefined) ? data.initialTab : 0; // 0: Ordinary, 1: Elemental, 2: Golden
     }
 
     create() {
@@ -16,105 +19,294 @@ class CollectionScene extends Phaser.Scene {
         const W = CONFIG.WIDTH;
         const H = CONFIG.HEIGHT;
 
-        // Полупрозрачный темный фон
-        this.add.rectangle(W / 2, H / 2, W, H, 0x090d16, 0.90);
+        // Полупрозрачный темный оверлей
+        this.add.rectangle(W / 2, H / 2, W, H, 0x090d16, 0.92);
 
-        // Основное окно
+        // Основная подложка Бестиария
         const bgG = this.add.graphics();
-        // Внешняя тень окна
-        drawRoundRect(bgG, 18, 10, W - 36, H - 20, 18, 0x020617, 0.65);
-        // Основа панели
+        drawRoundRect(bgG, 18, 10, W - 36, H - 20, 18, 0x020617, 0.70);
         drawRoundRect(bgG, 18, 10, W - 36, H - 20, 18, 0x0f172a, 0.98, 0x334155, 2);
 
         // Верхняя плашка шапки
-        bgG.fillStyle(0x090d16, 0.55);
+        bgG.fillStyle(0x090d16, 0.65);
         bgG.fillRoundedRect(20, 12, W - 40, 58, { tl: 16, tr: 16, bl: 0, br: 0 });
-        bgG.lineStyle(1.5, 0x1e293b, 0.8);
+        bgG.lineStyle(1.5, 0x1e293b, 0.85);
         bgG.lineBetween(20, 70, W - 20, 70);
 
-        // 1. Заголовок
-        createHDText(this, 42, 33, '📖 БЕСТИАРИЙ', {
-            fontSize: '20px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+        // 1. Заголовок Бестиария
+        createHDText(this, 38, 30, '📖 КУБИЧЕСКИЙ БЕСТИАРИЙ', {
+            fontSize: '18px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
             color: '#ffd700', stroke: '#0f172a', strokeThickness: 3, fontStyle: '900',
         }).setOrigin(0, 0.5);
 
-        createHDText(this, 42, 51, 'Коллекция персонажей', {
+        // 2. Глобальный счётчик коллекции (X / 90)
+        const totalMobs = 90;
+        const totalUnlocked = this.unlockedSet.size;
+        const globalProgress = Phaser.Math.Clamp(totalUnlocked / totalMobs, 0, 1);
+        const globalPct = Math.round(globalProgress * 100);
+
+        const barX = 330;
+        const barY = 22;
+        const barW = 340;
+        const barH = 20;
+
+        drawCasualProgressBar(bgG, barX, barY, barW, barH, 10, globalProgress, 0x090d16, 0x10b981, 0x059669);
+
+        createHDText(this, barX + barW / 2, barY + barH / 2, `Коллекция: ${totalUnlocked} / ${totalMobs} (${globalPct}%)`, {
             fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
-            color: '#94a3b8', fontStyle: '800',
-        }).setOrigin(0, 0.5);
-
-        // 2. Прогресс-бар коллекции
-        const totalMobs = (typeof MOBS !== 'undefined' && MOBS.length) ? MOBS.length : (CONFIG.MOB_LEVELS || 90);
-        const unlockedCount = this.unlockedSet.size;
-        const progressRatio = totalMobs > 0 ? Phaser.Math.Clamp(unlockedCount / totalMobs, 0, 1) : 0;
-        const pct = Math.round(progressRatio * 100);
-
-        const barX = 260;
-        const barY = 30;
-        const barW = 400;
-        const barH = 22;
-
-        // drawCasualProgressBar: (graphics, x, y, w, h, r, progress, bgColor, fillColor, borderColor)
-        drawCasualProgressBar(bgG, barX, barY, barW, barH, 11, progressRatio, 0x090d16, 0x10b981, 0x059669);
-
-        // Текст на прогресс-баре
-        createHDText(this, barX + barW / 2, barY + barH / 2, `✨ Открыто: ${unlockedCount} / ${totalMobs} (${pct}%) ✨`, {
-            fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
-            color: '#ffffff', stroke: '#052e16', strokeThickness: 3, fontStyle: '900',
+            color: '#ffffff', stroke: '#052e16', strokeThickness: 2.5, fontStyle: '900',
         }).setOrigin(0.5, 0.5);
 
-        // 3. Тактильная 3D кнопка Закрыть
-        createCasualButton(this, W - 80, 41, 104, 32, '✕ Закрыть', {
+        // 3. Кнопка "✕ Закрыть"
+        createCasualButton(this, W - 76, 38, 96, 32, '✕ Закрыть', {
             topColor: 0xef4444,
             bottomColor: 0x991b1b,
             strokeColor: 0xfca5a5,
-            fontSize: '13px',
+            fontSize: '12px',
             textColor: '#ffffff',
+            radius: 8,
+            lip: 3,
         }, () => {
             this.scene.stop();
         });
 
-        // 4. Область прокрутки карточек
-        const viewY = 76;
-        const viewH = H - 94;
+        // 4. Полоса 3 вкладок эволюций (ОБЫЧНЫЕ, СТИХИЙНЫЕ, ЗОЛОТЫЕ)
+        this.tabContainer = this.add.container(0, 0);
+        this._buildEvolutionTabs();
+
+        // 5. Контейнер контента карточек с геометрической маской
+        const viewY = 114;
+        const viewH = H - 128;
         const viewW = W - 40;
 
         const maskShape = this.make.graphics();
         maskShape.fillRect(20, viewY, viewW, viewH);
-        const mask = maskShape.createGeometryMask();
+        this.contentMask = maskShape.createGeometryMask();
 
         this.cardsContainer = this.add.container(0, 0);
-        this.cardsContainer.setMask(mask);
+        this.cardsContainer.setMask(this.contentMask);
 
-        // Сетка мобов: 5 колонок × 18 рядов (90 мобов)
+        // Интерактивная прокрутка
+        this.input.on('wheel', (pointer, gameObjects, deltaX, deltaY) => {
+            this._scrollBy(deltaY * 0.7);
+        });
+
+        let isDragging = false;
+        let dragStartY = 0;
+        let containerStartY = 0;
+
+        const scrollHitArea = this.add.rectangle(20 + viewW / 2, viewY + viewH / 2, viewW, viewH, 0x000000, 0)
+            .setInteractive({ cursor: 'grab' });
+
+        scrollHitArea.on('pointerdown', (ptr) => {
+            isDragging = true;
+            dragStartY = ptr.y;
+            containerStartY = this.cardsContainer.y;
+        });
+
+        this.input.on('pointermove', (ptr) => {
+            if (!isDragging) return;
+            const dy = ptr.y - dragStartY;
+            this.cardsContainer.y = containerStartY + dy;
+            this._clampScroll();
+        });
+
+        this.input.on('pointerup', () => { isDragging = false; });
+        this.input.on('pointerout', () => { isDragging = false; });
+
+        // Первоначальный рендер выбранной вкладки
+        this._renderCurrentTab();
+    }
+
+    _buildEvolutionTabs() {
+        this.tabContainer.removeAll(true);
+        const W = CONFIG.WIDTH;
+
+        // Подсчёт мобов по каждой эволюции
+        let ordCount = 0;
+        let elCount = 0;
+        let goCount = 0;
+
+        for (let lvl = 1; lvl <= 30; lvl++) {
+            if (this.unlockedSet.has(lvl)) ordCount++;
+        }
+        for (let lvl = 31; lvl <= 60; lvl++) {
+            if (this.unlockedSet.has(lvl)) elCount++;
+        }
+        for (let lvl = 61; lvl <= 90; lvl++) {
+            if (this.unlockedSet.has(lvl)) goCount++;
+        }
+
+        const tabsConfig = [
+            {
+                id: 0,
+                key: 'ordinary',
+                name: 'ОБЫЧНЫЕ',
+                count: ordCount,
+                total: 30,
+                isUnlocked: true,
+                color: 0x64748b,
+                activeColor: 0x3b82f6,
+                label: `1. ОБЫЧНЫЕ ${ordCount}/30${ordCount >= 30 ? ' ✓' : ''}`,
+            },
+            {
+                id: 1,
+                key: 'elemental',
+                name: 'СТИХИЙНЫЕ',
+                count: elCount,
+                total: 30,
+                isUnlocked: this.elementalUnlocked,
+                color: 0x0284c7,
+                activeColor: 0x06b6d4,
+                label: this.elementalUnlocked
+                    ? `2. СТИХИЙНЫЕ ${elCount}/30${elCount >= 30 ? ' ✓' : ''}`
+                    : '🔒 2. СТИХИЙНЫЕ',
+            },
+            {
+                id: 2,
+                key: 'golden',
+                name: 'ЗОЛОТЫЕ',
+                count: goCount,
+                total: 30,
+                isUnlocked: this.goldenUnlocked,
+                color: 0xd97706,
+                activeColor: 0xf59e0b,
+                label: this.goldenUnlocked
+                    ? `3. ЗОЛОТЫЕ ${goCount}/30${goCount >= 30 ? ' ✓' : ''}`
+                    : '🔒 3. ЗОЛОТЫЕ',
+            },
+        ];
+
+        const tabW = 270;
+        const tabH = 34;
+        const startX = (W - (tabsConfig.length * tabW + (tabsConfig.length - 1) * 12)) / 2 + tabW / 2;
+        const tabY = 90;
+
+        tabsConfig.forEach((cfg, idx) => {
+            const tx = startX + idx * (tabW + 12);
+            const isActive = (this.currentTab === cfg.id);
+
+            const tabBg = this.add.graphics();
+            const topCol = isActive ? cfg.activeColor : (cfg.isUnlocked ? 0x1e293b : 0x0f172a);
+            const botCol = isActive ? darkenColor(cfg.activeColor, 0.35) : 0x090d16;
+            const strokeCol = isActive ? 0xffffff : (cfg.isUnlocked ? 0x334155 : 0x1e293b);
+
+            // Тень таба
+            tabBg.fillStyle(0x000000, 0.35);
+            tabBg.fillRoundedRect(tx - tabW / 2, tabY - tabH / 2 + 2, tabW, tabH, 9);
+            // Тело таба
+            tabBg.fillStyle(topCol, 0.95);
+            tabBg.fillRoundedRect(tx - tabW / 2, tabY - tabH / 2, tabW, tabH, 9);
+            tabBg.lineStyle(isActive ? 2 : 1, strokeCol, isActive ? 1 : 0.6);
+            tabBg.strokeRoundedRect(tx - tabW / 2, tabY - tabH / 2, tabW, tabH, 9);
+
+            // Текст таба
+            const textColor = isActive ? '#ffffff' : (cfg.isUnlocked ? '#94a3b8' : '#64748b');
+            const txt = createHDText(this, tx, tabY, cfg.label, {
+                fontSize: '13px',
+                fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+                color: textColor,
+                stroke: '#0f172a',
+                strokeThickness: isActive ? 2.5 : 1.5,
+                fontStyle: isActive ? '900' : '800',
+            }).setOrigin(0.5);
+
+            // Интерактивность таба
+            const hit = this.add.rectangle(tx, tabY, tabW, tabH, 0x000000, 0)
+                .setInteractive({ cursor: 'pointer' });
+
+            hit.on('pointerdown', () => {
+                if (typeof SoundManager !== 'undefined') SoundManager.playClick();
+                this.currentTab = cfg.id;
+                this._buildEvolutionTabs();
+                this._renderCurrentTab();
+            });
+
+            this.tabContainer.add([tabBg, txt, hit]);
+        });
+    }
+
+    _renderCurrentTab() {
+        this.cardsContainer.removeAll(true);
+        this.cardsContainer.y = 0;
+        this.maxScrollY = 0;
+
+        const W = CONFIG.WIDTH;
+        const H = CONFIG.HEIGHT;
+
+        // Проверяем статус блокировки для выбранной вкладки
+        if (this.currentTab === 1 && !this.elementalUnlocked) {
+            this._renderLockedTabState(
+                '⚡ СТИХИЙНАЯ ЭВОЛЮЦИЯ',
+                'Дойди до Стихийной эволюции, чтобы открыть эту коллекцию',
+                'Получи Древнего Дракона в обычной эволюции (Ур. 30)',
+                0x0284c7
+            );
+            return;
+        }
+
+        if (this.currentTab === 2 && !this.goldenUnlocked) {
+            this._renderLockedTabState(
+                '👑 ЗОЛОТАЯ ЭВОЛЮЦИЯ',
+                'Дойди до Золотой эволюции, чтобы открыть эту коллекцию',
+                'Заверши Стихийную эволюцию (Ур. 60)',
+                0xd97706
+            );
+            return;
+        }
+
+        // Рендерим 30 карточек соответствующей эволюции
+        const startLevel = this.currentTab * 30 + 1;
+        const endLevel   = startLevel + 29;
+
         const cols = 5;
         const cardW = 164;
-        const cardH = 102;
+        const cardH = 104;
         const startX = 43;
-        const startY = viewY + 10;
+        const startY = 120;
         const gapX = 14;
         const gapY = 12;
-        let totalContentH = 0;
 
-        const mobList = (typeof MOBS !== 'undefined' && MOBS.length) ? MOBS : [];
+        let totalContentH = startY;
 
-        mobList.forEach((mob, i) => {
-            const col = i % cols;
-            const row = Math.floor(i / cols);
+        // Проверяем 100% завершение таба
+        let tabUnlockedCount = 0;
+        for (let l = startLevel; l <= endLevel; l++) {
+            if (this.unlockedSet.has(l)) tabUnlockedCount++;
+        }
+
+        if (tabUnlockedCount >= 30) {
+            // Баннер завершения эволюции
+            const bannerG = this.add.graphics();
+            drawRoundRect(bannerG, 43, startY - 4, W - 86, 28, 8, 0x14532d, 0.9, 0x22c55e, 1.5);
+            const bannerTxt = createHDText(this, W / 2, startY + 10, '✓ ЭВОЛЮЦИЯ ПОЛНОСТЬЮ СОБРАНА! 30 / 30', {
+                fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+                color: '#86efac', fontStyle: '900', stroke: '#052e16', strokeThickness: 2
+            }).setOrigin(0.5);
+            this.cardsContainer.add([bannerG, bannerTxt]);
+        }
+
+        const effectiveStartY = (tabUnlockedCount >= 30) ? startY + 34 : startY;
+
+        for (let lvl = startLevel; lvl <= endLevel; lvl++) {
+            const mob = getMobByLevel(lvl);
+            if (!mob) continue;
+
+            const idx = lvl - startLevel;
+            const col = idx % cols;
+            const row = Math.floor(idx / cols);
             const x = startX + col * (cardW + gapX);
-            const y = startY + row * (cardH + gapY);
+            const y = effectiveStartY + row * (cardH + gapY);
+
             totalContentH = Math.max(totalContentH, y + cardH + 16);
 
-            const isUnlocked = this.unlockedSet.has(mob.level);
-            // Если серый (0x888888), делаем благородный серебристый 0x94a3b8
+            const isUnlocked = this.unlockedSet.has(lvl);
             const rColor = (mob.rarityColor === 0x888888) ? 0x94a3b8 : (mob.rarityColor || 0x64748b);
-
             const cardG = this.add.graphics();
 
             if (isUnlocked) {
-                // Тень карточки
+                // Разблокированная карточка
                 drawRoundRect(cardG, x, y + 3, cardW, cardH, 12, 0x020617, 0.45);
-                // Тело карточки с обводкой в цвет редкости
                 drawRoundRect(cardG, x, y, cardW, cardH, 12, 0x1e293b, 0.95, rColor, 2.2);
 
                 // Верхний мягкий блик редкости
@@ -123,7 +315,7 @@ class CollectionScene extends Phaser.Scene {
 
                 // Круглый постамент под аватар
                 const avX = x + cardW / 2;
-                const avY = y + 32;
+                const avY = y + 33;
                 cardG.fillStyle(0x0f172a, 0.7);
                 cardG.fillCircle(avX, avY, 25);
                 cardG.lineStyle(1.5, rColor, 0.75);
@@ -137,41 +329,42 @@ class CollectionScene extends Phaser.Scene {
 
                 // Бейдж уровня (слева вверху)
                 drawRoundRect(cardG, x + 5, y + 5, 42, 16, 6, 0x0f172a, 0.85, rColor, 1.2);
-                const lvl = createHDText(this, x + 26, y + 13, `Lv.${mob.level}`, {
+                const lvlTxt = createHDText(this, x + 26, y + 13, `Lv.${mob.level}`, {
                     fontSize: '10px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
                     color: '#facc15', fontStyle: '900', stroke: '#0f172a', strokeThickness: 2,
                 }).setOrigin(0.5, 0.5);
 
-                // Бейдж тира (справа вверху, если Золотой или Алмазный)
-                let tierTextObj = null;
-                if (mob.tier === 2) {
-                    drawRoundRect(cardG, x + cardW - 43, y + 5, 38, 16, 6, 0x78350f, 0.85, 0xf59e0b, 1.2);
-                    tierTextObj = createHDText(this, x + cardW - 24, y + 13, '⭐ GOLD', {
+                // Бейдж эволюции (справа вверху)
+                let evoBadgeObj = null;
+                if (mob.evolutionTier === 2) {
+                    drawRoundRect(cardG, x + cardW - 46, y + 5, 41, 16, 6, 0x082f49, 0.9, 0x38bdf8, 1.2);
+                    evoBadgeObj = createHDText(this, x + cardW - 25, y + 13, '✨ ЭЛЕМ', {
                         fontSize: '9px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
-                        color: '#fef08a', fontStyle: '900',
+                        color: '#7dd3fc', fontStyle: '900',
                     }).setOrigin(0.5, 0.5);
-                } else if (mob.tier === 3) {
-                    drawRoundRect(cardG, x + cardW - 47, y + 5, 42, 16, 6, 0x164e63, 0.85, 0x06b6d4, 1.2);
-                    tierTextObj = createHDText(this, x + cardW - 26, y + 13, '💎 DIA', {
+                } else if (mob.evolutionTier === 3) {
+                    drawRoundRect(cardG, x + cardW - 46, y + 5, 41, 16, 6, 0x451a03, 0.9, 0xf59e0b, 1.2);
+                    evoBadgeObj = createHDText(this, x + cardW - 25, y + 13, '👑 GOLD', {
                         fontSize: '9px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
-                        color: '#67e8f9', fontStyle: '900',
+                        color: '#fde047', fontStyle: '900',
                     }).setOrigin(0.5, 0.5);
                 }
 
                 // Имя моба
-                const name = createHDText(this, avX, y + 63, mob.name, {
-                    fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+                const nameTxt = createHDText(this, avX, y + 65, mob.name, {
+                    fontSize: '11.5px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
                     color: '#ffffff', stroke: '#0f172a', strokeThickness: 3, fontStyle: '800',
                     wordWrap: { width: cardW - 10 }
                 }).setOrigin(0.5, 0.5);
 
                 // Бейдж урона
-                drawRoundRect(cardG, avX - 38, y + 78, 76, 17, 7, 0x14532d, 0.8, 0x22c55e, 1.2);
-                const atk = createHDText(this, avX, y + 86, `⚔ ${formatNumber(mob.atk)}`, {
+                drawRoundRect(cardG, avX - 38, y + 80, 76, 17, 7, 0x14532d, 0.85, 0x22c55e, 1.2);
+                const atkTxt = createHDText(this, avX, y + 88, `⚔ ${formatNumber(mob.atk)}`, {
                     fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
                     color: '#4ade80', stroke: '#052e16', strokeThickness: 2, fontStyle: '900',
                 }).setOrigin(0.5, 0.5);
 
+                // Интерактивный клик с упругим сочным сквишем
                 const cardHit = this.add.rectangle(avX, y + cardH / 2, cardW, cardH, 0, 0).setInteractive({ cursor: 'pointer' });
                 cardHit.on('pointerdown', () => {
                     if (typeof SoundManager !== 'undefined') SoundManager.playClink();
@@ -182,110 +375,91 @@ class CollectionScene extends Phaser.Scene {
                         duration: 75,
                         yoyo: true,
                         ease: 'Quad.Out',
-                        onComplete: () => {
-                            if (avatar) avatar.setScale(1.0);
-                        }
+                        onComplete: () => { if (avatar) avatar.setScale(1.0); }
                     });
                 });
 
-                const cardElements = [cardG, avatar, lvl, name, atk, cardHit];
-                if (tierTextObj) cardElements.push(tierTextObj);
-                this.cardsContainer.add(cardElements);
+                const elements = [cardG, avatar, lvlTxt, nameTxt, atkTxt, cardHit];
+                if (evoBadgeObj) elements.push(evoBadgeObj);
+                this.cardsContainer.add(elements);
+
             } else {
-                // Заблокированная карточка (Mysterious silhouette)
+                // Заблокированная карточка в открытой эволюции
                 drawRoundRect(cardG, x, y + 2, cardW, cardH, 12, 0x020617, 0.35);
                 drawRoundRect(cardG, x, y, cardW, cardH, 12, 0x090d16, 0.85, 0x1e293b, 1.5);
 
-                // Круглая темная подложка
                 const avX = x + cardW / 2;
-                const avY = y + 36;
-                cardG.fillStyle(0x050811, 0.9);
-                cardG.fillCircle(avX, avY, 22);
-                cardG.lineStyle(1.5, 0x334155, 0.6);
-                cardG.strokeCircle(avX, avY, 22);
+                const avY = y + 33;
+                cardG.fillStyle(0x020617, 0.85);
+                cardG.fillCircle(avX, avY, 25);
+                cardG.lineStyle(1.5, 0x334155, 0.4);
+                cardG.strokeCircle(avX, avY, 25);
 
-                // Иконка замка
-                const lock = createHDText(this, avX, avY, '🔒', { fontSize: '20px' }).setOrigin(0.5, 0.5);
+                const lockIcon = createHDText(this, avX, avY, '🔒', { fontSize: '20px' }).setOrigin(0.5, 0.5);
 
-                // Загадочное имя
-                const mystery = createHDText(this, avX, y + 66, '???', {
-                    fontSize: '13px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
-                    color: '#64748b', stroke: '#020617', strokeThickness: 2, fontStyle: '800',
-                }).setOrigin(0.5, 0.5);
-
-                // Требуемый уровень
-                drawRoundRect(cardG, avX - 30, y + 78, 60, 16, 6, 0x1e293b, 0.6, 0x334155, 1);
-                const reqLvl = createHDText(this, avX, y + 86, `Lv.${mob.level}`, {
+                drawRoundRect(cardG, x + 5, y + 5, 42, 16, 6, 0x090d16, 0.9, 0x334155, 1);
+                const lvlTxt = createHDText(this, x + 26, y + 13, `Lv.${mob.level}`, {
                     fontSize: '10px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
-                    color: '#94a3b8', fontStyle: '800',
+                    color: '#64748b', fontStyle: '800',
                 }).setOrigin(0.5, 0.5);
 
-                this.cardsContainer.add([cardG, lock, mystery, reqLvl]);
+                const unknownTxt = createHDText(this, avX, y + 68, '???', {
+                    fontSize: '13px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+                    color: '#475569', fontStyle: '900',
+                }).setOrigin(0.5, 0.5);
+
+                this.cardsContainer.add([cardG, lockIcon, lvlTxt, unknownTxt]);
             }
-        });
+        }
 
-        // 5. Логика скролла и казуальный индикатор (скроллбар)
-        const minScrollY = Math.min(0, viewH - (totalContentH - viewY));
-        let scrollY = 0;
-        let isDragging = false;
-        let startDragY = 0;
-        let startContainerY = 0;
+        const viewH = H - 128;
+        const maxScroll = Math.max(0, totalContentH - (114 + viewH));
+        this.maxScrollY = -maxScroll;
+    }
 
-        // Полоса трека скроллбара
-        const sbTrackX = W - 28;
-        const sbTrackY = viewY + 6;
-        const sbTrackW = 5;
-        const sbTrackH = viewH - 12;
+    _renderLockedTabState(title, desc1, desc2, themeColor) {
+        const W = CONFIG.WIDTH;
+        const H = CONFIG.HEIGHT;
 
-        const sbG = this.add.graphics();
-        sbG.fillStyle(0x1e293b, 0.5);
-        sbG.fillRoundedRect(sbTrackX, sbTrackY, sbTrackW, sbTrackH, 2.5);
+        const cardW = 460;
+        const cardH = 220;
+        const cx = W / 2;
+        const cy = 114 + (H - 128) / 2;
 
-        // Бегунок скроллбара
-        const thumbH = Math.max(32, Math.round((viewH / Math.max(viewH, totalContentH - viewY)) * sbTrackH));
-        const thumbMaxTravel = sbTrackH - thumbH;
+        const lockCard = this.add.graphics();
+        // Внешняя тень
+        drawRoundRect(lockCard, cx - cardW / 2, cy - cardH / 2 + 4, cardW, cardH, 16, 0x020617, 0.5);
+        // Основа
+        drawRoundRect(lockCard, cx - cardW / 2, cy - cardH / 2, cardW, cardH, 16, 0x0f172a, 0.98, themeColor, 2);
 
-        const thumbG = this.add.graphics();
-        const drawThumb = (scrollVal) => {
-            thumbG.clear();
-            const ratio = minScrollY < 0 ? Phaser.Math.Clamp(scrollVal / minScrollY, 0, 1) : 0;
-            const thumbY = sbTrackY + ratio * thumbMaxTravel;
-            thumbG.fillStyle(0x38bdf8, 0.75);
-            thumbG.fillRoundedRect(sbTrackX, thumbY, sbTrackW, thumbH, 2.5);
-        };
-        drawThumb(0);
+        // Иконка замка
+        const lockIcon = createHDText(this, cx, cy - 50, '🔒', { fontSize: '38px' }).setOrigin(0.5);
 
-        const updateScroll = (newY) => {
-            scrollY = Phaser.Math.Clamp(newY, minScrollY, 0);
-            this.cardsContainer.y = scrollY;
-            drawThumb(scrollY);
-        };
+        // Заголовок
+        const titleTxt = createHDText(this, cx, cy - 6, title, {
+            fontSize: '17px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#f8fafc', stroke: '#0f172a', strokeThickness: 3, fontStyle: '900'
+        }).setOrigin(0.5);
 
-        this.input.on('wheel', (pointer, gameObjects, deltaX, deltaY) => {
-            updateScroll(scrollY - deltaY * 0.7);
-        });
+        // Описание требования
+        const d1Txt = createHDText(this, cx, cy + 28, desc1, {
+            fontSize: '12.5px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#94a3b8', fontStyle: '800', align: 'center'
+        }).setOrigin(0.5);
 
-        this.input.on('pointerdown', (pointer) => {
-            const py = (pointer.worldY !== undefined) ? pointer.worldY : pointer.y;
-            if (py >= viewY && py <= viewY + viewH) {
-                isDragging = true;
-                startDragY = py;
-                startContainerY = scrollY;
-            }
-        });
+        const d2Txt = createHDText(this, cx, cy + 54, `🎯 ${desc2}`, {
+            fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#38bdf8', fontStyle: '900', align: 'center'
+        }).setOrigin(0.5);
 
-        this.input.on('pointermove', (pointer) => {
-            if (isDragging) {
-                const py = (pointer.worldY !== undefined) ? pointer.worldY : pointer.y;
-                const delta = py - startDragY;
-                updateScroll(startContainerY + delta);
-            }
-        });
+        this.cardsContainer.add([lockCard, lockIcon, titleTxt, d1Txt, d2Txt]);
+    }
 
-        this.input.on('pointerup', () => {
-            isDragging = false;
-        });
+    _scrollBy(delta) {
+        this.cardsContainer.y = Phaser.Math.Clamp(this.cardsContainer.y - delta, this.maxScrollY, 0);
+    }
 
-        this.input.keyboard.on('keydown-ESC', () => this.scene.stop());
+    _clampScroll() {
+        this.cardsContainer.y = Phaser.Math.Clamp(this.cardsContainer.y, this.maxScrollY, 0);
     }
 }
