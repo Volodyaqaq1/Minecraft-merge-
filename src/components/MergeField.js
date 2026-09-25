@@ -1264,7 +1264,11 @@ class MergeField {
         if (!Array.isArray(fieldState)) return;
         fieldState.forEach(item => {
             if (item && item.mobLevel && getMobByLevel(item.mobLevel)) {
-                this.spawnMob(item.mobLevel, item.x, item.y);
+                const mobItem = this.spawnMob(item.mobLevel, item.x, item.y);
+                if (mobItem && item.id !== undefined) {
+                    mobItem.id = item.id;
+                    this._nextId = Math.max(this._nextId, item.id + 1);
+                }
             }
         });
         this._relaxFieldLayout();

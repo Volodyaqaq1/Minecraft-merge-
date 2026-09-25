@@ -5,25 +5,34 @@
 class GameScene extends Phaser.Scene {
     constructor() { super({ key: 'GameScene' }); }
 
-    init() {
-        this.state    = SaveManager.load();
+    init(data) {
+        this.state    = (data && data.state) ? data.state : SaveManager.load();
         this.economy  = new Economy(this.state);
 
         // Гарантируем структуру инкубатора и наград за онлайн
-        const targetUnlocks = [5, 15, 25];
+        const targetUnlocks = [6, 15, 25];
         if (!Array.isArray(this.state.incubatorSlots)) {
             this.state.incubatorSlots = [
-                { id: 0, unlockLevel: 5, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0 },
-                { id: 1, unlockLevel: 15, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0 },
-                { id: 2, unlockLevel: 25, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0 },
+                { id: 0, unlockLevel: 6, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0, adSpeedupUsed: false },
+                { id: 1, unlockLevel: 15, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0, adSpeedupUsed: false },
+                { id: 2, unlockLevel: 25, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0, adSpeedupUsed: false },
             ];
         } else {
             this.state.incubatorSlots.forEach((slot, i) => {
-                slot.unlockLevel = targetUnlocks[i] || 5;
+                slot.unlockLevel = targetUnlocks[i] || 6;
+                if (slot.adSpeedupUsed === undefined) slot.adSpeedupUsed = false;
             });
         }
         if (!this.state.playtime) {
-            this.state.playtime = { totalSeconds: 0, claimed: {} };
+            this.state.playtime = { totalSeconds: 0, startedAt: null, claimed: {} };
+        } else {
+            if (this.state.playtime.startedAt === undefined) {
+                if (this.state.playtime.totalSeconds > 0) {
+                    this.state.playtime.startedAt = Date.now() - this.state.playtime.totalSeconds * 1000;
+                } else {
+                    this.state.playtime.startedAt = null;
+                }
+            }
         }
         if (!Array.isArray(this.state.quests)) {
             this.state.quests = [];
@@ -96,6 +105,7 @@ class GameScene extends Phaser.Scene {
         this.economy.onCoinsChange = (val) => this._setCoinsText(val);
         this.economy.onLevelChange = (lvl) => {
             this._updateLevelWidget();
+            this._refreshFeatureUnlocks();
             if (this._isInitialized) {
                 spawnFloatingText(this, 130, 90, `НОВЫЙ УРОВЕНЬ ${lvl}! 🌟`, '#ffd700');
             }
@@ -105,6 +115,7 @@ class GameScene extends Phaser.Scene {
         const maxUnlocked = Math.max(...this.mergeField.collection, 1);
         this.economy.setLevel(maxUnlocked);
         this._updateLevelWidget();
+        this._refreshFeatureUnlocks();
 
         // ─── 9. Таймер секунд (для онлайна и инкубатора) ───
         this.time.addEvent({
@@ -138,8 +149,14 @@ class GameScene extends Phaser.Scene {
         });
 
         // ─── 12. Пауза при сворачивании (для Яндекс Игр) ───
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) this._save();
+        const onVisibilityChange = () => {
+            if (document.hidden && this.scene && this.scene.isActive()) {
+                this._save();
+            }
+        };
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+            document.removeEventListener('visibilitychange', onVisibilityChange);
         });
 
         // ─── 13. Dev Debug Telemetry Overlay (?debug=1 или CONFIG.DEBUG) ───
@@ -247,39 +264,8 @@ class GameScene extends Phaser.Scene {
         // 1. Кнопка настроек + тактильный бейдж "Уровень X"
         this._buildSettingsAndLevelWidget(14, 10);
 
-        // 2. Кнопка "🎁 Подарки" (объемная 3D казуальная зеленая кнопка)
-        this._giftBtn = createCasualButton(this, 252, 32, 126, 44, 'Подарки 🎁', {
-            topColor: 0x22c55e,
-            bottomColor: 0x15803d,
-            strokeColor: 0x86efac,
-            fontSize: '13px',
-            radius: 13,
-            lip: 4,
-        }, () => {
-            this._openPlaytimeModal();
-        });
-
-        // Пульсирующий индикатор уведомления о готовой награде
-        this._giftBadge = this.add.graphics();
-        this._giftBadge.fillStyle(0xef4444, 1);
-        this._giftBadge.fillCircle(252 + 50, 32 - 14, 6.5);
-        this._giftBadge.lineStyle(1.8, 0xffffff, 1);
-        this._giftBadge.strokeCircle(252 + 50, 32 - 14, 6.5);
-        this._giftBadge.setVisible(false);
-        this._giftBadge.setDepth(25);
-
-        this.tweens.add({
-            targets: this._giftBadge,
-            scaleX: 1.25,
-            scaleY: 1.25,
-            duration: 600,
-            yoyo: true,
-            repeat: -1,
-            ease: 'Sine.easeInOut'
-        });
-
-        // 3. Комбо-множитель (чистая и спокойная панель множителей x1..x5)
-        this._buildComboBar(336, 10, 228, 44);
+        // 2. Комбо-множитель (чистая и спокойная панель множителей x1..x5, гармонично по центру)
+        this._buildComboBar(366, 10, 228, 44);
 
         // 4. Баланс изумрудов (справа, элегантная белая карточка со скругленными краями)
         const coinCard = this.add.graphics();
@@ -550,8 +536,7 @@ class GameScene extends Phaser.Scene {
 
         const clickX = mobItem.container.x;
         const clickY = mobItem.container.y - 45;
-        const mulBadge = this.currentMultiplier > 1 ? ` (x${this.currentMultiplier})` : '';
-        spawnFloatingText(this, clickX, clickY, `+${formatNumber(reward)} 💎${mulBadge}`, '#5dff6e');
+        spawnFloatingText(this, clickX, clickY, `+${formatNumber(reward)} 💎`, '#5dff6e');
         this._spawnFlyingCoins(clickX, clickY, 2);
     }
 
@@ -579,14 +564,16 @@ class GameScene extends Phaser.Scene {
 
     _buildQuestPanel() {
         this._questUiGroup = [];
-        this._validateQuests();
-        this._renderQuests();
+        if (this.economy && this.economy.level >= 11) {
+            this._validateQuests();
+            this._renderQuests();
+        }
     }
 
     _scheduleNextQuest() {
         const nextDelay = Phaser.Math.Between(60000, 90000); // Появление новых заданий раз в минуту-полторы
         this.time.delayedCall(nextDelay, () => {
-            if (this.quests.length < 3) {
+            if (this.economy && this.economy.level >= 11 && this.quests.length < 3) {
                 this._generateQuest();
                 this._renderQuests();
                 this._save();
@@ -678,6 +665,11 @@ class GameScene extends Phaser.Scene {
             });
         }
         this._questUiGroup = [];
+
+        // Задания открываются только с Player Level 11
+        if (!this.economy || this.economy.level < 11) {
+            return;
+        }
 
         const startX = 64;
         const startY = 122;
@@ -857,9 +849,7 @@ class GameScene extends Phaser.Scene {
             });
         }
 
-        this._updateShopButton();
-        this._validateQuests();
-        this._renderQuests();
+        this._refreshFeatureUnlocks();
     }
 
     // ============================================================
@@ -965,74 +955,77 @@ class GameScene extends Phaser.Scene {
         }
 
         // 2. Слот 2: Моб за рекламу (мягкая пастельная сиреневая карточка)
-        const adMobLevel = Math.max(1, maxUnlocked - CONFIG.AD_LEVEL_OFFSET);
-        const adMob      = getMobByLevel(adMobLevel);
+        // Доступен ТОЛЬКО после открытия моба 4-го уровня (maxUnlocked >= 4)
+        if (maxUnlocked >= 4) {
+            const adMobLevel = Math.max(1, maxUnlocked - CONFIG.AD_LEVEL_OFFSET);
+            const adMob      = getMobByLevel(adMobLevel);
 
-        const cardY2 = 258;
+            const cardY2 = 258;
 
-        const bg2 = this.add.graphics();
-        // Мягкая внешняя тень под карточкой
-        bg2.fillStyle(0x000000, 0.16);
-        bg2.fillRoundedRect(cardX - cardW / 2 + 1, cardY2 - cardH / 2 + 3, cardW, cardH, 16);
-        // Нежно-сиреневая основа карточки
-        bg2.fillStyle(0xfaf5ff, 0.98);
-        bg2.fillRoundedRect(cardX - cardW / 2, cardY2 - cardH / 2, cardW, cardH, 16);
-        // Шелковистый контур
-        bg2.lineStyle(2, 0xa855f7, 1);
-        bg2.strokeRoundedRect(cardX - cardW / 2, cardY2 - cardH / 2, cardW, cardH, 16);
-        // Верхний декоративный ярлычок
-        bg2.fillStyle(0xa855f7, 0.9);
-        bg2.fillRoundedRect(cardX - 22, cardY2 - cardH / 2 - 2, 44, 5, 2);
+            const bg2 = this.add.graphics();
+            // Мягкая внешняя тень под карточкой
+            bg2.fillStyle(0x000000, 0.16);
+            bg2.fillRoundedRect(cardX - cardW / 2 + 1, cardY2 - cardH / 2 + 3, cardW, cardH, 16);
+            // Нежно-сиреневая основа карточки
+            bg2.fillStyle(0xfaf5ff, 0.98);
+            bg2.fillRoundedRect(cardX - cardW / 2, cardY2 - cardH / 2, cardW, cardH, 16);
+            // Шелковистый контур
+            bg2.lineStyle(2, 0xa855f7, 1);
+            bg2.strokeRoundedRect(cardX - cardW / 2, cardY2 - cardH / 2, cardW, cardH, 16);
+            // Верхний декоративный ярлычок
+            bg2.fillStyle(0xa855f7, 0.9);
+            bg2.fillRoundedRect(cardX - 22, cardY2 - cardH / 2 - 2, 44, 5, 2);
 
-        this._shopUiGroup.push(bg2);
+            this._shopUiGroup.push(bg2);
 
-        // Круглое блюдце (постамент) под моба за рекламу
-        const platter2 = this.add.graphics();
-        // Внешний ободок постамента
-        platter2.fillStyle(0xe9d5ff, 1);
-        platter2.fillCircle(cardX, cardY2 - 11, 35);
-        // Внутренняя белая тарелочка
-        platter2.fillStyle(0xffffff, 1);
-        platter2.fillCircle(cardX, cardY2 - 11, 32);
-        // Мягкая нижняя теневая фаска
-        platter2.fillStyle(0xf3e8ff, 0.7);
-        platter2.fillCircle(cardX, cardY2 - 9, 26);
-        platter2.fillStyle(0xffffff, 1);
-        platter2.fillCircle(cardX, cardY2 - 11, 26);
-        this._shopUiGroup.push(platter2);
+            // Круглое блюдце (постамент) под моба за рекламу
+            const platter2 = this.add.graphics();
+            // Внешний ободок постамента
+            platter2.fillStyle(0xe9d5ff, 1);
+            platter2.fillCircle(cardX, cardY2 - 11, 35);
+            // Внутренняя белая тарелочка
+            platter2.fillStyle(0xffffff, 1);
+            platter2.fillCircle(cardX, cardY2 - 11, 32);
+            // Мягкая нижняя теневая фаска
+            platter2.fillStyle(0xf3e8ff, 0.7);
+            platter2.fillCircle(cardX, cardY2 - 9, 26);
+            platter2.fillStyle(0xffffff, 1);
+            platter2.fillCircle(cardX, cardY2 - 11, 26);
+            this._shopUiGroup.push(platter2);
 
-        if (adMob) {
-            const adTex = (adMob.portraitKey && this.textures.exists(adMob.portraitKey))
-                ? adMob.portraitKey
-                : (adMob.texture || 'mob_portrait_placeholder');
-            const mobImg2 = this.add.image(cardX, cardY2 - 11, adTex).setDisplaySize(58, 58);
+            if (adMob) {
+                const adTex = (adMob.portraitKey && this.textures.exists(adMob.portraitKey))
+                    ? adMob.portraitKey
+                    : (adMob.texture || 'mob_portrait_placeholder');
+                const mobImg2 = this.add.image(cardX, cardY2 - 11, adTex).setDisplaySize(58, 58);
 
-            // Плавное парение моба (idle hover) с небольшим сдвигом по фазе
-            this.tweens.add({
-                targets: mobImg2,
-                y: cardY2 - 15,
-                duration: 1550,
-                yoyo: true,
-                repeat: -1,
-                ease: 'Sine.easeInOut'
-            });
+                // Плавное парение моба (idle hover) с небольшим сдвигом по фазе
+                this.tweens.add({
+                    targets: mobImg2,
+                    y: cardY2 - 15,
+                    duration: 1550,
+                    yoyo: true,
+                    repeat: -1,
+                    ease: 'Sine.easeInOut'
+                });
 
-            // Тактильная 3D-кнопка просмотра рекламы
-            const adBtn = createCasualButton(this, cardX, cardY2 + cardH / 2 - 18, cardW - 14, 26, '🎬 РЕКЛАМА', {
-                topColor: 0x9333ea,
-                bottomColor: 0x581c87,
-                strokeColor: 0xd8b4fe,
-                fontSize: '11px',
-                radius: 9,
-                lip: 3,
-            }, () => this._onAdMob(adMob));
+                // Тактильная 3D-кнопка просмотра рекламы
+                const adBtn = createCasualButton(this, cardX, cardY2 + cardH / 2 - 18, cardW - 14, 26, '🎬 РЕКЛАМА', {
+                    topColor: 0x9333ea,
+                    bottomColor: 0x581c87,
+                    strokeColor: 0xd8b4fe,
+                    fontSize: '11px',
+                    radius: 9,
+                    lip: 3,
+                }, () => this._onAdMob(adMob));
 
-            // Интерактивная зона по всей карточке для удобного тапа
-            const hitArea2 = this.add.rectangle(cardX, cardY2, cardW, cardH, 0, 0)
-                .setInteractive({ cursor: 'pointer' });
-            hitArea2.on('pointerdown', () => this._onAdMob(adMob));
+                // Интерактивная зона по всей карточке для удобного тапа
+                const hitArea2 = this.add.rectangle(cardX, cardY2, cardW, cardH, 0, 0)
+                    .setInteractive({ cursor: 'pointer' });
+                hitArea2.on('pointerdown', () => this._onAdMob(adMob));
 
-            this._shopUiGroup.push(mobImg2, adBtn, hitArea2);
+                this._shopUiGroup.push(mobImg2, adBtn, hitArea2);
+            }
         }
     }
 
@@ -1083,43 +1076,7 @@ class GameScene extends Phaser.Scene {
 
         const btnY = H - 34;
 
-        // 2. Кнопка "📖 Бестиарий" (Сапфирово-синяя 3D-кнопка)
-        createCasualButton(this, 95, btnY, 145, 42, '📖 Бестиарий', {
-            topColor: 0x2563eb,
-            bottomColor: 0x1d4ed8,
-            strokeColor: 0x60a5fa,
-            fontSize: '13px',
-            radius: 11,
-            lip: 3,
-        }, () => this.scene.launch('CollectionScene', { collection: [...this.mergeField.collection] }));
-
-        // 3. Кнопка "🥚 Инкубатор" (Аметистово-фиолетовая 3D-кнопка)
-        createCasualButton(this, 255, btnY, 145, 42, '🥚 Инкубатор', {
-            topColor: 0x7c3aed,
-            bottomColor: 0x5b21b6,
-            strokeColor: 0xa78bfa,
-            fontSize: '13px',
-            radius: 11,
-            lip: 3,
-        }, () => this._openIncubatorModal());
-
-        // Бейдж готовности инкубатора
-        this._dockIncubatorBadge = this._createNotificationBadge(255 + 56, btnY - 14);
-
-        // 4. Кнопка "🎁 Награды" (Бирюзово-изумрудная 3D-кнопка)
-        createCasualButton(this, 415, btnY, 145, 42, '🎁 Награды', {
-            topColor: 0x0d9488,
-            bottomColor: 0x115e59,
-            strokeColor: 0x2dd4bf,
-            fontSize: '13px',
-            radius: 11,
-            lip: 3,
-        }, () => this._openPlaytimeModal());
-
-        // Бейдж готовых наград
-        this._dockRewardBadge = this._createNotificationBadge(415 + 56, btnY - 14);
-
-        // 5. Главная кнопка действия (Primary CTA) — "В БОЙ! ⚔️" (Сочная рубиновая 3D-кнопка)
+        // 2. Главная кнопка действия (Primary CTA) — "В БОЙ! ⚔️" (Сочная рубиновая 3D-кнопка, всегда справа)
         createCasualButton(this, W - 110, btnY, 185, 44, 'В бой! ⚔️', {
             topColor: 0xef4444,
             bottomColor: 0x991b1b,
@@ -1137,6 +1094,96 @@ class GameScene extends Phaser.Scene {
             }
             this._openBattleModal();
         });
+
+        // 3. Динамические адаптивные кнопки дока слева (Бестиарий, Инкубатор Lv.6, Награды Lv.9)
+        this._dockButtonsGroup = [];
+        this._refreshBottomDock();
+    }
+
+    _refreshBottomDock() {
+        if (this._dockButtonsGroup) {
+            this._dockButtonsGroup.forEach(item => {
+                if (item) {
+                    if (this.tweens) {
+                        this.tweens.killTweensOf(item);
+                        if (item.buttonFace) this.tweens.killTweensOf(item.buttonFace);
+                    }
+                    if (item.destroy) item.destroy();
+                }
+            });
+        }
+        this._dockButtonsGroup = [];
+        this._dockIncubatorBadge = null;
+        this._dockRewardBadge = null;
+
+        const H = CONFIG.HEIGHT;
+        const btnY = H - 34;
+
+        // 1. Кнопка "📖 Бестиарий" (всегда доступна с Player Lv.1)
+        const bestiaryBtn = createCasualButton(this, 95, btnY, 145, 42, '📖 Бестиарий', {
+            topColor: 0x2563eb,
+            bottomColor: 0x1d4ed8,
+            strokeColor: 0x60a5fa,
+            fontSize: '13px',
+            radius: 11,
+            lip: 3,
+        }, () => this.scene.launch('CollectionScene', { collection: [...this.mergeField.collection] }));
+        this._dockButtonsGroup.push(bestiaryBtn);
+
+        // 2. Кнопка "🥚 Инкубатор" (открывается на Player Lv.6)
+        if (this.economy && this.economy.level >= 6) {
+            const incubatorBtn = createCasualButton(this, 255, btnY, 145, 42, '🥚 Инкубатор', {
+                topColor: 0x7c3aed,
+                bottomColor: 0x5b21b6,
+                strokeColor: 0xa78bfa,
+                fontSize: '13px',
+                radius: 11,
+                lip: 3,
+            }, () => this._openIncubatorModal());
+
+            this._dockIncubatorBadge = this._createNotificationBadge(255 + 56, btnY - 14);
+            this._dockButtonsGroup.push(incubatorBtn, this._dockIncubatorBadge);
+        }
+
+        // 3. Кнопка "🎁 Награды" (открывается на Player Lv.9)
+        if (this.economy && this.economy.level >= 9) {
+            const rewardBtn = createCasualButton(this, 415, btnY, 145, 42, '🎁 Награды', {
+                topColor: 0x0d9488,
+                bottomColor: 0x115e59,
+                strokeColor: 0x2dd4bf,
+                fontSize: '13px',
+                radius: 11,
+                lip: 3,
+            }, () => this._openPlaytimeModal());
+
+            this._dockRewardBadge = this._createNotificationBadge(415 + 56, btnY - 14);
+            this._dockButtonsGroup.push(rewardBtn, this._dockRewardBadge);
+        }
+
+        this._updateDockBadges();
+    }
+
+    _updateDockBadges() {
+        // Бейдж готовых наград за онлайн (только если таймер был запущен)
+        if (this._dockRewardBadge) {
+            let hasUnclaimed = false;
+            if (this.state.playtime && this.state.playtime.startedAt) {
+                const tiers = this._getPlaytimeTiers();
+                hasUnclaimed = tiers.some((t, i) =>
+                    this.state.playtime.totalSeconds >= t.seconds && !this.state.playtime.claimed[i]
+                );
+            }
+            this._dockRewardBadge.setVisible(hasUnclaimed);
+        }
+
+        // Бейдж готового инкубатора
+        if (this._dockIncubatorBadge) {
+            let hasReadyEgg = false;
+            if (Array.isArray(this.state.incubatorSlots)) {
+                hasReadyEgg = this.state.incubatorSlots.some(s => s.active && Date.now() >= s.endTime);
+            }
+            this._dockIncubatorBadge.setVisible(hasReadyEgg);
+        }
     }
 
     _createNotificationBadge(x, y) {
@@ -1160,34 +1207,42 @@ class GameScene extends Phaser.Scene {
         return badge;
     }
 
+    _refreshFeatureUnlocks() {
+        // 1. Правая панель (Моб за рекламу доступен после открытия Mob Lv.4)
+        this._updateShopButton();
+
+        // 2. Нижний dock (Инкубатор с Lv.6, Награды с Lv.9)
+        this._refreshBottomDock();
+
+        // 3. Панель заданий (Задания доступны с Lv.11)
+        if (this.economy && this.economy.level >= 11) {
+            if (this.quests.length === 0) {
+                this._validateQuests();
+            }
+            this._renderQuests();
+        } else {
+            this._renderQuests();
+        }
+
+        // 4. Слоты инкубатора (если окно открыто)
+        if (this._incubatorModal && this._incubatorModal.visible) {
+            this._renderIncubatorSlots();
+        }
+    }
+
     // ============================================================
     // Таймер секунд (Онлайн-награды и Инкубатор)
     // ============================================================
 
     _onSecondTick() {
-        this.state.playtime.totalSeconds++;
-
-        // Проверяем, есть ли готовые награды за онлайн
-        const tiers = this._getPlaytimeTiers();
-        const hasUnclaimed = tiers.some((t, i) =>
-            this.state.playtime.totalSeconds >= t.seconds && !this.state.playtime.claimed[i]
-        );
-
-        if (this._giftBadge) {
-            this._giftBadge.setVisible(hasUnclaimed);
-        }
-        if (this._dockRewardBadge) {
-            this._dockRewardBadge.setVisible(hasUnclaimed);
+        if (this.state.playtime && this.state.playtime.startedAt) {
+            const elapsed = Math.max(0, Math.floor((Date.now() - this.state.playtime.startedAt) / 1000));
+            this.state.playtime.totalSeconds = elapsed;
+        } else if (this.state.playtime) {
+            this.state.playtime.totalSeconds = 0;
         }
 
-        // Проверяем, готов ли инкубатор
-        let hasReadyEgg = false;
-        if (Array.isArray(this.state.incubatorSlots)) {
-            hasReadyEgg = this.state.incubatorSlots.some(s => s.active && Date.now() >= s.endTime);
-        }
-        if (this._dockIncubatorBadge) {
-            this._dockIncubatorBadge.setVisible(hasReadyEgg);
-        }
+        this._updateDockBadges();
 
         // Если окно наград открыто — обновляем таймеры
         if (this._playtimeModal && this._playtimeModal.visible) {
@@ -1340,6 +1395,15 @@ class GameScene extends Phaser.Scene {
     }
 
     _openPlaytimeModal() {
+        if (!this.economy || this.economy.level < 9) return;
+
+        // Отсчёт начинается строго с момента ПЕРВОГО ОТКРЫТИЯ механики
+        if (!this.state.playtime.startedAt) {
+            this.state.playtime.startedAt = Date.now();
+            this.state.playtime.totalSeconds = 0;
+            this._save();
+        }
+
         this._renderPlaytimeCards();
         this._playtimeModal.setScale(0.7);
         this._playtimeModal.setVisible(true);
@@ -1469,6 +1533,7 @@ class GameScene extends Phaser.Scene {
     }
 
     _openIncubatorModal() {
+        if (!this.economy || this.economy.level < 6) return;
         this._renderIncubatorSlots();
         this._incubatorModal.setScale(0.7);
         this._incubatorModal.setVisible(true);
@@ -1590,16 +1655,30 @@ class GameScene extends Phaser.Scene {
                             fontSize: '15px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#d35400', fontStyle: 'bold'
                         }).setOrigin(0.5);
 
-                        // Кнопка ускорения рекламой
-                        const [adBg, adTxt, adHit] = this._makeButton(x, y + 84, 155, 34, '⚡ Ускорить рекламой', '#e67e22', () => {
-                            slot.endTime = Date.now();
-                            if (typeof SoundManager !== 'undefined') SoundManager.playVictory();
-                            spawnFloatingText(this, CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, '⚡ Инкубация завершена!', '#ffd700');
-                            this._renderIncubatorSlots();
-                            this._save();
-                        }, '10px');
+                        // Кнопка ускорения рекламой: -30% от оставшегося времени (1 раз за цикл)
+                        if (!slot.adSpeedupUsed) {
+                            const [adBg, adTxt, adHit] = this._makeButton(x, y + 84, 155, 34, '🎬 УСКОРИТЬ -30%', '#e67e22', () => {
+                                const curNow = Date.now();
+                                const remaining = Math.max(0, slot.endTime - curNow);
+                                const newRemaining = Math.floor(remaining * 0.70);
+                                slot.endTime = curNow + newRemaining;
+                                slot.adSpeedupUsed = true;
+                                if (typeof SoundManager !== 'undefined') SoundManager.playVictory();
+                                spawnFloatingText(this, CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, '⚡ Инкубация ускорена на 30%!', '#ffd700');
+                                this._renderIncubatorSlots();
+                                this._save();
+                            }, '11px');
 
-                        this._incubatorSlotsContainer.add([timerTxt, adBg, adTxt, adHit]);
+                            this._incubatorSlotsContainer.add([timerTxt, adBg, adTxt, adHit]);
+                        } else {
+                            const usedBg = this.add.graphics();
+                            drawRoundRect(usedBg, x - 77.5, y + 84 - 17, 155, 34, 8, 0x1e293b, 0.85, 0x475569, 1);
+                            const usedTxt = createHDText(this, x, y + 84, '✓ УСКОРЕНО', {
+                                fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif", color: '#94a3b8', fontStyle: 'bold'
+                            }).setOrigin(0.5);
+
+                            this._incubatorSlotsContainer.add([timerTxt, usedBg, usedTxt]);
+                        }
                     }
                 } else {
                     // СЛОТ СВОБОДЕН — ВЫБОР ДЛИТЕЛЬНОСТИ И ПАЧКИ МОБОВ
@@ -1652,6 +1731,7 @@ class GameScene extends Phaser.Scene {
                         slot.durationMinutes = currentTier.minutes;
                         slot.mobCount = currentTier.count;
                         slot.mobLevel = shopMobLevel;
+                        slot.adSpeedupUsed = false;
                         if (typeof SoundManager !== 'undefined') SoundManager.playPop();
                         this._renderIncubatorSlots();
                         this._save();
@@ -2021,6 +2101,7 @@ class GameScene extends Phaser.Scene {
 
                     // Освобождение слота
                     slot.active = false;
+                    slot.adSpeedupUsed = false;
                     delete slot.endTime;
 
                     this._save();
@@ -2920,9 +3001,19 @@ class GameScene extends Phaser.Scene {
 
     _save() {
         if (this._isResetting) return;
+        if (!this.mergeField || !Array.isArray(this.mergeField.mobs)) return;
         const fieldState = this.mergeField.toState();
         this.state.player         = this.economy.toState();
-        this.state.field          = fieldState.field;
+
+        // Защита от потери мобов при переходе сцен / shutdown:
+        // Если поле вернуло 0 мобов, но в сохранении мобы уже были —
+        // никогда не перезаписывать валидное сохранение пустым массивом!
+        if (fieldState.field.length === 0 && Array.isArray(this.state.field) && this.state.field.length > 0) {
+            console.warn('GUARD: Preventing destruction of saved field during scene transition/shutdown');
+        } else {
+            this.state.field = fieldState.field;
+        }
+
         this.state.collection     = fieldState.collection;
         this.state.shownModals    = fieldState.shownModals;
         this.state.incubatorSlots = this.state.incubatorSlots;

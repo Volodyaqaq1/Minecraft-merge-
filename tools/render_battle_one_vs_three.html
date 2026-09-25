@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>BATTLE_1_VS_3</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background: #0f172a; overflow: hidden;
+  }
+  #game-container {
+    width: 100%; height: 100%; display: flex;
+    align-items: center; justify-content: center;
+  }
+</style>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+    <script src="../src/config.js"></script>
+    <script src="../src/data/mobs.js"></script>
+    <script src="../src/data/bot_names.js"></script>
+    <script src="../src/utils/helpers.js"></script>
+    <script src="../src/utils/SoundManager.js"></script>
+    <script src="../src/components/SaveManager.js"></script>
+    <script src="../src/components/Economy.js"></script>
+    <script src="../src/components/MergeField.js"></script>
+    <script src="../src/components/BattleSystem.js"></script>
+    <script src="../src/scenes/BootScene.js"></script>
+    <script src="../src/scenes/BattleScene.js"></script>
+    <script src="../src/scenes/GameScene.js"></script>
+    <script src="../src/scenes/CollectionScene.js"></script>
+</head>
+<body>
+<div id="game-container"></div>
+<div id="snapshot"></div>
+<script>
+window.onerror = function(msg, url, line, col, error) {
+    document.title = 'ERR: ' + msg + ' at ' + line;
+};
+
+CONFIG.DEBUG = false;
+
+const startState = SaveManager._deepClone(SaveManager.DEFAULT_STATE);
+startState.player.level = 4;
+startState.player.coins = 1500;
+SaveManager.save(startState);
+
+BootScene.prototype.preload = function() {
+    this._createColorTexture('bg_game',   0x2d5a27, 960, 540);
+    this._createColorTexture('bg_battle', 0x1a1a2e, 960, 540);
+
+    for (let baseId = 1; baseId <= 10; baseId++) {
+        const pad = String(baseId).padStart(2, '0');
+        const spritePath = `../assets/mobs/sprites/256/mob_${pad}.png`;
+        const portraitPath = `../assets/mobs/portraits/256/mob_${pad}.png`;
+        this.load.image(`mob_sprite_${pad}`, spritePath);
+        this.load.image(`mob_${pad}`, spritePath);
+        this.load.image(`mob_${pad}_sm`, spritePath);
+        this.load.image(`mob_portrait_${pad}`, portraitPath);
+    }
+    this.load.image('icon_gem',   '../assets/icons/gem.png');
+    this.load.image('icon_sword', '../assets/icons/sword.png');
+    this.load.image('icon_chest', '../assets/icons/chest.png');
+    this.load.image('icon_egg',   '../assets/icons/egg.png');
+    this.load.image('icon_gear',  '../assets/icons/gear.png');
+};
+
+BootScene.prototype.create = function() {
+    const pMob = getMobByLevel(4); // 1 player fighter (Овечка)
+    const botTeam = generateBotTeam([pMob]); // Returns exactly 3 bot mobs!
+
+    this.scene.start('BattleScene', {
+        playerTeam: [pMob],
+        botTeam: botTeam,
+        botName: 'Лесной Страж',
+        state: SaveManager.load()
+    });
+};
+
+const renderScale = CONFIG.RENDER_SCALE || 2.0;
+const config = {
+    type: Phaser.AUTO,
+    width: Math.round(CONFIG.WIDTH * renderScale),
+    height: Math.round(CONFIG.HEIGHT * renderScale),
+    parent: 'game-container',
+    scale: {
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+    },
+    backgroundColor: '#111625',
+    render: {
+        pixelArt: false,
+        antialias: true,
+        antialiasGL: true,
+        roundPixels: false,
+        powerPreference: 'high-performance',
+    },
+    scene: [BootScene, BattleScene]
+};
+
+window.game = new Phaser.Game(config);
+
+let frameCount = 0;
+let captured = false;
+function pollCapture() {
+    const scene = window.game && window.game.scene ? window.game.scene.getScene('BattleScene') : null;
+    if (scene && scene.scene.isActive() && scene._playerSprites && scene._playerSprites.length === 1 && scene._botSprites && scene._botSprites.length === 3) {
+        frameCount++;
+        if (frameCount >= 5 && !captured) {
+            captured = true;
+            window.game.renderer.snapshot((image) => {
+                document.getElementById('snapshot').textContent = image.src;
+                document.title = 'SNAPSHOT_DONE';
+                window.game.destroy(true);
+            });
+            return;
+        }
+    }
+    requestAnimationFrame(pollCapture);
+}
+requestAnimationFrame(pollCapture);
+</script>
+</body>
+</html>

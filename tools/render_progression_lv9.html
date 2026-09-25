@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Progression Lv.9 Screenshot</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html, body { width:100%; height:100%; overflow:hidden; background:#111625; display:flex; align-items:center; justify-content:center; }
+        #game-container { position:fixed; top:0; left:0; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+    <script src="../src/config.js"></script>
+    <script src="../src/data/mobs.js"></script>
+    <script src="../src/data/bot_names.js"></script>
+    <script src="../src/utils/helpers.js"></script>
+    <script src="../src/utils/SoundManager.js"></script>
+    <script src="../src/components/SaveManager.js"></script>
+    <script src="../src/components/Economy.js"></script>
+    <script src="../src/components/MergeField.js"></script>
+    <script src="../src/components/BattleSystem.js"></script>
+    <script src="../src/scenes/BootScene.js"></script>
+    <script src="../src/scenes/GameScene.js"></script>
+    <script src="../src/scenes/BattleScene.js"></script>
+    <script src="../src/scenes/CollectionScene.js"></script>
+</head>
+<body>
+<div id="game-container"></div>
+<div id="snapshot"></div>
+<script>
+window.onerror = function(msg, url, line) {
+    document.title = 'ERR: ' + msg + ' at ' + line;
+};
+
+CONFIG.DEBUG = false;
+
+const state = SaveManager._deepClone(SaveManager.DEFAULT_STATE);
+state.player.level = 9;
+state.player.coins = 2450;
+state.collection = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+state.field = [
+    { id: 1, mobLevel: 4, x: 300, y: 220 },
+    { id: 2, mobLevel: 6, x: 420, y: 220 },
+    { id: 3, mobLevel: 7, x: 540, y: 220 },
+    { id: 4, mobLevel: 8, x: 360, y: 340 },
+    { id: 5, mobLevel: 9, x: 480, y: 340 }
+];
+state.quests = [];
+SaveManager.save(state);
+
+BootScene.prototype.preload = function() {
+    this._createColorTexture('bg_game',   0x2d5a27, 960, 540);
+    this._createColorTexture('bg_battle', 0x1a1a2e, 960, 540);
+
+    for (let baseId = 1; baseId <= 10; baseId++) {
+        const pad = String(baseId).padStart(2, '0');
+        const spritePath = `../assets/mobs/sprites/256/mob_${pad}.png`;
+        const portraitPath = `../assets/mobs/portraits/256/mob_${pad}.png`;
+        this.load.image(`mob_sprite_${pad}`, spritePath);
+        this.load.image(`mob_${pad}`, spritePath);
+        this.load.image(`mob_${pad}_sm`, spritePath);
+        this.load.image(`mob_portrait_${pad}`, portraitPath);
+    }
+    for (let lvl = 11; lvl <= 90; lvl++) {
+        const pad = String(lvl).padStart(2, '0');
+        this.load.image(`mob_portrait_${pad}`, `../assets/mobs/portraits/256/mob_11.png`);
+    }
+    this.load.image('mob_sprite_placeholder',   '../assets/mobs/sprites/256/placeholder.png');
+    this.load.image('mob_portrait_placeholder', '../assets/mobs/portraits/256/mob_11.png');
+    this.load.image('mob_placeholder',          '../assets/mobs/sprites/256/placeholder.png');
+
+    this.load.image('icon_gem',   '../assets/icons/gem.png');
+    this.load.image('icon_sword', '../assets/icons/sword.png');
+    this.load.image('icon_chest', '../assets/icons/chest.png');
+    this.load.image('icon_egg',   '../assets/icons/egg.png');
+    this.load.image('icon_gear',  '../assets/icons/gear.png');
+    this.load.image('icon_emerald', '../assets/icons/gem.png');
+};
+
+const renderScale = CONFIG.RENDER_SCALE || 2.0;
+const config = {
+    type: Phaser.AUTO,
+    width: Math.round(CONFIG.WIDTH * renderScale),
+    height: Math.round(CONFIG.HEIGHT * renderScale),
+    parent: 'game-container',
+    scale: {
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+    },
+    backgroundColor: '#111625',
+    render: {
+        pixelArt: false,
+        antialias: true,
+        antialiasGL: true,
+        roundPixels: false,
+        powerPreference: 'high-performance',
+    },
+    scene: [BootScene, GameScene, BattleScene, CollectionScene]
+};
+
+window.game = new Phaser.Game(config);
+
+let frameCount = 0;
+let captured = false;
+function pollCapture() {
+    const scene = window.game && window.game.scene ? window.game.scene.getScene('GameScene') : null;
+    if (scene && scene.scene.isActive() && scene._isInitialized) {
+        frameCount++;
+        if (frameCount >= 5 && !captured) {
+            captured = true;
+            window.game.renderer.snapshot((image) => {
+                document.getElementById('snapshot').textContent = image.src;
+                document.title = 'SNAPSHOT_DONE';
+                window.game.destroy(true);
+            });
+            return;
+        }
+    }
+    requestAnimationFrame(pollCapture);
+}
+requestAnimationFrame(pollCapture);
+</script>
+</body>
+</html>

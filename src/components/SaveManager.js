@@ -16,12 +16,13 @@ const SaveManager = {
         collection: [1],    // открытые уровни мобов
         freeSpawnTime: 0,   // timestamp когда можно брать бесплатного
         incubatorSlots: [
-            { id: 0, unlockLevel: 5, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0 },
-            { id: 1, unlockLevel: 15, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0 },
-            { id: 2, unlockLevel: 25, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0 },
+            { id: 0, unlockLevel: 6, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0, adSpeedupUsed: false },
+            { id: 1, unlockLevel: 15, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0, adSpeedupUsed: false },
+            { id: 2, unlockLevel: 25, active: false, endTime: 0, durationMinutes: 0, mobCount: 0, mobLevel: 0, adSpeedupUsed: false },
         ],
         playtime: {
             totalSeconds: 0,
+            startedAt: null,
             claimed: {},    // { 0: true, 1: true... }
         },
         quests: [],         // активные задания [{ id, mobLevel, targetCount, currentCount, isCompleted, rewardCoins, rewardXP }, ...]
@@ -47,6 +48,7 @@ const SaveManager = {
      * Сохранить состояние
      */
     save(state) {
+        if (!state || typeof state !== 'object') return;
         try {
             localStorage.setItem(this.KEY, JSON.stringify(state));
         } catch (e) {

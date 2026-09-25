@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <base href="../">
+    <title>Battle Return Regression Verification</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+    <script src="src/config.js"></script>
+    <script src="src/data/mobs.js"></script>
+    <script src="src/data/bot_names.js"></script>
+    <script src="src/utils/helpers.js"></script>
+    <script src="src/utils/SoundManager.js"></script>
+    <script src="src/components/SaveManager.js"></script>
+    <script src="src/components/Economy.js"></script>
+    <script src="src/components/MergeField.js"></script>
+    <script src="src/components/BattleSystem.js"></script>
+    <script src="src/scenes/BootScene.js"></script>
+    <script src="src/scenes/GameScene.js"></script>
+    <script src="src/scenes/BattleScene.js"></script>
+    <script src="src/scenes/CollectionScene.js"></script>
+</head>
+<body>
+<div id="game-container"></div>
+<script>
+window.onerror = function(msg, url, line, col, err) {
+    document.title = 'ERR: ' + msg + ' at ' + line;
+};
+
+CONFIG.DEBUG = false;
+
+// 1. Initial State: Exactly 2x Цыпа Lv.1
+const startState = SaveManager._deepClone(SaveManager.DEFAULT_STATE);
+startState.player.coins = 200;
+startState.field = [
+    { id: 101, mobLevel: 1, x: 280, y: 240 },
+    { id: 102, mobLevel: 1, x: 380, y: 240 }
+];
+SaveManager.save(startState);
+
+let beforeField = null;
+let afterField = null;
+let reloadedField = null;
+let testResult = {
+    pass: false,
+    details: {}
+};
+
+const game = new Phaser.Game({
+    type: Phaser.CANVAS,
+    width: 960,
+    height: 540,
+    parent: 'game-container',
+    scene: [BootScene, GameScene, BattleScene, CollectionScene]
+});
+
+let phase = 0;
+let phaseTimer = 0;
+
+function pump() {
+    try {
+        phaseTimer++;
+        document.title = 'PHASE_' + phase + '_T_' + phaseTimer;
+        if (phase === 0) {
+            const gs = game.scene.getScene('GameScene');
+            if (gs && gs.scene.isActive() && gs.mergeField && gs._isInitialized && phaseTimer > 10) {
+                phase = 1;
+                phaseTimer = 0;
+
+                // 2. Record BEFORE state
+                beforeField = JSON.parse(JSON.stringify(gs.mergeField.toState().field));
+
+                // 3. User flow: Select fighters & Start Battle
+                gs._openBattleModal();
+                gs._battleModal.setVisible(false);
+                gs._openFighterSelect();
+                gs._startBattle();
+                phase = 2;
+            }
+        } else if (phase === 2) {
+            const bs = game.scene.getScene('BattleScene');
+            if (bs && bs.scene.isActive() && bs.treasureContainer) {
+                phase = 3;
+                phaseTimer = 0;
+
+                // 4. Fight -> Finish fight with victory
+                bs._endBattle('player');
+                bs._showResultModal(true);
+
+                // 5. Take reward (standard 1x claim)
+                const basePrize = bs.prize;
+                bs.state.player.coins = (bs.state.player.coins || 0) + basePrize;
+                bs.state.player.xp = (bs.state.player.xp || 0) + CONFIG.XP_PER_MERGE * 4;
+                SaveManager.save(bs.state);
+
+                // 6. Return to GameScene
+                bs.scene.start('GameScene', { state: bs.state });
+                phase = 4;
+            }
+        } else if (phase === 4) {
+            const gs2 = game.scene.getScene('GameScene');
+            if (gs2 && gs2.scene.isActive() && gs2.mergeField && gs2._isInitialized) {
+                phase = 5;
+
+                // 7. Check AFTER return state on active MergeField
+                afterField = JSON.parse(JSON.stringify(gs2.mergeField.toState().field));
+
+                // 8. Refresh check: simulate browser reload from localStorage
+                const loadedFromDisk = SaveManager.load();
+                reloadedField = loadedFromDisk.field;
+
+                // Assertions:
+                const lenMatch = afterField.length === beforeField.length;
+                const idMatch = afterField.every((m, i) => m.id === beforeField[i].id);
+                const lvlMatch = afterField.every((m, i) => m.mobLevel === beforeField[i].mobLevel);
+                const coordsMatch = afterField.every((m, i) => m.x === beforeField[i].x && m.y === beforeField[i].y);
+
+                const reloadLenMatch = reloadedField.length === beforeField.length;
+                const reloadIdMatch = reloadedField.every((m, i) => m.id === beforeField[i].id);
+                const reloadLvlMatch = reloadedField.every((m, i) => m.mobLevel === beforeField[i].mobLevel);
+                const reloadCoordsMatch = reloadedField.every((m, i) => m.x === beforeField[i].x && m.y === beforeField[i].y);
+
+                const allPass = lenMatch && idMatch && lvlMatch && coordsMatch &&
+                                reloadLenMatch && reloadIdMatch && reloadLvlMatch && reloadCoordsMatch;
+
+                testResult = {
+                    pass: allPass,
+                    beforeField,
+                    afterField,
+                    reloadedField,
+                    checks: {
+                        afterReturnLength: lenMatch,
+                        afterReturnIDs: idMatch,
+                        afterReturnLevels: lvlMatch,
+                        afterReturnCoordinates: coordsMatch,
+                        refreshPersistenceLength: reloadLenMatch,
+                        refreshPersistenceIDs: reloadIdMatch,
+                        refreshPersistenceLevels: reloadLvlMatch,
+                        refreshPersistenceCoordinates: reloadCoordsMatch,
+                    }
+                };
+
+                document.title = 'REGRESSION_TEST_RESULT:' + JSON.stringify(testResult);
+                return;
+            }
+        }
+    } catch (e) {
+        document.title = 'ERR_PUMP: ' + e.message;
+        return;
+    }
+    requestAnimationFrame(pump);
+}
+
+requestAnimationFrame(pump);
+</script>
+</body>
+</html>

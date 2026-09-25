@@ -35,7 +35,7 @@ function generateBotTeam(playerFightersOrLevel) {
     let teamCount = CONFIG.BATTLE_MAX_FIGHTERS;
 
     if (Array.isArray(playerFightersOrLevel) && playerFightersOrLevel.length > 0) {
-        teamCount = playerFightersOrLevel.length;
+        teamCount = CONFIG.BATTLE_MAX_FIGHTERS;
         const sum = playerFightersOrLevel.reduce((s, m) => s + (m.level || 1), 0);
         avgLevel = Math.round(sum / playerFightersOrLevel.length);
     } else if (typeof playerFightersOrLevel === 'number') {

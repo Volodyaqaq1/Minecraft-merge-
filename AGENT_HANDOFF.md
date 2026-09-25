@@ -1,8 +1,8 @@
 # AGENT HANDOFF — Minecraft-Merge (Squishy Merge)
 
-**Last updated:** 2026-09-24  
+**Last updated:** 2026-09-25  
 **Branch:** `main`  
-**Handoff commit:** `feat(gameplay): complete stage 3 merge feel, drag feedback, and atomic incubator rewards`
+**Handoff commit:** `feat(progression): implement progression pass ladder, combat juice, and persistence guards`
 
 ---
 
@@ -96,6 +96,34 @@ All four viewports verified by `tools/run_all_verifications.py` (Desktop Full HD
     - `render_merge_reveal.html`
     - `render_merge_x5.html`
     - `render_bulk_spawn.html`
+
+### Stage 3 Step 2 — Combat Juice & Battle Feel ✅
+- **Attacker Lunge & Recoil:** 16px forward burst (`Back.Out`, 70ms) with squash/stretch, followed by 90ms recovery step back.
+- **Defender Hit Flash & Squash:** Pure white tint overlay + quick impact squash (`1.15, 0.85` in 60ms) and knockback twitch (4–6px).
+- **Wall Punch Feedback & Wood Chips:** Dynamic wooden wall rendering with procedural plank damage tiers (HP < 70%, HP < 35%), horizontal punch reaction (3px), health bar flash, and 4–6 wood chip debris particles scattering into open arena space.
+- **Compact Floating Damage Numbers:** Crisp HD text with dark outline (`createHDText`) floating upward with horizontal arc and fade out.
+- **Critical Hits:** Larger bold floating text (`CRIT! ⚔`), radial gold starburst particles, screen micro-twitch (30ms, 0.002), and two-tone punchy audio click.
+- **Final Wall Break Burst:** 12–16 large wooden splinters + dust puffs exploding outward on 0 HP with white flash.
+- **Victory Payoff & Team Rush:** Surviving player fighters bounce and rush toward the treasure chest; treasure opens with golden radial burst and confetti.
+- **Render Harnesses:**
+  - `tools/render_combat_hit.html`
+  - `tools/render_combat_critical.html`
+  - `tools/render_combat_victory.html`
+
+### Battle Return Persistence Guard ✅
+- **Root Cause & Fix:** In `GameScene._save()`, guarded against empty field destruction during scene transitions and shutdowns (`fieldState.field.length === 0 && this.state.field.length > 0`). Verified with simulated browser reload in `tools/verify_battle_return_regression.html` / `tools/verify_battle_return_regression.py`.
+
+### Progression & Balance Pass ✅
+- **Progressive Feature Unlock Ladder:**
+  - **Player Lv.1:** Clean start. Merge, coin shop (slot 1), Bestiary, Battle CTA. Zero clutter (no ad mob, no incubator, no rewards, no quests).
+  - **Mob Lv.4 Discovered:** Right-panel ad mob offer unlocks (`maxUnlocked >= 4`).
+  - **Player Lv.6:** "Инкубатор" button unlocks in bottom dock; Incubator Slot 1 active. Thresholds: Slot 1 -> Lv.6, Slot 2 -> Lv.15, Slot 3 -> Lv.25.
+  - **Incubator Speedup (-30%):** Active slot button `🎬 УСКОРИТЬ -30%` cuts remaining time by 30% (`remaining * 0.70`). Strictly 1 use per incubation cycle tracked via `slot.adSpeedupUsed = true` (shows `✓ УСКОРЕНО`). Resets to false on new incubation/claim.
+  - **Player Lv.9:** "🎁 Награды" button unlocks in bottom dock. Timer starts strictly on first modal opening (`state.playtime.startedAt = Date.now()`). Does not accumulate in background before discovery.
+  - **Player Lv.11:** Quests panel unlocks on left column. Quests hidden and non-progressing before Lv.11.
+  - **Top Bar Cleanup:** "Подарки 🎁" button completely removed. Combo multiplier bar centered at `x = 366`. Red slider knob removed (clean progressive track retained).
+  - **Opponent Bot Team 3-Mob Rule:** Bot team always has 3 fighters in battle regardless of player team size (1, 2, or 3). Bot power and wall HP contributions scaled by `botPowerRatio = playerTeam.length / botTeam.length`, keeping exact 50/50 win odds and battle duration.
+- **Progression Test Suite:** `tools/test_progression_pass.py` (43 automated assertions A through K).
 
 ---
 

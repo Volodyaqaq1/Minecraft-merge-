@@ -15,12 +15,19 @@ class BattleSystem {
             maxHp: m.atk * 10,
             alive: true,
         }));
-        this.bot = botTeam.map(m => ({
-            ...m,
-            hp: m.atk * 10,
-            maxHp: m.atk * 10,
-            alive: true,
-        }));
+        const botPowerRatio = (botTeam.length > 0 && playerTeam.length > 0)
+            ? (playerTeam.length / botTeam.length)
+            : 1.0;
+        this.bot = botTeam.map(m => {
+            const effectiveAtk = Math.max(1, Math.round(m.atk * botPowerRatio));
+            return {
+                ...m,
+                atk: effectiveAtk,
+                hp: effectiveAtk * 10,
+                maxHp: effectiveAtk * 10,
+                alive: true,
+            };
+        });
         this.round = 0;
         this.done  = false;
         this.winner = null; // 'player' | 'bot' | 'draw'

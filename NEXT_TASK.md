@@ -1,6 +1,6 @@
-# NEXT TASK — Stage 3 Step 2: Combat Juice & Battle Feel
+# NEXT TASK — Stage 3 Step 3: Audio Polish & Platform Integration Readiness
 
-**Status:** Stage 3 Step 1 completed and approved. Ready to start Stage 3 Step 2.  
+**Status:** Stage 3 Step 1, Step 2 (Combat Juice), and Progression & Balance Pass completed and verified.  
 **Branch:** `main`  
 **Prerequisite:** Read `AGENT_HANDOFF.md` in full before starting any work.
 
@@ -8,71 +8,40 @@
 
 ## Context
 
-Stage 3 Step 1 (tactile merge-field interactions, drag lift, invalid drop shake, combo shockwaves, and atomic incubator rewards) is completed, fully verified, and merged.
-
-Stage 3 Step 2 is dedicated exclusively to **Battle Juice and Combat Impact Feedback** in `BattleScene.js`.
-
-### Architectural Invariants:
-- All game logic lives strictly in **960×540** logical space.
-- WebGL backing buffer remains **1920×1080** (`CONFIG.RENDER_SCALE = 2.0`).
-- Text rendering must continue using `createHDText()` from `helpers.js`.
-- All pointer events must use `pointer.worldX / pointer.worldY` or `helpers.getLogicalPointer()`.
-- **Preserve existing battle logic, battle system simulation, and economy numbers exactly.** Combat juice is visual and tactile presentation only.
+1. **Stage 3 Step 1:** Merge tactile feel, drag lift, invalid drop shake, combo shockwaves, and atomic incubator rewards completed.
+2. **Stage 3 Step 2:** Combat Juice (attacker lunge, defender squash & hit flash, dynamic procedural wall damage, wood chip particles, floating damage numbers, critical burst, wall collapse, and victory rush) completed.
+3. **Progression & Balance Pass:**
+   - Level gating ladder (Player Lv.1 base, mob Lv.4 ad offer, Lv.6 incubator slot 1, Lv.9 online rewards, Lv.11 quests, Lv.15 slot 2, Lv.25 slot 3).
+   - Incubator 30% speedup per incubation cycle.
+   - 3-mob opponent bot team with power-ratio scaled damage for exact 50/50 balance.
+   - Clean top bar (gift button removed, combo bar centered, red knob removed).
+   - Field persistence guard preventing mob loss across scene transitions.
 
 ---
 
-## Stage 3 Step 2 — Implementation Priority
+## Implementation Priority for Next Step
 
-Work through these items in order. Do NOT batch unverified systems:
+### 1. Audio Pass / Sound Polish
+- Add satisfying synthesized Web Audio effects for:
+  - Button presses and dock navigation tabs.
+  - Wall break final shatter.
+  - Chest opening in battle victory.
+  - Quests claim fanfare.
+  - Incubator -30% speedup confirmation.
+- Ensure audio mute toggle in settings cleanly silences all Web Audio nodes without audio context errors.
 
-### 1. Attacker Lunge / Recoil
-- Attacking mob performs a sharp forward lunge toward its target (translate ~12–16px, Quad.Out, ~70ms).
-- Brief recoil / recovery step back to baseline position with soft Quad.InOut settle (~90ms).
-- Slight squash on launch, stretch in motion.
-
-### 2. Defender Hit Flash + Squash
-- Target mob flashes bright white (tint or brief overlay flash, ~50–70ms).
-- Quick impact squash (`scaleX: 1.15, scaleY: 0.85` in ~60ms) settling back to `1.0`.
-- Small horizontal knockback/twitch in direction away from attacker (~4–6px) returning to original position.
-
-### 3. Wall Punch Feedback & Wood Chip Particles
-- Wall hit receives an impactful punch response: subtle horizontal shove (2–3px), quick recovery.
-- Health bar on the wall flashes red/white accent.
-- Burst of 4–6 small wood chip / debris particles emitting from the point of impact with randomized angles, short gravity/arc, and auto-destroy.
-
-### 4. Compact Floating Damage Numbers
-- Floating damage numbers positioned above defender head / wall impact point.
-- Crisp, compact styling using `createHDText`:
-  - Standard hit: vibrant yellow/orange with dark stroke.
-  - Quick upward float arc with subtle horizontal drift (25–35px over ~500ms) with fade out and auto-destroy.
-
-### 5. Stronger Critical-Hit Presentation
-- When a hit is critical (or highest damage tier):
-  - Larger bold floating text (`CRIT!` or larger bold number with exclamation).
-  - Distinct bright red/amber color with star flare or radial spark burst.
-  - Brief micro camera twitch (30ms, 0.002) for high-impact critical hits.
-
-### 6. Final Wall Break Burst
-- When the wall reaches 0 HP:
-  - Dramatic destruction burst: 12–16 large wood splinters and dust puffs exploding outwards.
-  - Wall graphics shatter/fade rapidly (~150ms).
-  - Brief white screen flash (alpha 0.2 -> 0, ~200ms).
-
-### 7. Victory Team Rush Toward Treasure
-- Surviving player mobs cheer/jump (bounce tween, Back.Out) and rush forward across the broken wall line toward the treasure chest location.
-- Cheerful victory animation sequence before modal displays.
-
-### 8. Treasure & Confetti Payoff
-- Chest pops open with a golden glow burst and radial confetti/coin particles.
-- Victory modal triggers cleanly after the payoff sequence completes.
+### 2. Platform Integration Readiness (Yandex Games SDK / Mobile Wrapper)
+- Prepare clean abstraction hooks for:
+  - Rewarded video ad triggers (right-panel ad mob, incubator -30% speedup, battle x2 reward).
+  - Interstitial ad triggers on scene transitions.
+  - Cloud save sync with fallback to `localStorage`.
+- Verify responsive layout across aspect ratios (16:9, 18:9, 19.5:9 mobile screens).
 
 ---
 
 ## Verification Checklist (Before Commit)
 
 ```bash
-python tools/validate_syntax.py          # All files: OK
-python tools/audit_coordinates.py        # All pointer coords: worldX/worldY
-python tools/run_all_verifications.py    # All 4 viewports pass
+python tools/validate_syntax.py          # All JS files: OK
+python tools/test_progression_pass.py    # All 43 progression assertions pass
 ```
-- Capture visual screenshots of combat lunge, wall hit impact, crit presentation, and wall break / victory rush.

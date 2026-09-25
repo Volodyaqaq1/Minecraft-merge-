@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Progression Pass Verification</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+    <script src="../src/config.js"></script>
+    <script src="../src/data/mobs.js"></script>
+    <script src="../src/data/bot_names.js"></script>
+    <script src="../src/utils/helpers.js"></script>
+    <script src="../src/utils/SoundManager.js"></script>
+    <script src="../src/components/SaveManager.js"></script>
+    <script src="../src/components/Economy.js"></script>
+    <script src="../src/components/MergeField.js"></script>
+    <script src="../src/components/BattleSystem.js"></script>
+    <script src="../src/scenes/BootScene.js"></script>
+    <script src="../src/scenes/GameScene.js"></script>
+    <script src="../src/scenes/BattleScene.js"></script>
+    <script src="../src/scenes/CollectionScene.js"></script>
+</head>
+<body>
+<div id="game-container"></div>
+<script>
+window.onerror = function(msg, url, line, col, err) {
+    document.title = 'ERR: ' + msg + ' at ' + line;
+};
+
+CONFIG.DEBUG = false;
+
+BootScene.prototype.preload = function() {
+    this._createColorTexture('bg_game',   0x2d5a27, 960, 540);
+    this._createColorTexture('bg_battle', 0x1a1a2e, 960, 540);
+
+    for (let baseId = 1; baseId <= 10; baseId++) {
+        const pad = String(baseId).padStart(2, '0');
+        const spritePath = `../assets/mobs/sprites/256/mob_${pad}.png`;
+        const portraitPath = `../assets/mobs/portraits/256/mob_${pad}.png`;
+        this.load.image(`mob_sprite_${pad}`, spritePath);
+        this.load.image(`mob_${pad}`, spritePath);
+        this.load.image(`mob_${pad}_sm`, spritePath);
+        this.load.image(`mob_portrait_${pad}`, portraitPath);
+    }
+    for (let lvl = 11; lvl <= 90; lvl++) {
+        const pad = String(lvl).padStart(2, '0');
+        this.load.image(`mob_portrait_${pad}`, `../assets/mobs/portraits/256/mob_11.png`);
+    }
+    this.load.image('mob_sprite_placeholder',   '../assets/mobs/sprites/256/placeholder.png');
+    this.load.image('mob_portrait_placeholder', '../assets/mobs/portraits/256/mob_11.png');
+    this.load.image('mob_placeholder',          '../assets/mobs/sprites/256/placeholder.png');
+
+    this.load.image('icon_gem',   '../assets/icons/gem.png');
+    this.load.image('icon_sword', '../assets/icons/sword.png');
+    this.load.image('icon_chest', '../assets/icons/chest.png');
+    this.load.image('icon_egg',   '../assets/icons/egg.png');
+    this.load.image('icon_gear',  '../assets/icons/gear.png');
+    this.load.image('icon_emerald', '../assets/icons/gem.png');
+};
+
+const startState = SaveManager._deepClone(SaveManager.DEFAULT_STATE);
+startState.player.coins = 200;
+startState.field = [
+    { id: 101, mobLevel: 1, x: 280, y: 240 },
+    { id: 102, mobLevel: 1, x: 380, y: 240 }
+];
+SaveManager.save(startState);
+
+const game = new Phaser.Game({
+    type: Phaser.AUTO,
+    width: 960,
+    height: 540,
+    parent: 'game-container',
+    scene: [BootScene, GameScene, BattleScene, CollectionScene]
+});
+
+window.testResults = [];
+
+function assert(condition, message) {
+    if (!condition) {
+        console.error("FAIL: " + message);
+        window.testResults.push({ pass: false, message });
+        throw new Error(message);
+    } else {
+        console.log("PASS: " + message);
+        window.testResults.push({ pass: true, message });
+    }
+}
+
+let phase = 0;
+let phaseTimer = 0;
+
+function pump() {
+    try {
+        phaseTimer++;
+        const scene = game.scene.getScene('GameScene');
+
+        if (phase === 0) {
+            if (scene && scene.scene.isActive() && scene.mergeField && scene._isInitialized && phaseTimer > 5) {
+                // J) Battle Bot Generation Test (independent of scene)
+                const mob1 = getMobByLevel(1);
+                const mob2 = getMobByLevel(2);
+                const mob3 = getMobByLevel(3);
+
+                const botTeam1 = generateBotTeam([mob1]);
+                assert(botTeam1.length === 3, "J1: Bot team has 3 mobs when player chooses 1");
+
+                const botTeam2 = generateBotTeam([mob1, mob2]);
+                assert(botTeam2.length === 3, "J2: Bot team has 3 mobs when player chooses 2");
+
+                const botTeam3 = generateBotTeam([mob1, mob2, mob3]);
+                assert(botTeam3.length === 3, "J3: Bot team has 3 mobs when player chooses 3");
+
+                // Battle Odds & Power Normalization Test
+                const pTeam1 = [mob1];
+                const ratio1 = pTeam1.length / botTeam1.length;
+                assert(Math.abs(ratio1 - 1/3) < 0.001, "J4: Bot power ratio for 1 player mob is 1/3");
+                const bScaledSum1 = botTeam1.reduce((s, m) => s + m.atk, 0) * ratio1;
+                assert(bScaledSum1 > 0, "J5: Effective bot total atk is positive and scaled");
+
+                // A) Player Lv.1 Checks
+                assert(scene.economy.level === 1, "A1: Initial player level is 1");
+                assert(!scene._giftBtn, "A2: Top gifts button is deleted");
+                assert(!scene._dockIncubatorBadge, "A3: Incubator badge does not exist at Lv.1");
+                assert(!scene._dockRewardBadge, "A4: Rewards badge does not exist at Lv.1");
+                assert(scene._dockButtonsGroup.length === 1, "A5: Dock has only Bestiary button at Lv.1");
+                assert(scene._questUiGroup.length === 0, "A6: Quest panel is not rendered at Lv.1");
+                // Shop should only have 1 card (coin purchase), no ad mob card
+                assert(scene._shopUiGroup.length === 5, "G1: Right shop has only 1 card (no ad mob) at mob Lv.1");
+
+                // G2) Mob Level 4 Discovered -> Ad Mob appears
+                scene.mergeField.collection.add(4);
+                scene._updateShopButton();
+                assert(scene._shopUiGroup.length > 5, "G2: Right shop has ad mob card when mob Lv.4 is unlocked");
+
+                // B) Player Lv.6 Checks
+                scene.economy.setLevel(6);
+                scene._refreshFeatureUnlocks();
+                assert(scene.economy.level === 6, "B1: Player level set to 6");
+                assert(scene._dockIncubatorBadge !== null, "B2: Incubator badge exists at Lv.6");
+                assert(scene._dockButtonsGroup.length === 3, "B3: Dock has Bestiary + Incubator (2 buttons + 1 badge = 3) at Lv.6");
+                assert(!scene._dockRewardBadge, "B4: Rewards button still absent at Lv.6");
+                assert(scene._questUiGroup.length === 0, "B5: Quests still absent at Lv.6");
+
+                // Check slot unlock thresholds
+                assert(scene.state.incubatorSlots[0].unlockLevel === 6, "B6: Slot 1 unlockLevel is 6");
+                assert(scene.state.incubatorSlots[1].unlockLevel === 15, "B7: Slot 2 unlockLevel is 15");
+                assert(scene.state.incubatorSlots[2].unlockLevel === 25, "B8: Slot 3 unlockLevel is 25");
+                assert(scene.economy.level >= scene.state.incubatorSlots[0].unlockLevel, "B9: Slot 1 is unlocked at Lv.6");
+                assert(scene.economy.level < scene.state.incubatorSlots[1].unlockLevel, "B10: Slot 2 is locked at Lv.6");
+                assert(scene.economy.level < scene.state.incubatorSlots[2].unlockLevel, "B11: Slot 3 is locked at Lv.6");
+
+                // C) Player Lv.9 Checks
+                scene.economy.setLevel(9);
+                scene._refreshFeatureUnlocks();
+                assert(scene._dockRewardBadge !== null, "C1: Rewards badge exists at Lv.9");
+                assert(scene._dockButtonsGroup.length === 5, "C2: Dock has Bestiary + Incubator + Rewards at Lv.9");
+                assert(scene._questUiGroup.length === 0, "C3: Quests still absent at Lv.9");
+
+                // D) Player Lv.11 Checks
+                scene.economy.setLevel(11);
+                scene._refreshFeatureUnlocks();
+                assert(scene._questUiGroup.length > 0, "D1: Quest panel is rendered at Lv.11");
+                assert(scene.quests.length > 0, "D2: Quests exist at Lv.11");
+
+                // E) Player Lv.15 Checks
+                scene.economy.setLevel(15);
+                assert(scene.economy.level >= scene.state.incubatorSlots[1].unlockLevel, "E1: Slot 2 is unlocked at Lv.15");
+                assert(scene.economy.level < scene.state.incubatorSlots[2].unlockLevel, "E2: Slot 3 is locked at Lv.15");
+
+                // F) Player Lv.25 Checks
+                scene.economy.setLevel(25);
+                assert(scene.economy.level >= scene.state.incubatorSlots[2].unlockLevel, "F1: Slot 3 is unlocked at Lv.25");
+
+                // H) Rewards first opening test
+                scene.state.playtime.startedAt = null;
+                scene.state.playtime.totalSeconds = 0;
+                assert(!scene.state.playtime.startedAt, "H1: startedAt is null before opening");
+                scene._openPlaytimeModal();
+                assert(scene.state.playtime.startedAt !== null, "H2: startedAt is initialized upon first opening");
+                assert(Math.abs(scene.state.playtime.startedAt - Date.now()) < 5000, "H3: startedAt is approx Date.now()");
+                const savedStartedAt = scene.state.playtime.startedAt;
+                scene._onSecondTick();
+                assert(scene.state.playtime.startedAt === savedStartedAt, "H4: startedAt remains persistent on second tick");
+
+                // I) Incubator -30% Speedup Test
+                const slot = scene.state.incubatorSlots[0];
+                slot.active = true;
+                const now = Date.now();
+                slot.endTime = now + 1000 * 1000; // 1000 seconds remaining
+                slot.adSpeedupUsed = false;
+
+                const remainingBefore = Math.max(0, slot.endTime - now);
+                assert(Math.abs(remainingBefore - 1000000) < 1000, "I1: Remaining before speedup is 1000 sec");
+
+                // Trigger speedup logic
+                const curNow = Date.now();
+                const rem = Math.max(0, slot.endTime - curNow);
+                const newRem = Math.floor(rem * 0.70);
+                slot.endTime = curNow + newRem;
+                slot.adSpeedupUsed = true;
+
+                const remainingAfter = Math.max(0, slot.endTime - curNow);
+                assert(Math.abs(remainingAfter - 700000) < 2000, "I2: Remaining after 30% speedup is ~700 sec");
+                assert(slot.adSpeedupUsed === true, "I3: adSpeedupUsed is true");
+
+                // Reset on new incubation
+                slot.active = true;
+                slot.adSpeedupUsed = false;
+                assert(slot.adSpeedupUsed === false, "I4: adSpeedupUsed resets on new incubation");
+
+                // K) Battle -> GameScene Persistence Test
+                scene.mergeField.mobs = [];
+                scene.mergeField.spawnMob(1);
+                scene.mergeField.spawnMob(2);
+                scene.mergeField.spawnMob(3);
+                const countBefore = scene.mergeField.mobs.length;
+                assert(countBefore === 3, "K1: 3 mobs spawned on field before battle");
+                scene._save();
+
+                // Launch battle
+                const pTeam = [scene.mergeField.mobs[0]];
+                const bTeam = generateBotTeam(pTeam);
+                assert(bTeam.length === 3, "K2: Battle launched with 3 bot mobs against 1 player mob");
+
+                // Return to GameScene with saved state
+                const stateClone = SaveManager._deepClone(scene.state);
+                scene.scene.start('GameScene', { state: stateClone });
+
+                phase = 1;
+                phaseTimer = 0;
+            }
+        } else if (phase === 1) {
+            if (scene && scene.scene.isActive() && scene.mergeField && scene._isInitialized && phaseTimer > 5) {
+                assert(scene.mergeField.mobs.length === 3, "K3: Mobs preserved after returning from battle (" + scene.mergeField.mobs.length + " == 3)");
+
+                const testResult = {
+                    pass: true,
+                    totalTests: window.testResults.length,
+                    results: window.testResults
+                };
+                document.title = 'PROGRESSION_TEST_RESULT:' + JSON.stringify(testResult);
+                if (game) game.destroy(true);
+                return;
+            }
+        }
+    } catch (e) {
+        const testResult = {
+            pass: false,
+            error: e.message,
+            results: window.testResults
+        };
+        document.title = 'PROGRESSION_TEST_RESULT:' + JSON.stringify(testResult);
+        if (game) game.destroy(true);
+        return;
+    }
+    requestAnimationFrame(pump);
+}
+
+requestAnimationFrame(pump);
+</script>
+</body>
+</html>

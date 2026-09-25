@@ -120,6 +120,51 @@ const SoundManager = (function () {
             osc.stop(now + 0.06);
         },
 
+        // --- 3b. Удар в бою (деревянный/панчевый звук с критом) ---
+        playHit(isCrit = false) {
+            if (!enabled) return;
+            const c = getContext();
+            if (!c) return;
+
+            const now = c.currentTime;
+
+            // Басовый панч (thud)
+            const osc = c.createOscillator();
+            const gain = c.createGain();
+            osc.type = isCrit ? 'sawtooth' : 'triangle';
+            const startFreq = isCrit ? 220 : 160;
+            const endFreq = isCrit ? 50 : 40;
+            const dur = isCrit ? 0.12 : 0.08;
+
+            osc.frequency.setValueAtTime(startFreq, now);
+            osc.frequency.exponentialRampToValueAtTime(endFreq, now + dur);
+
+            gain.gain.setValueAtTime(isCrit ? 0.35 : 0.25, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+            osc.connect(gain);
+            gain.connect(c.destination);
+            osc.start(now);
+            osc.stop(now + dur);
+
+            // Для крита — дополнительный яркий щелчок/искра
+            if (isCrit) {
+                const osc2 = c.createOscillator();
+                const gain2 = c.createGain();
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(880, now);
+                osc2.frequency.exponentialRampToValueAtTime(1400, now + 0.09);
+
+                gain2.gain.setValueAtTime(0.2, now);
+                gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+
+                osc2.connect(gain2);
+                gain2.connect(c.destination);
+                osc2.start(now);
+                osc2.stop(now + 0.09);
+            }
+        },
+
         // --- 4. Звук слияния (Merge) с динамическим повышением тона при комбо ---
         playMerge(comboLevel = 1) {
             if (!enabled) return;
