@@ -548,10 +548,6 @@ class MergeField {
             }
         });
 
-        if (CONFIG.XP_PER_CLICK) {
-            this.economy.addXP(CONFIG.XP_PER_CLICK);
-        }
-
         if (this.onMobClick) {
             this.onMobClick(mobItem);
         }
@@ -919,13 +915,13 @@ class MergeField {
                         this._spawnMergeRing(targetX, targetY, combo);
                         this._spawnMergeParticles(targetX, targetY, combo);
 
-                        // Camera shake scaled by combo (only for combo >= 3 to protect UI readability)
+                        // Camera shake scaled by combo (micro-shake: 40-60ms, subtle tactile bump)
                         if (combo >= 5) {
-                            this.scene.cameras.main.shake(120, 0.005);
-                        } else if (combo === 4) {
-                            this.scene.cameras.main.shake(80, 0.003);
-                        } else if (combo === 3) {
                             this.scene.cameras.main.shake(60, 0.002);
+                        } else if (combo === 4) {
+                            this.scene.cameras.main.shake(50, 0.0015);
+                        } else if (combo === 3) {
+                            this.scene.cameras.main.shake(40, 0.001);
                         }
                         // combo 1 and 2: zero camera shake!
 
@@ -974,13 +970,7 @@ class MergeField {
             }
         });
 
-        // 5. XP reward floating text — slightly after impact
-        const xpEarned = this.economy.onMerge(newMob);
-        this.scene.time.delayedCall(150, () => {
-            this._spawnMergeRewardText(targetX, targetY, xpEarned);
-        });
-
-        // 6. New unlock tracking
+        // 5. New unlock tracking
         const isNewUnlock = !this.shownModals.has(newLevel);
         this.shownModals.add(newLevel);
         this.collection.add(newLevel);
@@ -1136,44 +1126,6 @@ class MergeField {
         }
     }
 
-    // ============================================================
-    // Stage 3: Merge reward floating text — refined arc + scale
-    // ============================================================
-
-    _spawnMergeRewardText(x, y, xpEarned) {
-        const scene = this.scene;
-        const text = `+${formatNumber(xpEarned)} XP ⭐`;
-
-        const t = createHDText(scene, x, y - 30, text, {
-            fontSize: '18px',
-            fontStyle: '900',
-            color: '#fde68a',
-            stroke: '#111625',
-            strokeThickness: 3,
-            shadow: { blur: 5, color: '#000', fill: true },
-        }).setOrigin(0.5, 1).setDepth(170).setScale(0.8).setAlpha(1.0);
-
-        // Scale up to 1.08 then hold, arc upward 38px, fade out at end
-        scene.tweens.add({
-            targets: t,
-            scaleX: 1.08,
-            scaleY: 1.08,
-            duration: 160,
-            ease: 'Back.Out',
-            onComplete: () => {
-                scene.tweens.add({
-                    targets: t,
-                    y: y - 75,
-                    scaleX: 1.0,
-                    scaleY: 1.0,
-                    alpha: 0,
-                    duration: 640,
-                    ease: 'Cubic.Out',
-                    onComplete: () => t.destroy(),
-                });
-            }
-        });
-    }
 
     /**
      * Удаляет устаревших мобов с поля

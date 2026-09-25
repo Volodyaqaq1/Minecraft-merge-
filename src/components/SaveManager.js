@@ -50,7 +50,11 @@ const SaveManager = {
             const raw = localStorage.getItem(this.KEY);
             if (!raw) return this._deepClone(this.DEFAULT_STATE);
             const saved = JSON.parse(raw);
+            const isV1 = !saved || !saved.saveVersion || saved.saveVersion < 2;
             const merged = this._merge(this._deepClone(this.DEFAULT_STATE), saved);
+            if (isV1) {
+                merged.saveVersion = 1;
+            }
             return this._migrate(merged);
         } catch (e) {
             console.warn('SaveManager: ошибка загрузки, сброс', e);
@@ -139,18 +143,61 @@ const SaveManager = {
             state.saveVersion = 2;
         }
 
+        // Гарантируем валидность коллекции мобов (числа >= 1)
+        if (!Array.isArray(state.collection) || state.collection.length === 0) {
+            state.collection = [1];
+        } else {
+            const cleanCol = new Set();
+            state.collection.forEach(lvl => {
+                const n = Number(lvl);
+                if (Number.isFinite(n) && n >= 1 && n <= 90) cleanCol.add(n);
+            });
+            if (!cleanCol.has(1)) cleanCol.add(1);
+            state.collection = Array.from(cleanCol).sort((a, b) => a - b);
+        }
+
+        // Также добавляем в коллекцию любых мобов, которые есть на поле
+        if (Array.isArray(state.field)) {
+            state.field.forEach(mob => {
+                if (mob && Number.isFinite(Number(mob.mobLevel)) && Number(mob.mobLevel) >= 1) {
+                    if (!state.collection.includes(Number(mob.mobLevel))) {
+                        state.collection.push(Number(mob.mobLevel));
+                    }
+                }
+            });
+            state.collection.sort((a, b) => a - b);
+        }
+
+        // Уровень игрока строго равен максимальному открытому мобу
+        if (!state.player || typeof state.player !== 'object') {
+            state.player = { level: 1, xp: 0, coins: CONFIG.STARTING_COINS, multiplier: 1 };
+        }
+        const maxFromCol = Math.max(...state.collection, 1);
+        state.player.level = Math.max(Number(state.player.level) || 1, maxFromCol);
+
         // Гарантируем наличие новых полей
         if (!state.currentEvolution) state.currentEvolution = 'ordinary';
         if (state.elementalEvolutionUnlocked === undefined) {
-            state.elementalEvolutionUnlocked = Array.isArray(state.collection) && state.collection.some(lvl => lvl >= 30);
+            state.elementalEvolutionUnlocked = state.collection.some(lvl => lvl >= 30);
         }
         if (state.goldenEvolutionUnlocked === undefined) {
-            state.goldenEvolutionUnlocked = Array.isArray(state.collection) && state.collection.some(lvl => lvl >= 60);
+            state.goldenEvolutionUnlocked = state.collection.some(lvl => lvl >= 60);
         }
-        if (!state.selectedWorld) state.selectedWorld = 'green_hills';
-        if (!Array.isArray(state.unlockedWorlds)) state.unlockedWorlds = ['green_hills'];
+
+        const validWorlds = (typeof WORLDS !== 'undefined' && Array.isArray(WORLDS))
+            ? WORLDS.map(w => w.id)
+            : ['green_hills', 'sunset_valley', 'night_meadow', 'ice_world', 'fire_world', 'end_world', 'golden_world'];
+        if (!state.selectedWorld || !validWorlds.includes(state.selectedWorld)) {
+            state.selectedWorld = 'green_hills';
+        }
+        if (!Array.isArray(state.unlockedWorlds)) {
+            state.unlockedWorlds = ['green_hills'];
+        } else if (!state.unlockedWorlds.includes('green_hills')) {
+            state.unlockedWorlds.unshift('green_hills');
+        }
+
         if (!state.features || typeof state.features !== 'object') {
-            const pLvl = (state.player && state.player.level) || 1;
+            const pLvl = state.player.level || 1;
             state.features = {
                 incubator:      { unlocked: pLvl >= 6,  animSeen: pLvl >= 6,  firstOpened: pLvl >= 6 },
                 rewards:        { unlocked: pLvl >= 9,  animSeen: pLvl >= 9,  firstOpened: pLvl >= 9 },

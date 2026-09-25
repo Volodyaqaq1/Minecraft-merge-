@@ -113,6 +113,16 @@ if (scenario === 'main_gameplay_new_skins') {
     state.player.level = 31;
     state.collection = [1, 2, 3, 4, 5, 30, 31];
     state.elementalEvolutionUnlocked = true;
+} else if (scenario === 'modal_queue_step1_milestone') {
+    state.player.level = 30;
+    state.collection = [1, 2, 3, 4, 5, 30];
+    state.elementalEvolutionUnlocked = false;
+    state.milestonesSeen = {};
+} else if (scenario === 'modal_queue_step2_new_mob') {
+    state.player.level = 31;
+    state.collection = [1, 2, 3, 4, 5, 30, 31];
+    state.elementalEvolutionUnlocked = true;
+    state.milestonesSeen = { elemental: true };
 }
 
 SaveManager.save(state);
@@ -198,6 +208,10 @@ function pollCapture() {
                 window.testOpenWorldSelector();
             } else if (scenario === 'evolution_unlock_modal') {
                 window.testShowMilestone('elemental');
+            } else if (scenario === 'modal_queue_step1_milestone') {
+                gameScene._handleNewMobDiscovery(getMobByLevel(31));
+            } else if (scenario === 'modal_queue_step2_new_mob') {
+                gameScene._showNewMobUnlockModal(getMobByLevel(31));
             }
         }
 

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <base href="../">
+    <title>Test Reset Progress</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+    <script src="src/config.js"></script>
+    <script src="src/data/mobs.js"></script>
+    <script src="src/data/worlds.js"></script>
+    <script src="src/data/bot_names.js"></script>
+    <script src="src/utils/helpers.js"></script>
+    <script src="src/utils/SoundManager.js"></script>
+    <script src="src/components/SaveManager.js"></script>
+    <script src="src/components/Economy.js"></script>
+    <script src="src/components/MergeField.js"></script>
+    <script src="src/components/BattleSystem.js"></script>
+    <script src="src/scenes/BootScene.js"></script>
+    <script src="src/scenes/GameScene.js"></script>
+    <script src="src/scenes/BattleScene.js"></script>
+    <script src="src/scenes/CollectionScene.js"></script>
+</head>
+<body>
+<div id="game-container"></div>
+<script>
+window.onerror = function(msg, url, line, col, err) {
+    document.title = 'ERR: ' + msg + ' at ' + line;
+};
+
+CONFIG.DEBUG = false;
+
+BootScene.prototype.preload = function() {
+    this._createColorTexture('bg_game',   0x2d5a27, 960, 540);
+    this._createColorTexture('bg_battle', 0x1a1a2e, 960, 540);
+    for (let baseId = 1; baseId <= 30; baseId++) {
+        const pad = String(baseId).padStart(2, '0');
+        this._createColorTexture(`mob_sprite_${pad}`, 0xff0000, 256, 256);
+        this._createColorTexture(`mob_${pad}`, 0xff0000, 256, 256);
+        this._createColorTexture(`mob_${pad}_sm`, 0xff0000, 256, 256);
+        this._createColorTexture(`mob_ordinary_${pad}`, 0xff0000, 256, 256);
+        this._createColorTexture(`mob_elemental_${pad}`, 0xff0000, 256, 256);
+        this._createColorTexture(`mob_golden_${pad}`, 0xff0000, 256, 256);
+    }
+    for (let lvl = 1; lvl <= 90; lvl++) {
+        const pad = String(lvl).padStart(2, '0');
+        this._createColorTexture(`mob_portrait_${pad}`, 0x00ff00, 256, 256);
+    }
+    this._createColorTexture('mob_sprite_placeholder', 0x888888, 256, 256);
+    this._createColorTexture('mob_portrait_placeholder', 0x888888, 256, 256);
+    this._createColorTexture('mob_placeholder', 0x888888, 256, 256);
+    this._createColorTexture('icon_gem', 0x00ffff, 64, 64);
+    this._createColorTexture('icon_sword', 0xffff00, 64, 64);
+    this._createColorTexture('icon_chest', 0xff8800, 64, 64);
+    this._createColorTexture('icon_egg', 0xffffff, 64, 64);
+    this._createColorTexture('icon_gear', 0xaaaaaa, 64, 64);
+    this._createColorTexture('icon_emerald', 0x00ff88, 64, 64);
+};
+
+const game = new Phaser.Game({
+    type: Phaser.CANVAS,
+    width: 960,
+    height: 540,
+    parent: 'game-container',
+    scene: [BootScene, GameScene, BattleScene, CollectionScene]
+});
+
+let phase = 0;
+let timer = 0;
+
+function pump() {
+    timer++;
+    document.title = 'PHASE_' + phase + '_T_' + timer;
+    try {
+        if (phase === 0) {
+            const gs = game.scene.getScene('GameScene');
+            if (gs && gs.scene.isActive() && gs._isInitialized && timer >= 1) {
+                // Call reset progress
+                gs._onResetProgress();
+                phase = 1;
+                timer = 0;
+            }
+        } else if (phase === 1) {
+            const gs = game.scene.getScene('GameScene');
+            if (gs && gs.scene.isActive() && gs._isInitialized && timer >= 1) {
+                const bgChildren = gs._bgContainer ? gs._bgContainer.list.length : -1;
+                const selectedWorld = gs.state ? gs.state.selectedWorld : 'none';
+                const isResetting = gs._isResetting;
+                document.title = 'RESET_RESULT:' + JSON.stringify({
+                    bgChildren,
+                    selectedWorld,
+                    isResetting,
+                    bgContainerVisible: gs._bgContainer ? gs._bgContainer.visible : false,
+                    bgContainerAlpha: gs._bgContainer ? gs._bgContainer.alpha : false
+                });
+                return;
+            }
+        }
+    } catch (e) {
+        document.title = 'ERR: ' + e.message;
+        return;
+    }
+    requestAnimationFrame(pump);
+}
+requestAnimationFrame(pump);
+</script>
+</body>
+</html>

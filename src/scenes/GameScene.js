@@ -6,7 +6,10 @@ class GameScene extends Phaser.Scene {
     constructor() { super({ key: 'GameScene' }); }
 
     init(data) {
-        this.state    = (data && data.state) ? data.state : SaveManager.load();
+        this._isResetting = false;
+        const diskState = SaveManager.load();
+        this.state    = (data && data.state) ? SaveManager._merge(diskState, data.state) : diskState;
+        this.state    = SaveManager._migrate(this.state);
         this.economy  = new Economy(this.state);
 
         // Гарантируем структуру инкубатора и наград за онлайн
@@ -58,20 +61,21 @@ class GameScene extends Phaser.Scene {
         // Привязываем кликер по мобу к комбо и наградам
         this.mergeField.onMobClick = (mobItem) => this._onMobClicked(mobItem);
 
+        // Инициализация очереди модальных окон
+        this._initModalQueue();
+
         // При успешном слиянии обновляем магазин, задания и показываем модалку открытия
         this.mergeField.onMergeSuccess = (newMob, isNew) => {
             this._onFieldChanged();
             if (isNew) {
-                this._showNewMobUnlockModal(newMob);
-                this._checkEvolutionMilestone(newMob.level);
+                this._handleNewMobDiscovery(newMob);
             }
         };
 
         // Открытие нового моба из любого источника (магазин, реклама, инкубатор)
         this.mergeField.onNewMobDiscovered = (newMob) => {
             this._onFieldChanged();
-            this._showNewMobUnlockModal(newMob);
-            this._checkEvolutionMilestone(newMob.level);
+            this._handleNewMobDiscovery(newMob);
         };
 
         // Быстрое комбо слияний подряд повышает шкалу множителя
@@ -104,6 +108,7 @@ class GameScene extends Phaser.Scene {
         this._buildSettingsModal();
         this._buildWorldSelectorModal();
         this._buildEvolutionMilestoneModal();
+        this._buildPlayerProgressionModal();
 
         // ─── 8. Привязка событий экономики к UI ───
         this.economy.onCoinsChange = (val) => this._setCoinsText(val);
@@ -169,6 +174,7 @@ class GameScene extends Phaser.Scene {
 
         window.__gameScene = this;
         window.testOpenWorldSelector = () => this._openWorldSelectorModal();
+        window.testOpenProgression = () => this._openPlayerProgressionModal();
         window.testShowMilestone = (tier) => this._showEvolutionMilestoneModal(tier);
         window.testOpenCollection = (tab) => this.scene.launch('CollectionScene', {
             collection: [...this.mergeField.collection],
@@ -191,17 +197,23 @@ class GameScene extends Phaser.Scene {
         const H = CONFIG.HEIGHT;
 
         if (this._bgContainer) {
-            this._bgContainer.removeAll(true);
-        } else {
-            this._bgContainer = this.add.container(0, 0).setDepth(-100);
+            this._bgContainer.destroy();
+            this._bgContainer = null;
         }
+        this._bgContainer = this.add.container(0, 0).setDepth(-100);
 
         const worldId = (this.state && this.state.selectedWorld) || 'green_hills';
-        const world = (typeof getWorldById === 'function') ? getWorldById(worldId) : {
-            skyTop: 0x5cbcf6, skyBottom: 0xc8eeff, hillsColor: 0x82ce42,
-            lawnTop: 0x9ee54f, lawnBottom: 0x6dbf2b, treeTrunk: 0x785332,
-            treeCrown: 0x4e9c2b, foliageColor: 0x438622, sunbeamAlpha: 0.10, hasStars: false
-        };
+        let world = (typeof getWorldById === 'function') ? getWorldById(worldId) : null;
+        if (!world && typeof WORLDS !== 'undefined' && WORLDS.green_hills) {
+            world = WORLDS.green_hills;
+        }
+        if (!world) {
+            world = {
+                skyTop: 0x5cbcf6, skyBottom: 0xc8eeff, hillsColor: 0x82ce42,
+                lawnTop: 0x9ee54f, lawnBottom: 0x6dbf2b, treeTrunk: 0x785332,
+                treeCrown: 0x4e9c2b, foliageColor: 0x438622, sunbeamAlpha: 0.10, hasStars: false
+            };
+        }
 
         // 1. Нежное градиентное небо
         const sky = this.add.graphics();
@@ -305,6 +317,9 @@ class GameScene extends Phaser.Scene {
 
         // 1. Кнопка настроек + тактильный бейдж "Уровень X"
         this._buildSettingsAndLevelWidget(14, 10);
+
+        // Кнопка смены мира (на основном экране)
+        this._buildWorldButton(192, 10);
 
         // 2. Комбо-множитель (чистая и спокойная панель множителей x1..x5, гармонично по центру)
         this._buildComboBar(366, 10, 228, 44);
@@ -432,10 +447,201 @@ class GameScene extends Phaser.Scene {
         lvlHit.on('pointerup', () => {
             if (lvlDown) {
                 releaseLvl();
-                spawnFloatingText(this, lvlX + lvlW / 2, y + lvlH + 20, `🌟 Уровень ${this.economy.level} (макс. сквиш)!`, '#ffd700');
+                this._openPlayerProgressionModal();
             }
         });
         lvlHit.on('pointerout', releaseLvl);
+    }
+
+    _buildWorldButton(x, y) {
+        const size = 44;
+        const worldContainer = this.add.container(x + size / 2, y + size / 2);
+        this._worldContainer = worldContainer;
+
+        const shadow = this.add.graphics();
+        shadow.fillStyle(0x0284c7, 1);
+        shadow.fillRoundedRect(-size / 2, -size / 2 + 4, size, size, 12);
+        worldContainer.add(shadow);
+
+        const face = this.add.container(0, 0);
+        const g = this.add.graphics();
+        g.fillStyle(0x38bdf8, 1);
+        g.fillRoundedRect(-size / 2, -size / 2, size, size, 12);
+        g.fillStyle(0xffffff, 0.35);
+        g.fillRoundedRect(-size / 2 + 2, -size / 2 + 2, size - 4, 16, { tl: 10, tr: 10, bl: 2, br: 2 });
+        g.lineStyle(1.5, 0xbae6fd, 0.8);
+        g.strokeRoundedRect(-size / 2, -size / 2, size, size, 12);
+        face.add(g);
+
+        const icon = createHDText(this, 0, 0, '🌍', { fontSize: '20px' }).setOrigin(0.5);
+        face.add(icon);
+        worldContainer.add(face);
+
+        const hit = this.add.rectangle(0, 2, size, size + 4, 0, 0).setInteractive({ cursor: 'pointer' });
+        worldContainer.add(hit);
+
+        let isDown = false;
+        hit.on('pointerdown', () => {
+            isDown = true;
+            face.y = 3;
+            if (typeof SoundManager !== 'undefined') SoundManager.playClick();
+        });
+        const release = () => {
+            if (!isDown) return;
+            isDown = false;
+            face.y = 0;
+        };
+        hit.on('pointerup', () => {
+            if (isDown) {
+                release();
+                this._openWorldSelectorModal();
+            }
+        });
+        hit.on('pointerout', release);
+
+        this._updateWorldNotificationDot();
+    }
+
+    _updateWorldNotificationDot() {
+        const hasUnopenedWorld = this.state.features?.world_selector?.unlocked && !this.state.features?.world_selector?.firstOpened;
+        if (hasUnopenedWorld) {
+            if (!this._worldNotifDot && this._worldContainer) {
+                this._worldNotifDot = this._createFeatureNotificationDot(this._worldContainer.x + 16, this._worldContainer.y - 16);
+            }
+        } else {
+            if (this._worldNotifDot) {
+                this._worldNotifDot.destroy();
+                this._worldNotifDot = null;
+            }
+        }
+    }
+
+    _buildPlayerProgressionModal() {
+        const W = CONFIG.WIDTH;
+        const H = CONFIG.HEIGHT;
+
+        this._playerProgModal = this.add.container(W / 2, H / 2).setDepth(800).setVisible(false);
+
+        const overlay = this.add.rectangle(0, 0, W, H, 0x000000, 0.65).setInteractive();
+        overlay.on('pointerdown', () => this._playerProgModal.setVisible(false));
+
+        const cardW = 380;
+        const cardH = 260;
+
+        const shadowG = this.add.graphics();
+        shadowG.fillStyle(0x000000, 0.35);
+        shadowG.fillRoundedRect(-cardW / 2 + 2, -cardH / 2 + 6, cardW, cardH, 20);
+
+        const bg = this.add.graphics();
+        drawRoundRect(bg, -cardW / 2, -cardH / 2, cardW, cardH, 20, 0xfffef7, 0.99, 0xf59e0b, 3);
+
+        bg.fillStyle(0x1e293b, 1);
+        bg.fillRoundedRect(-cardW / 2 + 3, -cardH / 2 + 3, cardW - 6, 48, { tl: 17, tr: 17, bl: 0, br: 0 });
+
+        const title = createHDText(this, 0, -cardH / 2 + 25, '⭐ ПРОГРЕСС ИГРОКА', {
+            fontSize: '18px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#ffd700', stroke: '#0f172a', strokeThickness: 3, fontStyle: '900',
+        }).setOrigin(0.5);
+
+        const closeX = cardW / 2 - 4;
+        const closeY = -cardH / 2 + 4;
+        const closeBtnG = this.add.graphics();
+        closeBtnG.fillStyle(0xef4444, 1);
+        closeBtnG.fillCircle(closeX, closeY, 17);
+        closeBtnG.lineStyle(2.5, 0xffffff, 1);
+        closeBtnG.strokeCircle(closeX, closeY, 17);
+
+        const closeBtnTxt = this.add.text(closeX, closeY, '✖', {
+            fontSize: '16px', color: '#ffffff', fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        const closeBtnHit = this.add.circle(closeX, closeY, 22, 0, 0).setInteractive({ cursor: 'pointer' });
+        closeBtnHit.on('pointerdown', () => {
+            if (typeof SoundManager !== 'undefined') SoundManager.playClick();
+            this._playerProgModal.setVisible(false);
+        });
+
+        // Строка 1: Уровень игрока
+        const lvlBg = this.add.graphics();
+        drawRoundRect(lvlBg, -cardW / 2 + 20, -cardH / 2 + 62, cardW - 40, 38, 10, 0xfef3c7, 0.95, 0xf59e0b, 1.5);
+
+        this._progLvlText = createHDText(this, 0, -cardH / 2 + 81, 'Уровень игрока: 1', {
+            fontSize: '15px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#92400e', fontStyle: '900',
+        }).setOrigin(0.5);
+
+        // Строка 2: Максимальный моб
+        const mobBg = this.add.graphics();
+        drawRoundRect(mobBg, -cardW / 2 + 20, -cardH / 2 + 108, cardW - 40, 38, 10, 0xf0fdf4, 0.95, 0x22c55e, 1.5);
+
+        this._progMobText = createHDText(this, 0, -cardH / 2 + 127, 'Максимальный моб: Цыпа (ур. 1)', {
+            fontSize: '13px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#166534', fontStyle: '900',
+        }).setOrigin(0.5);
+
+        // Строка 3: Следующее открытие
+        const nextBg = this.add.graphics();
+        drawRoundRect(nextBg, -cardW / 2 + 20, -cardH / 2 + 154, cardW - 40, 38, 10, 0xf1f5f9, 0.95, 0x3b82f6, 1.5);
+
+        this._progNextText = createHDText(this, 0, -cardH / 2 + 173, 'Следующее открытие: Рекламный моб (ур. 4)', {
+            fontSize: '12px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+            color: '#1e40af', fontStyle: '900',
+        }).setOrigin(0.5);
+
+        // Кнопка "ПОНЯТНО"
+        const okBtn = createCasualButton(this, 0, cardH / 2 - 26, 180, 36, 'ПОНЯТНО', {
+            topColor: 0x22c55e, bottomColor: 0x15803d, strokeColor: 0x86efac,
+            fontSize: '14px', radius: 10, textColor: '#ffffff'
+        }, () => {
+            if (typeof SoundManager !== 'undefined') SoundManager.playClick();
+            this._playerProgModal.setVisible(false);
+        });
+
+        this._playerProgModal.add([
+            overlay, shadowG, bg, title,
+            closeBtnG, closeBtnTxt, closeBtnHit,
+            lvlBg, this._progLvlText,
+            mobBg, this._progMobText,
+            nextBg, this._progNextText,
+            okBtn
+        ]);
+    }
+
+    _getNextFeatureUnlock(level) {
+        if (level < 4)  return 'Рекламный моб (ур. 4)';
+        if (level < 6)  return 'Инкубатор (ур. 6)';
+        if (level < 9)  return 'Награды за онлайн (ур. 9)';
+        if (level < 11) return 'Панель заданий (ур. 11)';
+        if (level < 15) return 'Второй слот инкубатора (ур. 15)';
+        if (level < 25) return 'Третий слот инкубатора (ур. 25)';
+        if (level < 30) return 'Стихийная эволюция (ур. 30)';
+        if (level < 60) return 'Золотая эволюция (ур. 60)';
+        return 'Все механики открыты! 🏆';
+    }
+
+    _openPlayerProgressionModal() {
+        const pLevel = this.economy ? this.economy.level : 1;
+        const maxMob = getMobByLevel(pLevel);
+        const mobName = maxMob ? maxMob.name : 'Цыпа';
+
+        if (this._progLvlText) {
+            this._progLvlText.setText(`⭐ Уровень игрока: ${pLevel}`);
+        }
+        if (this._progMobText) {
+            this._progMobText.setText(`🏆 Максимальный моб: ${mobName} (ур. ${pLevel})`);
+        }
+        if (this._progNextText) {
+            this._progNextText.setText(`🎯 Следующее: ${this._getNextFeatureUnlock(pLevel)}`);
+        }
+
+        this._playerProgModal.setScale(0.7);
+        this._playerProgModal.setVisible(true);
+        this.tweens.add({
+            targets: this._playerProgModal,
+            scaleX: 1, scaleY: 1,
+            duration: 200,
+            ease: 'Back.Out'
+        });
     }
 
     _updateLevelWidget() {
@@ -1392,8 +1598,9 @@ class GameScene extends Phaser.Scene {
         // 2. Нижний dock (Инкубатор с Lv.6, Награды с Lv.9)
         this._refreshBottomDock();
 
-        // 3. Индикатор смены мира в настройках
+        // 3. Индикатор смены мира
         this._updateSettingsNotificationDot();
+        this._updateWorldNotificationDot();
 
         // 4. Панель заданий (Задания доступны с Lv.11)
         if (lvl >= 11) {
@@ -2377,8 +2584,8 @@ class GameScene extends Phaser.Scene {
             repeat: -1
         });
 
-        const title = this.add.text(0, -170, '✨ НОВЫЙ СКВИШ! ✨', {
-            fontSize: '30px',
+        this._newMobModalTitle = this.add.text(0, -170, '✨ НОВЫЙ МОБ ОТКРЫТ! ✨', {
+            fontSize: '28px',
             fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
             color: '#ffd700',
             stroke: '#111625',
@@ -2390,13 +2597,31 @@ class GameScene extends Phaser.Scene {
 
         const closeBtn = this._makeButton(0, 168, 220, 46, 'КРУТО! 👍', '#22c55e', () => {
             this._newMobModal.setVisible(false);
+            if (typeof this._onNewMobModalClosed === 'function') {
+                const cb = this._onNewMobModalClosed;
+                this._onNewMobModalClosed = null;
+                cb();
+            }
         }, '16px');
 
-        this._newMobModal.add([overlay, bg, this._newMobRays, title, this._newMobModalContent, ...closeBtn]);
+        this._newMobModal.add([overlay, bg, this._newMobRays, this._newMobModalTitle, this._newMobModalContent, ...closeBtn]);
     }
 
     _showNewMobUnlockModal(newMob) {
         this._newMobModalContent.removeAll(true);
+
+        if (this._newMobModalTitle) {
+            if (newMob.evolutionTier === 2) {
+                this._newMobModalTitle.setText('⚡ НОВЫЙ СТИХИЙНЫЙ МОБ! ⚡');
+                this._newMobModalTitle.setColor('#38bdf8');
+            } else if (newMob.evolutionTier === 3) {
+                this._newMobModalTitle.setText('👑 НОВЫЙ ЗОЛОТОЙ МОБ! 👑');
+                this._newMobModalTitle.setColor('#ffd700');
+            } else {
+                this._newMobModalTitle.setText('✨ НОВЫЙ МОБ ОТКРЫТ! ✨');
+                this._newMobModalTitle.setColor('#ffd700');
+            }
+        }
 
         const prevMob = getMobByLevel(newMob.level - 1);
         const nextMob = getMobByLevel(newMob.level + 1);
@@ -2418,7 +2643,7 @@ class GameScene extends Phaser.Scene {
             if (typeof SoundManager !== 'undefined') {
                 SoundManager.playNewMobFanfare();
             }
-            this.cameras.main.shake(180, 0.008);
+            this.cameras.main.shake(80, 0.002);
 
             // Огромный HD аватар моба посередине с пульсацией
             const newMobTex = newMob.texture || (newMob.level <= 10 ? `mob_0${newMob.level}` : 'mob_placeholder');
@@ -2986,7 +3211,7 @@ class GameScene extends Phaser.Scene {
         overlay.on('pointerdown', () => this._settingsModal.setVisible(false));
 
         const cardW = 340;
-        const cardH = 320;
+        const cardH = 240;
 
         // Фон карточки настроек (кремовый с двойной декоративной рамкой)
         const bg = this.add.graphics();
@@ -2995,7 +3220,7 @@ class GameScene extends Phaser.Scene {
         bg.strokeRoundedRect(-cardW / 2 + 8, -cardH / 2 + 8, cardW - 16, cardH - 16, 14);
 
         // Заголовок "Настройки"
-        const title = this.add.text(0, -cardH / 2 + 32, 'Настройки', {
+        const title = this.add.text(0, -cardH / 2 + 28, 'Настройки', {
             fontSize: '22px',
             fontFamily: 'monospace',
             color: '#3d312a',
@@ -3026,14 +3251,8 @@ class GameScene extends Phaser.Scene {
         // Контейнер для кнопок аудио (Музыка и Звук)
         this._settingsAudioContainer = this.add.container(0, 0);
 
-        // Кнопка "🌍 Сменить мир / фон"
-        const [worldBg, worldTxt, worldHit] = this._makeButton(0, 48, 220, 42, '🌍 Сменить мир / фон', '#0284c7', () => {
-            this._settingsModal.setVisible(false);
-            this._openWorldSelectorModal();
-        }, '14px');
-
         // Кнопка "Сброс прогресса"
-        const [resetBg, resetTxt, resetHit] = this._makeButton(0, 106, 170, 36, 'Сброс прогресса', '#c0392b', () => {
+        const [resetBg, resetTxt, resetHit] = this._makeButton(0, 56, 180, 36, 'Сброс прогресса', '#c0392b', () => {
             this._onResetProgress();
         }, '13px');
 
@@ -3041,7 +3260,6 @@ class GameScene extends Phaser.Scene {
             overlay, bg, title,
             closeBtnG, closeBtnTxt, closeBtnHit,
             this._settingsAudioContainer,
-            worldBg, worldTxt, worldHit,
             resetBg, resetTxt, resetHit
         ]);
     }
@@ -3118,16 +3336,13 @@ class GameScene extends Phaser.Scene {
 
         this._settingsAudioContainer.add([mBg, mIcon, mLabel, mHit, sBg, sIcon, sLabel, sHit]);
 
-        // Индикатор "НОВОЕ" на кнопке смены мира
-        if (this.state.features?.world_selector?.unlocked && !this.state.features?.world_selector?.firstOpened) {
-            const dot = this._createFeatureNotificationDot(96, 40);
-            this._settingsAudioContainer.add(dot);
-        }
     }
 
     _onResetProgress() {
         this._isResetting = true;
         SaveManager.reset();
+        this.state = SaveManager._deepClone(SaveManager.DEFAULT_STATE);
+        this.state.selectedWorld = 'green_hills';
         if (typeof SoundManager !== 'undefined') {
             SoundManager.playPop();
         }
@@ -3135,16 +3350,9 @@ class GameScene extends Phaser.Scene {
     }
 
     _updateSettingsNotificationDot() {
-        const hasUnopenedWorld = this.state.features?.world_selector?.unlocked && !this.state.features?.world_selector?.firstOpened;
-        if (hasUnopenedWorld) {
-            if (!this._gearNotifDot && this._gearContainer) {
-                this._gearNotifDot = this._createFeatureNotificationDot(this._gearContainer.x + 16, this._gearContainer.y - 16);
-            }
-        } else {
-            if (this._gearNotifDot) {
-                this._gearNotifDot.destroy();
-                this._gearNotifDot = null;
-            }
+        if (this._gearNotifDot) {
+            this._gearNotifDot.destroy();
+            this._gearNotifDot = null;
         }
     }
 
@@ -3511,6 +3719,11 @@ class GameScene extends Phaser.Scene {
         const [btnBg, btnTxt, btnHit] = this._makeButton(0, 168, 260, 46, btnText, btnColor, () => {
             if (typeof SoundManager !== 'undefined') SoundManager.playClick();
             this._evolutionMilestoneModal.setVisible(false);
+            if (typeof this._onMilestoneModalClosed === 'function') {
+                const cb = this._onMilestoneModalClosed;
+                this._onMilestoneModalClosed = null;
+                cb();
+            }
         }, '15px');
 
         this._evolutionContent.add([
@@ -3532,21 +3745,97 @@ class GameScene extends Phaser.Scene {
         }
     }
 
-    _checkEvolutionMilestone(mobLevel) {
+    _initModalQueue() {
+        this._modalQueue = [];
+        this._isModalActive = false;
+        this._onMilestoneModalClosed = null;
+        this._onNewMobModalClosed = null;
+    }
+
+    _enqueueModal(modalTask) {
+        if (!this._modalQueue) this._initModalQueue();
+        this._modalQueue.push(modalTask);
+        // Sort descending by priority: highest priority runs first (100: milestone before 50: new mob)
+        this._modalQueue.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+        this._processNextModal();
+    }
+
+    _processNextModal() {
+        if (this._isModalActive || !this._modalQueue || this._modalQueue.length === 0) return;
+        this._isModalActive = true;
+        const task = this._modalQueue.shift();
+        task.show(() => {
+            this._isModalActive = false;
+            this.time.delayedCall(150, () => {
+                this._processNextModal();
+            });
+        });
+    }
+
+    _handleNewMobDiscovery(newMob) {
         this.state.milestonesSeen = this.state.milestonesSeen || {};
-        if (mobLevel >= 30 && !this.state.milestonesSeen.elemental) {
+
+        let milestoneToTrigger = null;
+        if (newMob.level >= 31 && !this.state.milestonesSeen.elemental) {
             this.state.milestonesSeen.elemental = true;
             this.state.elementalEvolutionUnlocked = true;
             this._save();
-            this.time.delayedCall(750, () => {
-                this._showEvolutionMilestoneModal('elemental');
-            });
-        } else if (mobLevel >= 60 && !this.state.milestonesSeen.golden) {
+            milestoneToTrigger = 'elemental';
+        } else if (newMob.level >= 61 && !this.state.milestonesSeen.golden) {
             this.state.milestonesSeen.golden = true;
             this.state.goldenEvolutionUnlocked = true;
             this._save();
-            this.time.delayedCall(750, () => {
-                this._showEvolutionMilestoneModal('golden');
+            milestoneToTrigger = 'golden';
+        }
+
+        // If an era milestone was reached, queue it FIRST with priority 100
+        if (milestoneToTrigger) {
+            this._enqueueModal({
+                type: 'milestone',
+                priority: 100,
+                show: (onClosed) => {
+                    this._onMilestoneModalClosed = onClosed;
+                    this._showEvolutionMilestoneModal(milestoneToTrigger);
+                }
+            });
+        }
+
+        // Then queue the new mob unlock modal with priority 50
+        this._enqueueModal({
+            type: 'new_mob',
+            priority: 50,
+            show: (onClosed) => {
+                this._onNewMobModalClosed = onClosed;
+                this._showNewMobUnlockModal(newMob);
+            }
+        });
+    }
+
+    _checkEvolutionMilestone(mobLevel) {
+        this.state.milestonesSeen = this.state.milestonesSeen || {};
+        if (mobLevel >= 31 && !this.state.milestonesSeen.elemental) {
+            this.state.milestonesSeen.elemental = true;
+            this.state.elementalEvolutionUnlocked = true;
+            this._save();
+            this._enqueueModal({
+                type: 'milestone',
+                priority: 100,
+                show: (onClosed) => {
+                    this._onMilestoneModalClosed = onClosed;
+                    this._showEvolutionMilestoneModal('elemental');
+                }
+            });
+        } else if (mobLevel >= 61 && !this.state.milestonesSeen.golden) {
+            this.state.milestonesSeen.golden = true;
+            this.state.goldenEvolutionUnlocked = true;
+            this._save();
+            this._enqueueModal({
+                type: 'milestone',
+                priority: 100,
+                show: (onClosed) => {
+                    this._onMilestoneModalClosed = onClosed;
+                    this._showEvolutionMilestoneModal('golden');
+                }
             });
         }
     }
@@ -3614,7 +3903,36 @@ class GameScene extends Phaser.Scene {
         if (this._isResetting) return;
         if (!this.mergeField || !Array.isArray(this.mergeField.mobs)) return;
         const fieldState = this.mergeField.toState();
-        this.state.player         = this.economy.toState();
+
+        // Защита и объединение коллекции (коллекция никогда не уменьшается!)
+        const currentCollection = new Set(Array.isArray(this.state.collection) ? this.state.collection : [1]);
+        if (Array.isArray(fieldState.collection)) {
+            fieldState.collection.forEach(lvl => {
+                const n = Number(lvl);
+                if (Number.isFinite(n) && n >= 1) currentCollection.add(n);
+            });
+        }
+        if (Array.isArray(this.mergeField.mobs)) {
+            this.mergeField.mobs.forEach(m => {
+                if (m && Number.isFinite(Number(m.mobLevel)) && Number(m.mobLevel) >= 1) {
+                    currentCollection.add(Number(m.mobLevel));
+                }
+            });
+        }
+        if (Array.isArray(this.state.field)) {
+            this.state.field.forEach(m => {
+                if (m && Number.isFinite(Number(m.mobLevel)) && Number(m.mobLevel) >= 1) {
+                    currentCollection.add(Number(m.mobLevel));
+                }
+            });
+        }
+        this.state.collection = Array.from(currentCollection).sort((a, b) => a - b);
+
+        // Уровень игрока строго равен максимальному открытому мобу
+        const maxLevel = Math.max(...this.state.collection, 1);
+        this.economy.setLevel(maxLevel);
+        this.state.player = this.economy.toState();
+        this.state.player.level = maxLevel;
 
         // Защита от потери мобов при переходе сцен / shutdown:
         // Если поле вернуло 0 мобов, но в сохранении мобы уже были —
@@ -3625,8 +3943,11 @@ class GameScene extends Phaser.Scene {
             this.state.field = fieldState.field;
         }
 
-        this.state.collection     = fieldState.collection;
-        this.state.shownModals    = fieldState.shownModals;
+        const currentModals = new Set(Array.isArray(this.state.shownModals) ? this.state.shownModals : [1]);
+        if (Array.isArray(fieldState.shownModals)) {
+            fieldState.shownModals.forEach(lvl => currentModals.add(Number(lvl)));
+        }
+        this.state.shownModals    = Array.from(currentModals).sort((a, b) => a - b);
         this.state.incubatorSlots = this.state.incubatorSlots;
         this.state.playtime       = this.state.playtime;
         this.state.quests         = this.quests;

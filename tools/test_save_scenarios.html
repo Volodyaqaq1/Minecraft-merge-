@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <base href="../">
+    <title>Save Scenarios Test</title>
+    <script src="src/config.js"></script>
+    <script src="src/data/mobs.js"></script>
+    <script src="src/data/worlds.js"></script>
+    <script src="src/data/bot_names.js"></script>
+    <script src="src/utils/helpers.js"></script>
+    <script src="src/components/SaveManager.js"></script>
+    <script src="src/components/Economy.js"></script>
+</head>
+<body>
+<div id="results"></div>
+<script>
+const output = [];
+
+// Test 1: Load old save with no saveVersion
+localStorage.clear();
+const oldSave = {
+    player: { level: 8, coins: 50000, multiplier: 1, xp: 500 },
+    field: [{ id: 1, mobLevel: 8, x: 200, y: 200 }, { id: 2, mobLevel: 7, x: 300, y: 200 }],
+    collection: [1, 2, 3, 4, 5, 6, 7, 8],
+    shownModals: [1, 2, 3, 4, 5, 6, 7, 8],
+};
+localStorage.setItem('bestiary_squishy_save_v1', JSON.stringify(oldSave));
+const loaded1 = SaveManager.load();
+output.push({
+    test: 'OLD_SAVE_NO_VERSION',
+    saveVersion: loaded1.saveVersion,
+    collection: loaded1.collection,
+    field: loaded1.field.map(m => m.mobLevel),
+    player: loaded1.player
+});
+
+// Test 2: Save again, then reload
+SaveManager.save(loaded1);
+const loaded2 = SaveManager.load();
+output.push({
+    test: 'SAVED_AND_RELOADED',
+    saveVersion: loaded2.saveVersion,
+    collection: loaded2.collection,
+    field: loaded2.field.map(m => m.mobLevel),
+    player: loaded2.player
+});
+
+// Test 3: What if save had collection as numbers vs strings?
+localStorage.clear();
+const saveWithStrs = {
+    saveVersion: 2,
+    player: { level: 10, coins: 99999 },
+    collection: ['1', '2', '3', '10'],
+    field: [{ id: 1, mobLevel: 10, x: 100, y: 100 }]
+};
+localStorage.setItem('bestiary_squishy_save_v1', JSON.stringify(saveWithStrs));
+const loaded3 = SaveManager.load();
+output.push({
+    test: 'STRINGS_COLLECTION',
+    collection: loaded3.collection,
+    maxUnlocked: Math.max(...loaded3.collection)
+});
+
+document.title = 'OUTPUT:' + JSON.stringify(output);
+</script>
+</body>
+</html>

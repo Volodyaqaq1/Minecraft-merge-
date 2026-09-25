@@ -46,47 +46,32 @@ class Economy {
     }
 
     addXP(amount) {
-        this.xp += amount;
-        if (this.onXPChange) {
-            this.onXPChange(this.getXPDetails());
-        }
+        // Опыт устарел: уровень игрока теперь строго привязан к максимальному открытому мобу
     }
 
     getXPDetails() {
-        const table = CONFIG.XP_TO_LEVEL;
-        const curBase = table[this.level - 1] || 0;
-        const nextBase = table[this.level] || (curBase + 1000);
-        const curInLevel = Math.max(0, this.xp - curBase);
-        const neededInLevel = Math.max(1, nextBase - curBase);
-        const progress = Math.min(1, curInLevel / neededInLevel);
         return {
             level: this.level,
-            curInLevel,
-            neededInLevel,
-            progress,
+            curInLevel: 0,
+            neededInLevel: 1,
+            progress: 1,
         };
     }
 
     getLevelProgress() {
-        return this.getXPDetails().progress;
+        return 1;
     }
 
-    // ---- Мёрдж: ТОЛЬКО ОПЫТ (БЕЗ МОНЕТ) ----
+    // ---- Мёрдж ----
 
-    /**
-     * Вызывается при каждом слиянии. Начисляет ТОЛЬКО XP!
-     */
     onMerge(mob) {
-        const xpEarned = Math.round(CONFIG.XP_PER_MERGE * Math.sqrt(mob.level));
-        this.addXP(xpEarned);
-        return xpEarned;
+        return 0;
     }
 
     // ---- Бои ----
 
     onBattleWin(prizeAmount) {
         this.addCoins(prizeAmount);
-        this.addXP(CONFIG.XP_PER_MERGE * 4);
     }
 
     // ---- Сериализация ----

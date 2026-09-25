@@ -9,7 +9,9 @@ class BattleScene extends Phaser.Scene {
         this.playerTeam = (data && data.playerTeam) ? data.playerTeam : [];
         this.botTeam    = (data && data.botTeam) ? data.botTeam : [];
         this.botName    = (data && data.botName) ? data.botName : 'Бот';
-        this.state      = (data && data.state) ? SaveManager._deepClone(data.state) : SaveManager.load();
+        const diskState = SaveManager.load();
+        this.state      = (data && data.state) ? SaveManager._merge(diskState, data.state) : diskState;
+        this.state      = SaveManager._migrate(this.state);
     }
 
     create() {
@@ -505,9 +507,9 @@ class BattleScene extends Phaser.Scene {
         // 4. Частицы щепок (Wood Chips)
         this._spawnWoodChips(hitX, hitY, isCrit, isPlayer);
 
-        // 5. Микро-тряска экрана ТОЛЬКО на крит (70ms, интенсивность 0.0025)
+        // 5. Микро-тряска экрана ТОЛЬКО на крит (50ms, интенсивность 0.002)
         if (isCrit) {
-            this.cameras.main.shake(70, 0.0025);
+            this.cameras.main.shake(50, 0.002);
         }
 
         // 6. Компактный всплывающий урон (Damage badge)
@@ -571,6 +573,7 @@ class BattleScene extends Phaser.Scene {
 
         // 14-16 разлетающихся щепок и облачка пыли
         this._spawnWallBreakExplosion(brokenWallX, brokenWallY);
+        this.cameras.main.shake(80, 0.003);
 
         // Панч и разрушение стенки: scaleX 1.08, scaleY 0.82 -> scaleY 0, alpha 0, duration 260ms
         this.tweens.killTweensOf(brokenWall);
@@ -838,9 +841,9 @@ class BattleScene extends Phaser.Scene {
 
             const finalCoins = basePrize * currentMult;
             this.state.player.coins = (this.state.player.coins || 0) + finalCoins;
-            if (isWin) {
-                this.state.player.xp = (this.state.player.xp || 0) + CONFIG.XP_PER_MERGE * 4;
-            }
+            const maxLvl = Math.max(...(this.state.collection || [1]), 1);
+            if (!this.state.player) this.state.player = {};
+            this.state.player.level = maxLvl;
             SaveManager.save(this.state);
 
             if (typeof SoundManager !== 'undefined') SoundManager.playVictory();
@@ -865,9 +868,9 @@ class BattleScene extends Phaser.Scene {
             sliderActive = false;
 
             this.state.player.coins = (this.state.player.coins || 0) + basePrize;
-            if (isWin) {
-                this.state.player.xp = (this.state.player.xp || 0) + CONFIG.XP_PER_MERGE * 4;
-            }
+            const maxLvl = Math.max(...(this.state.collection || [1]), 1);
+            if (!this.state.player) this.state.player = {};
+            this.state.player.level = maxLvl;
             SaveManager.save(this.state);
 
             if (typeof SoundManager !== 'undefined') SoundManager.playClick();

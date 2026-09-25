@@ -302,24 +302,48 @@ class CollectionScene extends Phaser.Scene {
 
             const isUnlocked = this.unlockedSet.has(lvl);
             const rColor = (mob.rarityColor === 0x888888) ? 0x94a3b8 : (mob.rarityColor || 0x64748b);
+            const isElementalTab = (this.currentTab === 1);
             const cardG = this.add.graphics();
 
             if (isUnlocked) {
                 // Разблокированная карточка
-                drawRoundRect(cardG, x, y + 3, cardW, cardH, 12, 0x020617, 0.45);
-                drawRoundRect(cardG, x, y, cardW, cardH, 12, 0x1e293b, 0.95, rColor, 2.2);
+                const cardBgColor = isElementalTab ? 0x0c192c : 0x1e293b;
+                const cardBorderColor = isElementalTab ? 0x0284c7 : rColor;
+                const cardBorderWidth = isElementalTab ? 2.4 : 2.2;
 
-                // Верхний мягкий блик редкости
-                cardG.fillStyle(rColor, 0.12);
+                drawRoundRect(cardG, x, y + 3, cardW, cardH, 12, 0x020617, 0.45);
+                drawRoundRect(cardG, x, y, cardW, cardH, 12, cardBgColor, 0.96, cardBorderColor, cardBorderWidth);
+
+                if (isElementalTab) {
+                    // Тонкая внутренняя светящаяся рамка для стихийных мобов
+                    cardG.lineStyle(1.0, 0x38bdf8, 0.45);
+                    cardG.strokeRoundedRect(x + 2, y + 2, cardW - 4, cardH - 4, 10);
+                }
+
+                // Верхний мягкий блик редкости / стихии
+                const shineColor = isElementalTab ? 0x0284c7 : rColor;
+                cardG.fillStyle(shineColor, isElementalTab ? 0.18 : 0.12);
                 cardG.fillRoundedRect(x + 2, y + 2, cardW - 4, 34, { tl: 10, tr: 10, bl: 0, br: 0 });
 
                 // Круглый постамент под аватар
                 const avX = x + cardW / 2;
                 const avY = y + 33;
-                cardG.fillStyle(0x0f172a, 0.7);
+                const pedBg = isElementalTab ? 0x082f49 : 0x0f172a;
+                const pedStroke = isElementalTab ? 0x0284c7 : rColor;
+                cardG.fillStyle(pedBg, 0.85);
                 cardG.fillCircle(avX, avY, 25);
-                cardG.lineStyle(1.5, rColor, 0.75);
+                cardG.lineStyle(1.8, pedStroke, 0.9);
                 cardG.strokeCircle(avX, avY, 25);
+
+                if (isElementalTab) {
+                    // Магические рунические метки на пьедестале
+                    cardG.lineStyle(1.2, 0x38bdf8, 0.7);
+                    cardG.strokeCircle(avX, avY, 28);
+                    cardG.lineBetween(avX - 28, avY, avX - 25, avY);
+                    cardG.lineBetween(avX + 25, avY, avX + 28, avY);
+                    cardG.lineBetween(avX, avY - 28, avX, avY - 25);
+                    cardG.lineBetween(avX, avY + 25, avX, avY + 28);
+                }
 
                 // Аватарка
                 const mobTex = (mob.portraitKey && this.textures.exists(mob.portraitKey))
@@ -328,19 +352,21 @@ class CollectionScene extends Phaser.Scene {
                 const avatar = this.add.image(avX, avY, mobTex).setDisplaySize(48, 48);
 
                 // Бейдж уровня (слева вверху)
-                drawRoundRect(cardG, x + 5, y + 5, 42, 16, 6, 0x0f172a, 0.85, rColor, 1.2);
+                const lvlBg = isElementalTab ? 0x082f49 : 0x0f172a;
+                const lvlStroke = isElementalTab ? 0x38bdf8 : rColor;
+                drawRoundRect(cardG, x + 5, y + 5, 42, 16, 6, lvlBg, 0.9, lvlStroke, 1.2);
                 const lvlTxt = createHDText(this, x + 26, y + 13, `Lv.${mob.level}`, {
                     fontSize: '10px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
-                    color: '#facc15', fontStyle: '900', stroke: '#0f172a', strokeThickness: 2,
+                    color: isElementalTab ? '#38bdf8' : '#facc15', fontStyle: '900', stroke: '#0f172a', strokeThickness: 2,
                 }).setOrigin(0.5, 0.5);
 
                 // Бейдж эволюции (справа вверху)
                 let evoBadgeObj = null;
                 if (mob.evolutionTier === 2) {
-                    drawRoundRect(cardG, x + cardW - 46, y + 5, 41, 16, 6, 0x082f49, 0.9, 0x38bdf8, 1.2);
-                    evoBadgeObj = createHDText(this, x + cardW - 25, y + 13, '✨ ЭЛЕМ', {
-                        fontSize: '9px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
-                        color: '#7dd3fc', fontStyle: '900',
+                    drawRoundRect(cardG, x + cardW - 52, y + 5, 47, 16, 6, 0x0369a1, 0.95, 0x38bdf8, 1.2);
+                    evoBadgeObj = createHDText(this, x + cardW - 28, y + 13, '⚡ СТИХИЯ', {
+                        fontSize: '8.5px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
+                        color: '#bae6fd', fontStyle: '900',
                     }).setOrigin(0.5, 0.5);
                 } else if (mob.evolutionTier === 3) {
                     drawRoundRect(cardG, x + cardW - 46, y + 5, 41, 16, 6, 0x451a03, 0.9, 0xf59e0b, 1.2);
@@ -353,15 +379,18 @@ class CollectionScene extends Phaser.Scene {
                 // Имя моба
                 const nameTxt = createHDText(this, avX, y + 65, mob.name, {
                     fontSize: '11.5px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
-                    color: '#ffffff', stroke: '#0f172a', strokeThickness: 3, fontStyle: '800',
+                    color: isElementalTab ? '#f0f9ff' : '#ffffff', stroke: '#0f172a', strokeThickness: 3, fontStyle: '800',
                     wordWrap: { width: cardW - 10 }
                 }).setOrigin(0.5, 0.5);
 
                 // Бейдж урона
-                drawRoundRect(cardG, avX - 38, y + 80, 76, 17, 7, 0x14532d, 0.85, 0x22c55e, 1.2);
+                const atkBg = isElementalTab ? 0x0e7490 : 0x14532d;
+                const atkStroke = isElementalTab ? 0x06b6d4 : 0x22c55e;
+                const atkTextColor = isElementalTab ? '#67e8f9' : '#4ade80';
+                drawRoundRect(cardG, avX - 38, y + 80, 76, 17, 7, atkBg, 0.9, atkStroke, 1.2);
                 const atkTxt = createHDText(this, avX, y + 88, `⚔ ${formatNumber(mob.atk)}`, {
                     fontSize: '11px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
-                    color: '#4ade80', stroke: '#052e16', strokeThickness: 2, fontStyle: '900',
+                    color: atkTextColor, stroke: '#082f49', strokeThickness: 2, fontStyle: '900',
                 }).setOrigin(0.5, 0.5);
 
                 // Интерактивный клик с упругим сочным сквишем
@@ -385,27 +414,31 @@ class CollectionScene extends Phaser.Scene {
 
             } else {
                 // Заблокированная карточка в открытой эволюции
+                const lockBg = isElementalTab ? 0x07111e : 0x090d16;
+                const lockStroke = isElementalTab ? 0x0e3a5a : 0x1e293b;
+                const lockRingStroke = isElementalTab ? 0x0284c7 : 0x334155;
+
                 drawRoundRect(cardG, x, y + 2, cardW, cardH, 12, 0x020617, 0.35);
-                drawRoundRect(cardG, x, y, cardW, cardH, 12, 0x090d16, 0.85, 0x1e293b, 1.5);
+                drawRoundRect(cardG, x, y, cardW, cardH, 12, lockBg, 0.92, lockStroke, 1.5);
 
                 const avX = x + cardW / 2;
                 const avY = y + 33;
                 cardG.fillStyle(0x020617, 0.85);
                 cardG.fillCircle(avX, avY, 25);
-                cardG.lineStyle(1.5, 0x334155, 0.4);
+                cardG.lineStyle(1.5, lockRingStroke, isElementalTab ? 0.6 : 0.4);
                 cardG.strokeCircle(avX, avY, 25);
 
                 const lockIcon = createHDText(this, avX, avY, '🔒', { fontSize: '20px' }).setOrigin(0.5, 0.5);
 
-                drawRoundRect(cardG, x + 5, y + 5, 42, 16, 6, 0x090d16, 0.9, 0x334155, 1);
+                drawRoundRect(cardG, x + 5, y + 5, 42, 16, 6, lockBg, 0.9, lockRingStroke, 1);
                 const lvlTxt = createHDText(this, x + 26, y + 13, `Lv.${mob.level}`, {
                     fontSize: '10px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
-                    color: '#64748b', fontStyle: '800',
+                    color: isElementalTab ? '#38bdf8' : '#64748b', fontStyle: '800',
                 }).setOrigin(0.5, 0.5);
 
                 const unknownTxt = createHDText(this, avX, y + 68, '???', {
                     fontSize: '13px', fontFamily: CONFIG.FONT_FAMILY || "'Nunito', sans-serif",
-                    color: '#475569', fontStyle: '900',
+                    color: isElementalTab ? '#0284c7' : '#475569', fontStyle: '900',
                 }).setOrigin(0.5, 0.5);
 
                 this.cardsContainer.add([cardG, lockIcon, lvlTxt, unknownTxt]);

@@ -75,6 +75,8 @@ def capture_all_screenshots():
         ("world_selector", "world_selector.png"),
         ("feature_notification_dot", "feature_notification_dot.png"),
         ("evolution_unlock_modal", "evolution_unlock_modal.png"),
+        ("modal_queue_step1_milestone", "modal_queue_step1_milestone.png"),
+        ("modal_queue_step2_new_mob", "modal_queue_step2_new_mob.png"),
     ]
 
     for scenario_name, out_filename in scenarios:
